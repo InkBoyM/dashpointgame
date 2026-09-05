@@ -618,7 +618,6 @@
 
   function restartLevel() {
     if (!state.engine) return;
-    try { state.engine.clearCheckpoint(); } catch(e){}
     state.engine.reset();
     if (DP.Music) DP.Music.play(state.engine.level.song);
     el("winCard").classList.remove("visible");
