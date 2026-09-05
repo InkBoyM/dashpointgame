@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DashPoint — Level Builder</title>
+  <link rel="icon" href="assets/ui/favicon.png" type="image/png" />
+  <link rel="stylesheet" href="css/editor.css" />
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="topbar">
+      <div class="brand">
+        <img class="title" src="assets/ui/title.png" alt="DashPoint" />
+      </div>
+      <input id="levelName" class="level-name" maxlength="48" spellcheck="false" value="New Level" />
+      <div class="top-actions">
+        <button class="text-btn" id="btnNew" title="New level (Ctrl+N)">New</button>
+        <button class="text-btn" id="btnLibrary" title="Local drafts">Library</button>
+        <button class="text-btn" id="btnImport" title="Import JSON (Ctrl+O)">Import</button>
+        <button class="text-btn good" id="btnExport" title="Export JSON (Ctrl+E)">Export</button>
+        <button class="text-btn gold" id="btnPost" title="Post to DashPoint Network">Post</button>
+        <button class="icon-btn" id="btnSkins" title="Playtest skin">
+          <img src="assets/ui/character.png" alt="Skin" />
+        </button>
+        <button class="icon-btn" id="btnSettings" title="Settings">
+          <img src="assets/ui/settings.png" alt="Settings" />
+        </button>
+        <button class="icon-btn" id="btnHelp" title="Help (?)">?</button>
+        <button class="text-btn play" id="btnPlay" title="Playtest (Enter)">
+          <img src="assets/ui/play.png" alt="" />
+          <span id="playLabel">Playtest</span>
+        </button>
+      </div>
+    </header>
+
+    <aside class="palette">
+      <div class="section-title">Tools</div>
+      <div class="tools" id="tools">
+        <button class="tool active" data-tool="paint" title="Paint (B)"><span>Paint</span><b class="k">B</b></button>
+        <button class="tool" data-tool="erase" title="Erase (E)"><span>Erase</span><b class="k">E</b></button>
+        <button class="tool" data-tool="fill" title="Fill (F)"><span>Fill</span><b class="k">F</b></button>
+        <button class="tool" data-tool="rect" title="Rectangle (R)"><span>Rect</span><b class="k">R</b></button>
+        <button class="tool" data-tool="line" title="Line (L)"><span>Line</span><b class="k">L</b></button>
+        <button class="tool" data-tool="select" title="Select (V)"><span>Select</span><b class="k">V</b></button>
+        <button class="tool" data-tool="picker" title="Eyedropper (I)"><span>Pick</span><b class="k">I</b></button>
+        <button class="tool" data-tool="spawn" title="Spawn (P)"><span>Spawn</span><b class="k">P</b></button>
+        <button class="tool" data-tool="prefab" title="Prefabs (G)"><span>Prefab</span><b class="k">G</b></button>
+        <button class="tool" data-tool="text" title="Text (T)"><span>Text</span><b class="k">T</b></button>
+      </div>
+
+      <div class="section-title">Tiles</div>
+      <div class="tile-grid">
+        <button class="tile-btn active" data-tile="brick" title="Solid ground">
+          <img src="assets/tiles/brick.png" alt="" />
+          <span>Brick 1</span>
+        </button>
+        <button class="tile-btn" data-tile="spike" title="Kills on touch">
+          <img src="assets/tiles/spike.png" alt="" id="spikeIcon" />
+          <span>Spike 2</span>
+        </button>
+        <button class="tile-btn" data-tile="ibrick" title="Invisible block — solid, hidden while playing">
+          <img src="assets/tiles/brick.png" alt="" class="invis-icon" />
+          <span>I-Blk 8</span>
+        </button>
+        <button class="tile-btn" data-tile="goal" title="Ends the level">
+          <img src="assets/tiles/goal.png" alt="" />
+          <span>Goal 3</span>
+        </button>
+        <button class="tile-btn" data-tile="ispike" title="Invisible spike — kills, hidden while playing">
+          <img src="assets/tiles/spike.png" alt="" id="ispikeIcon" class="invis-icon" />
+          <span>Invis 4</span>
+        </button>
+        <button class="tile-btn" data-tile="orb" title="Bounce orb — press jump while touching for a big bounce">
+          <img src="assets/tiles/BounceOrb.png" alt="" />
+          <span>Orb 5</span>
+        </button>
+        <button class="tile-btn" data-tile="pad" title="Bounce pad — launches you automatically on touch">
+          <img src="assets/tiles/BouncePad.png" alt="" />
+          <span>Pad 6</span>
+        </button>
+        <button class="tile-btn" data-tile="dash" title="Dash — touch to lunge fast in the direction you're pressing">
+          <img src="assets/tiles/DashIcon.png" alt="" />
+          <span>Dash 7</span>
+        </button>
+        <button class="tile-btn" data-tile="checkpoint" title="Checkpoint — respawn here after death">
+          <img src="assets/tiles/checkpoint.png" alt="" />
+          <span>Checkpoint 9</span>
+        </button>
+      </div>
+
+      <div class="section-title" style="margin-top:14px">Level text</div>
+      <input id="textDraft" class="level-name" style="width:100%; margin-bottom:8px" maxlength="64" spellcheck="false" value="JUMP!" placeholder="Type a label" />
+      <div class="chips" id="textColors"></div>
+      <div class="chips" id="textSizes" style="margin-top:6px">
+        <button class="chip active" data-scale="1">S</button>
+        <button class="chip" data-scale="2">M</button>
+        <button class="chip" data-scale="3">L</button>
+      </div>
+      <p class="hint">No collision. Click to stamp. Erase, right-click, or Delete removes a label — click the letters, not just the center tile.</p>
+
+      <div class="section-title" style="margin-top:14px">Spike rotation</div>
+      <div class="rot-preview" id="rotations"></div>
+      <p class="hint">Mouse wheel over canvas rotates spikes and invis spikes. <span class="k">[</span> <span class="k">]</span> also work. Invisible tiles show as faded + INV in the editor, and vanish in playtest.</p>
+
+      <div class="section-title" style="margin-top:14px">Prefabs</div>
+      <div class="chips" id="prefabs"></div>
+      <p class="hint">Click a prefab, then stamp it. Ghost preview follows the cursor. Hold <span class="k">Alt</span> to play from the hovered cell.</p>
+    </aside>
+
+    <div class="viewport-wrap" id="viewportWrap">
+      <canvas id="view"></canvas>
+      <div class="play-hud" id="playHud">
+        <div class="hud-chip">
+          <span id="hudTime">0.00</span>
+          <span id="hudDeaths">deaths 0</span>
+          <span id="hudState">PLAY</span>
+        </div>
+        <div class="hud-chip">
+          <button class="mini" id="btnRestart">Restart (R)</button>
+          <button class="mini" id="btnStop">Edit (Esc)</button>
+        </div>
+      </div>
+      <div class="overlay-card" id="winCard">
+        <div class="card">
+          <h2>CLEARED</h2>
+          <p id="winText">Nice run.</p>
+          <div class="card-actions">
+            <button class="text-btn play" id="btnWinRestart">Restart</button>
+            <button class="text-btn" id="btnWinEdit">Back to editor</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="inspector">
+      <div class="section-title">Level</div>
+      <label>Size (tiles)</label>
+      <div class="row">
+        <input id="cols" type="number" min="16" max="20000" />
+        <span>×</span>
+        <input id="rows" type="number" min="8" max="400" />
+      </div>
+      <label>Extend by</label>
+      <div class="chips" id="growAmounts">
+        <button class="chip" data-amt="1">1</button>
+        <button class="chip" data-amt="8">8</button>
+        <button class="chip active" data-amt="32">32</button>
+        <button class="chip" data-amt="128">128</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button class="mini grow" data-grow="left">+L</button>
+        <button class="mini grow" data-grow="right">+R</button>
+        <button class="mini grow" data-grow="top">+T</button>
+        <button class="mini grow" data-grow="bottom">+B</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button class="mini grow" data-shrink="left">−L</button>
+        <button class="mini grow" data-shrink="right">−R</button>
+        <button class="mini grow" data-shrink="top">−T</button>
+        <button class="mini grow" data-shrink="bottom">−B</button>
+      </div>
+      <p class="hint">Paint past the edge to grow. +R keeps the floor going. Max width 20000 tiles.</p>
+
+      <label>Camera</label>
+      <div class="row">
+        <button class="mini grow" id="btnZoomOut">−</button>
+        <button class="mini grow" id="btnZoomFit">Fit</button>
+        <button class="mini grow" id="btnZoomIn">+</button>
+        <button class="mini grow" id="btnGrid">Grid</button>
+      </div>
+      <div class="minimap-wrap"><canvas id="minimap"></canvas></div>
+
+      <div class="section-title" style="margin-top:14px">Gameplay</div>
+      <label>Move speed <span id="vSpeed"></span></label>
+      <input type="range" id="gSpeed" min="160" max="520" step="10" />
+      <label>Jump <span id="vJump"></span></label>
+      <input type="range" id="gJump" min="400" max="900" step="10" />
+      <label>Gravity <span id="vGrav"></span></label>
+      <input type="range" id="gGrav" min="900" max="3200" step="20" />
+      <label>Song</label>
+      <select id="gSong" class="level-name" style="width:100%; margin-bottom:4px"></select>
+      <p class="hint">Plays on a loop in playtest and in the game. Pick No song to stay silent.</p>
+
+      <div class="section-title" style="margin-top:14px">Theme</div>
+      <div class="chips" id="themeChips"></div>
+      <div class="row" style="margin-top:8px">
+        <label class="theme-lab">Top <input type="color" id="thTop" /></label>
+        <label class="theme-lab">Mid <input type="color" id="thMid" /></label>
+        <label class="theme-lab">Bot <input type="color" id="thBottom" /></label>
+      </div>
+
+      <div class="section-title" style="margin-top:14px">Stats</div>
+      <div class="stat">Bricks <b id="cBrick">0</b></div>
+      <div class="stat">I-Blk <b id="cIBrick">0</b></div>
+      <div class="stat">Spikes <b id="cSpike">0</b></div>
+      <div class="stat">Invis <b id="cInvis">0</b></div>
+      <div class="stat">Orbs <b id="cOrb">0</b></div>
+      <div class="stat">Pads <b id="cPad">0</b></div>
+      <div class="stat">Dashes <b id="cDash">0</b></div>
+      <div class="stat">Goals <b id="cGoal">0</b></div>
+      <div class="stat">Text <b id="cText">0</b></div>
+      <div class="stat">Spawn <b id="cSpawn">0,0</b></div>
+      <div class="stat">Validate <b id="cValid">—</b></div>
+
+      <div class="row" style="margin-top:12px">
+        <button class="text-btn grow" id="btnCopy">Copy JSON</button>
+        <button class="text-btn danger grow" id="btnClear">Clear</button>
+      </div>
+      <p class="hint">Autosaves to this browser. Export a <span class="k">.dashpoint.json</span> file and send it to add the level to the game.</p>
+    </aside>
+
+    <footer class="status">
+      <span class="dot" id="dirtyDot"></span>
+      <span id="statusMain">Ready</span>
+      <span id="statusCell">—</span>
+      <span id="statusZoom">100%</span>
+      <span style="margin-left:auto" id="statusHint"></span>
+    </footer>
+  </div>
+
+  <input id="fileInput" type="file" accept="application/json,.json,.dashpoint.json" hidden />
+
+  <div class="modal-root" id="modalHelp">
+    <div class="modal">
+      <h2>Builder shortcuts</h2>
+      <div class="help-grid">
+        <b>B / E / F</b><span>Paint, erase, fill</span>
+        <b>R / L / V</b><span>Rectangle, line, select</span>
+        <b>I / P / G / T</b><span>Eyedropper, spawn, prefab, text</span>
+        <b>1 2 3 4 5 6 7 8</b><span>Brick, spike, goal, invis spike, orb, pad, dash, invis block</span>
+        <b>[ ] wheel</b><span>Rotate spike</span>
+        <b>Right click</b><span>Eyedropper (or erase with right-drag)</span>
+        <b>Middle / Space</b><span>Pan camera</span>
+        <b>Wheel</b><span>Zoom toward cursor</span>
+        <b>Ctrl+Z / Y</b><span>Undo / redo</span>
+        <b>Ctrl+C / X / V</b><span>Copy / cut / paste selection</span>
+        <b>H / Shift+H</b><span>Flip selection horizontal / vertical</span>
+        <b>Q</b><span>Rotate selection 90°</span>
+        <b>Del</b><span>Delete selection</span>
+        <b>Enter / Esc</b><span>Playtest / return to edit</span>
+        <b>R in play</b><span>Restart from spawn</span>
+        <b>Alt + click play</b><span>Play from hovered cell</span>
+        <b>+R / paint past edge</b><span>Make the level as long as you want (max 20000)</span>
+        <b>Ctrl+S</b><span>Save to library</span>
+        <b>Ctrl+E / O / N</b><span>Export / import / new</span>
+        <b>WASD / arrows</b><span>Move in playtest · jump is W / Up / Space</span>
+      </div>
+      <p class="hint">Jump is included so spikes are avoidable. Keybinds are remappable in Settings.</p>
+      <div class="row" style="margin-top:12px; justify-content:flex-end">
+        <button class="text-btn" data-close="modalHelp">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-root" id="modalSettings">
+    <div class="modal">
+      <h2>Settings</h2>
+      <label>Username (saved for later online play)</label>
+      <input id="setUser" type="text" maxlength="24" placeholder="player" />
+      <label style="margin-top:14px">Keybinds — click a bind, then press a key. Esc cancels.</label>
+      <div class="bind-row"><span>Left</span><div id="bindLeft"></div><button class="mini" data-bind="left">Change</button></div>
+      <div class="bind-row"><span>Right</span><div id="bindRight"></div><button class="mini" data-bind="right">Change</button></div>
+      <div class="bind-row"><span>Jump</span><div id="bindJump"></div><button class="mini" data-bind="jump">Change</button></div>
+      <div class="row" style="margin-top:8px">
+        <button class="mini" id="btnResetBinds">Reset binds</button>
+        <label class="row" style="margin:0; gap:8px; text-transform:none; letter-spacing:0; font-size:12px; color:var(--text)">
+          <input type="checkbox" id="setHitbox" /> Show hitboxes
+        </label>
+        <label class="row" style="margin:0; gap:8px; text-transform:none; letter-spacing:0; font-size:12px; color:var(--text)">
+          <input type="checkbox" id="setFps" /> FPS (debug)
+        </label>
+        <label class="row" style="margin:0; gap:8px; text-transform:none; letter-spacing:0; font-size:12px; color:var(--text)">
+          <input type="checkbox" id="setAuto" checked /> Auto-respawn
+        </label>
+      </div>
+      <div class="row" style="margin-top:14px; justify-content:flex-end">
+        <button class="text-btn" data-close="modalSettings">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-root" id="modalSkins">
+    <div class="modal">
+      <h2>Playtest skin</h2>
+      <div class="skins" id="skinGrid"></div>
+      <p class="hint">This is only the cube you playtest with. Character select for the shipped game comes later.</p>
+      <div class="row" style="margin-top:14px; justify-content:flex-end">
+        <button class="text-btn" data-close="modalSkins">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-root" id="modalLibrary">
+    <div class="modal">
+      <h2>Local library</h2>
+      <div class="library-list" id="libraryList"></div>
+      <div class="row" style="margin-top:14px; justify-content:flex-end">
+        <button class="text-btn" data-close="modalLibrary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-database-compat.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/network.js"></script>
+  <script src="js/post.js"></script>
+  <script src="js/editor.js"></script>
+</body>
+</html>

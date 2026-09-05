@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DashPoint</title>
+  <link rel="icon" href="assets/ui/favicon.png" type="image/png" />
+  <link rel="stylesheet" href="css/game.css" />
+</head>
+<body>
+  <!-- Splash screen -->
+  <div class="splash-root" id="splashRoot">
+    <div class="splash-content">
+      <img class="splash-logo" src="assets/ui/favicon.png" alt="DashPoint" />
+    </div>
+  </div>
+
+  <div class="screen visible" id="screen-home">
+    <div class="home-fx" aria-hidden="true">
+      <div class="home-glow"></div>
+      <div class="home-stars"></div>
+      <img class="fx-cube c1" src="assets/skins/skin-1.png" alt="" />
+      <img class="fx-cube c2" src="assets/skins/skin-5.png" alt="" />
+      <img class="fx-cube c3" src="assets/skins/skin-2.png" alt="" />
+    </div>
+    <div class="home-center">
+      <img class="home-logo" src="assets/ui/title.png" alt="DashPoint" />
+      <div class="home-buttons">
+        <button class="px-btn good" id="btnPlay"><img src="assets/ui/play.png" alt="" /><span>PLAY</span></button>
+        <button class="px-btn gold" id="btnSkinsHome"><img src="assets/ui/character.png" alt="" /><span>SKINS</span></button>
+        <button class="px-btn net" id="btnNetwork"><img src="assets/ui/net.png" alt="" /><span>NETWORK</span></button>
+      </div>
+      <div class="home-fab-row">
+        <button class="home-settings-btn" id="btnSettingsHome" title="Settings">
+          <img src="assets/ui/settings.png" alt="" />
+        </button>
+        <button class="home-settings-btn" id="btnProfileHome" title="Profile">
+          <img src="assets/ui/profile.png" alt="" />
+        </button>
+      </div>
+      <div class="home-foot">
+        <img class="home-skin" id="homeSkinPreview" src="assets/skins/skin-1.png" alt="" title="Equipped skin" />
+        <div class="home-stats" id="homeStats"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen" id="screen-levels">
+    <header class="topbar">
+      <button class="px-btn small" id="btnBackHome">&#9664; BACK</button>
+      <h1 class="bar-title">LEVELS</h1>
+      <span class="bar-spacer"></span>
+    </header>
+    <div class="level-list" id="levelList"></div>
+  </div>
+
+  <div class="screen" id="screen-game">
+    <canvas id="view"></canvas>
+    <div class="hud">
+      <div class="hud-chip">
+        <span id="hudTime">0.00</span>
+        <span id="hudDeaths">deaths 0</span>
+        <span id="hudAuthor" class="hud-author-chip hidden" title="Open creator's profile"></span>
+      </div>
+      <div class="hud-chip">
+        <button class="px-btn tiny" id="btnRestart">R RESTART</button>
+        <button class="px-btn tiny" id="btnQuit">ESC PAUSE</button>
+      </div>
+    </div>
+    <div class="overlay-card" id="pauseCard">
+      <div class="card">
+        <h2>PAUSED</h2>
+        <p>Game paused</p>
+        <div class="card-actions">
+          <button class="px-btn small good" id="btnPauseResume">RESUME</button>
+          <button class="px-btn small" id="btnPauseRestart">RESTART</button>
+          <button class="px-btn small danger" id="btnPauseQuit">LEVELS</button>
+        </div>
+      </div>
+    </div>
+    <div class="overlay-card" id="winCard">
+      <div class="card">
+        <h2>CLEARED!</h2>
+        <p id="winText">Nice run.</p>
+        <div id="leaderboardBox" class="leaderboard"></div>
+        <div class="card-actions">
+          <button class="px-btn small good" id="btnWinRestart">RETRY</button>
+          <button class="px-btn small" id="btnWinMenu">LEVELS</button>
+          <button class="px-btn small" id="btnWinNext">NEXT &#9654;</button>
+          <button class="px-btn small gold" id="btnWinShare">SHARE</button>
+        </div>
+      </div>
+    </div>
+    <div id="ghostCountdown" class="ghost-countdown hidden"></div>
+  </div>
+
+  <div class="modal-root" id="modalSkins">
+    <div class="modal">
+      <h2>SKINS</h2>
+      <div class="skin-grid" id="skinGrid"></div>
+      <p class="hint" id="skinHint">Beat levels and collect deaths to unlock new cubes. Some are hidden…</p>
+      <div class="row-end"><button class="px-btn small" data-close="modalSkins">DONE</button></div>
+    </div>
+  </div>
+
+  <div class="modal-root" id="modalSettings">
+    <div class="modal">
+      <h2>SETTINGS</h2>
+      <label class="check-row"><input type="checkbox" id="setHitbox" /> Show hitboxes</label>
+      <label class="check-row"><input type="checkbox" id="setFps" /> FPS (debug)</label>
+      <label class="check-row"><input type="checkbox" id="setAuto" checked /> Auto-respawn</label>
+      <label class="check-row" id="spaceRow"><input type="checkbox" id="setSpace" disabled /> Space mode</label>
+      <p class="hint" id="spaceHint">Beat The Climb to unlock this menu theme.</p>
+      <hr class="sep" />
+      <div class="row-end"><button class="px-btn small danger" id="btnResetProgress">RESET PROGRESS</button></div>
+      <div class="row-end"><button class="px-btn small" data-close="modalSettings">DONE</button></div>
+    </div>
+  </div>
+
+  <!-- Profile modal -->
+  <div class="modal-root" id="modalProfile">
+    <div class="modal">
+      <h2>PROFILE</h2>
+
+      <div class="section-title">Account</div>
+      <div id="profLoggedOut">
+        <input class="px-input" id="profEmail" type="email" maxlength="64" placeholder="email" />
+        <input class="px-input" id="profPass" type="password" maxlength="64" placeholder="password" />
+        <p class="hint" id="profMsg"></p>
+        <div class="row-gap">
+          <button class="px-btn small good" id="btnProfLogin">LOG IN</button>
+          <button class="px-btn small gold" id="btnProfRegister">REGISTER</button>
+        </div>
+      </div>
+      <div id="profLoggedIn" style="display:none">
+        <p class="hint">Signed in as <b id="profName" style="color:var(--good)"></b></p>
+        <div class="row-gap"><button class="px-btn small danger" id="btnProfLogout">LOG OUT</button></div>
+      </div>
+
+      <hr class="sep" />
+      <div class="section-title">Change username</div>
+      <input class="px-input" id="profUser" maxlength="24" placeholder="new username" />
+      <div class="row-gap"><button class="px-btn small gold" id="btnProfUser">SAVE USERNAME</button></div>
+
+      <hr class="sep" />
+      <div class="section-title">Change password</div>
+      <input class="px-input" id="profOldPass" type="password" maxlength="64" placeholder="old password" />
+      <input class="px-input" id="profNewPass" type="password" maxlength="64" placeholder="new password" />
+      <div class="row-gap"><button class="px-btn small gold" id="btnProfPass">CHANGE PASSWORD</button></div>
+
+      <hr class="sep" />
+      <div class="section-title">Cloud</div>
+      <p class="hint">Sync everything: levels, skins, deaths, best times.</p>
+      <div class="row-gap"><button class="px-btn small gold" id="btnProfSync">SYNC TO CLOUD</button><button class="px-btn small" id="btnProfDownload">DOWNLOAD</button></div>
+      <p class="hint" id="profCloudStatus"></p>
+
+      <hr class="sep" />
+      <div class="section-title">Multiplayer</div>
+      <div class="stat-row"><span>Status</span><b id="profMpState">Offline</b></div>
+      <div class="row-gap" id="profMpIdleRow">
+        <button class="px-btn small gold" id="btnProfHost">HOST ROOM</button>
+        <input class="px-input code" id="profCode" type="text" maxlength="5" placeholder="CODE" />
+        <button class="px-btn small" id="btnProfJoin">JOIN</button>
+      </div>
+      <div class="row-gap" id="profMpActiveRow" style="display:none">
+        <button class="px-btn small" id="btnProfCopy">COPY CODE</button>
+        <button class="px-btn small danger" id="btnProfLeave">LEAVE</button>
+      </div>
+
+      <hr class="sep" />
+      <div class="row-end"><button class="px-btn small" data-close="modalProfile">CLOSE</button></div>
+    </div>
+  </div>
+
+  <div id="achievements"></div>
+
+  <div class="screen" id="screen-network">
+    <header class="topbar">
+      <button class="px-btn small" id="btnNetBack">&#9664; BACK</button>
+      <h1 class="bar-title">DASHPOINT NETWORK</h1>
+      <span class="bar-spacer"></span>
+      <span class="net-acct" id="netAcct"></span>
+    </header>
+    <div class="net-body">
+      <div class="net-grid">
+        <button class="net-tile" id="netEditor">
+          <img src="assets/ui/net-editor.png" alt="" />
+          <b>EDITOR</b>
+          <span>Create &amp; post levels (PC only)</span>
+        </button>
+        <button class="net-tile" id="netSaved">
+          <img src="assets/ui/net-saved.png" alt="" />
+          <b>SAVED LEVELS</b>
+          <span id="netSavedCount">0 downloaded · offline ready</span>
+        </button>
+        <button class="net-tile" id="netSearch">
+          <img src="assets/ui/net-search.png" alt="" />
+          <b>SEARCH</b>
+          <span>Find levels &amp; players</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen" id="screen-netsaved">
+    <header class="topbar">
+      <button class="px-btn small" id="btnNetBackSaved">&#9664; BACK</button>
+      <h1 class="bar-title">SAVED LEVELS</h1>
+      <span class="bar-spacer"></span>
+    </header>
+    <div class="level-list" id="savedList"></div>
+  </div>
+
+  <div class="screen" id="screen-netsearch">
+    <header class="topbar">
+      <button class="px-btn small" id="btnNetBackSearch">&#9664; BACK</button>
+      <h1 class="bar-title">SEARCH</h1>
+      <span class="bar-spacer"></span>
+    </header>
+    <div class="net-search-head">
+      <div class="chips">
+        <button class="chip active" data-tab="levels">LEVELS</button>
+        <button class="chip" data-tab="users">PLAYERS</button>
+      </div>
+      <input type="text" id="netQuery" class="px-input" placeholder="type to search…" autocomplete="off" />
+    </div>
+    <div class="net-results" id="netResults"><p class="loading-note">Type something to search.</p></div>
+  </div>
+
+  <div class="modal-root" id="modalAccount">
+    <div class="modal">
+      <h2 id="acctTitle">PLAYER</h2>
+      <div class="stat-row"><span>Levels made</span><b id="acctMade">0</b></div>
+      <div class="stat-row"><span>Levels beaten</span><b id="acctBeaten">0</b></div>
+      <div class="stat-row"><span>Total deaths</span><b id="acctDeaths">0</b></div>
+      <hr class="sep" />
+      <div class="section-title">LEVELS BY THIS PLAYER</div>
+      <div class="net-results" id="acctLevels"></div>
+      <div class="row-end"><button class="px-btn small" data-close="modalAccount">CLOSE</button></div>
+    </div>
+  </div>
+
+  <!-- Level info / preview menu (Geometry Dash style) -->
+  <div class="modal-root" id="modalLevelInfo">
+    <div class="modal level-info-modal">
+      <h2 id="liName">LEVEL</h2>
+      <div class="li-diff" id="liDiff"></div>
+      <div class="stat-row"><span>Author</span><b id="liAuthor">—</b></div>
+      <div class="stat-row"><span>Best time</span><b id="liBest">—</b></div>
+      <div class="stat-row"><span>Attempts</span><b id="liAttempts">0</b></div>
+      <div class="stat-row"><span>Deaths</span><b id="liDeaths">0</b></div>
+      <div class="row" style="margin-top:14px; justify-content:center; gap:10px">
+        <button class="px-btn good" id="btnLiPlay">PLAY</button>
+      </div>
+      <div class="row-end">
+        <button class="px-btn small danger" id="btnLiDelete" style="display:none">DELETE LEVEL</button>
+        <button class="px-btn small" data-close="modalLevelInfo">BACK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin delete reason panel -->
+  <div class="modal-root" id="modalAdminDelete">
+    <div class="modal">
+      <h2>DELETE LEVEL</h2>
+      <p class="hint">You're deleting <b id="adTitle">this level</b>. The author will be notified on their next login.</p>
+      <label>Reason</label>
+      <input class="px-input" id="adReason" maxlength="200" placeholder="e.g. Against the rules / inappropriate" />
+      <div class="row" style="margin-top:14px; justify-content:flex-end; gap:10px">
+        <button class="px-btn small" id="btnAdCancel">CANCEL</button>
+        <button class="px-btn small danger" id="btnAdConfirm">DELETE</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-database-compat.js"></script>
+  <div id="hudFps" class="fps-debug hidden">FPS --</div>
+  <script src="js/skins.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/levels-data.js"></script>
+  <script src="js/mp.js"></script>
+  <script src="js/network.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
