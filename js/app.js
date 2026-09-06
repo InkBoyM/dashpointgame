@@ -499,6 +499,18 @@
     if (name === "network" || name === "netsaved" || name === "netsearch") state.netBack = name;
   }
 
+  async function fetchCampaignLevel(file) {
+    const urls = ["Levels/" + file, "levels/" + file];
+    for (let i = 0; i < urls.length; i++) {
+      try {
+        const res = await fetch(urls[i], { cache: "reload" });
+        if (!res.ok) continue;
+        return DP.Level.parse(await res.text());
+      } catch (e) {}
+    }
+    return null;
+  }
+
   async function loadLevels() {
     const box = el("levelList");
     box.innerHTML = '<p class="loading-note">LOADING…</p>';
@@ -506,20 +518,31 @@
     const seen = {};
 
     const embedded = Array.isArray(window.DashPointLevelData) ? window.DashPointLevelData : [];
+    const embedByFile = {};
     for (const entry of embedded) {
-      try {
-        loaded.push({ file: entry.file, level: DP.Level.parse(JSON.stringify(entry.json)) });
-        seen[entry.file] = true;
-      } catch (e) {}
+      if (entry && entry.file) embedByFile[entry.file] = entry;
     }
 
     for (const f of LEVEL_FILES) {
-      if (seen[f]) continue;
-      try {
-        const res = await fetch("levels/" + f);
-        if (!res.ok) continue;
-        loaded.push({ file: f, level: DP.Level.parse(await res.text()) });
+      const live = await fetchCampaignLevel(f);
+      if (live) {
+        loaded.push({ file: f, level: live });
         seen[f] = true;
+        continue;
+      }
+      const entry = embedByFile[f];
+      if (!entry) continue;
+      try {
+        loaded.push({ file: entry.file, level: DP.Level.parse(JSON.stringify(entry.json)) });
+        seen[f] = true;
+      } catch (e) {}
+    }
+
+    for (const entry of embedded) {
+      if (!entry || seen[entry.file]) continue;
+      try {
+        loaded.push({ file: entry.file, level: DP.Level.parse(JSON.stringify(entry.json)) });
+        seen[entry.file] = true;
       } catch (e) {}
     }
 
