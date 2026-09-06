@@ -1505,9 +1505,9 @@
     setStatus("Editing");
   }
 
-  function restartPlay(keepTime) {
+  function restartPlay() {
     if (!state.playing || !state.engine) return;
-    state.engine.reset({ keepTime: !!keepTime });
+    state.engine.reset();
     if (DP.Music) DP.Music.play(state.engine.level.song);
     els.winCard.classList.remove("visible");
     els.hudState.textContent = "PLAY";
@@ -1596,7 +1596,7 @@
         els.hudState.textContent = "DEAD";
       }
       if (state.engine.dead && state.settings.autoRespawn && state.engine.deathTimer > 0.55) {
-        restartPlay(true);
+        restartPlay();
       }
       if (state.engine.won) {
         els.hudState.textContent = "GOAL";
