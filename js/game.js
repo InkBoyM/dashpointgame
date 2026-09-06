@@ -720,7 +720,8 @@
       this.reset();
     }
 
-    reset() {
+    reset(opts) {
+      const keepTime = !!(opts && opts.keepTime) ? this.time : 0;
       this.level = this.source.clone();
       let p;
       if (this.checkpoint) {
@@ -750,7 +751,7 @@
       this.dead = false;
       this.won = false;
       this.deathReason = "";
-      this.time = 0;
+      this.time = keepTime;
       this.deathTimer = 0;
       this.winTimer = 0;
       this.flash = 0;

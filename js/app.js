@@ -898,7 +898,7 @@
 
   function respawn() {
     if (!state.engine) return;
-    state.engine.reset(); // keeps checkpoint -> spawns there
+    state.engine.reset({ keepTime: true }); // checkpoint spawn, same run time
     if (DP.Music) DP.Music.play(state.engine.level.song);
     el("winCard").classList.remove("visible");
     state.paused = false;
