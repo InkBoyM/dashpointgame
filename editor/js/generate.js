@@ -139,6 +139,8 @@ window.DashPointGenerate = {
     const goalR = rows - 3;
     set(goalC, goalR, "goal");
     level.spawn = { c: 2, r: startSurf - 1 };
+    level.meta.tags = ["AI generated"];
+    level.meta.aiGenerated = true;
     return level;
   },
 };

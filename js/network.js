@@ -214,6 +214,7 @@ window.DPNet = (function () {
       createdAt: Date.now(),
       plays: 0,
       downloads: 0,
+      tags: Array.isArray(meta.tags) ? meta.tags.map(function (t) { return String(t).slice(0, 32); }).filter(Boolean).slice(0, 8) : [],
     });
     await putJSON("/dashpoint/userLevels/" + u.uid + "/" + id, true);
     return id;

@@ -536,7 +536,9 @@
         '<span class="level-num">' + (n + 1) + "</span>" +
         '<span class="lc-face">' + diffFaceImg(localDiff(entry.file)) + "</span>" +
         '<span class="level-info"><span class="level-name">' + escapeHtml(entry.level.name) + "</span>" +
-        '<span class="level-meta">' + entry.level.cols + "\u00d7" + entry.level.rows + "</span></span>" +
+        '<span class="level-meta">' + entry.level.cols + "\u00d7" + entry.level.rows +
+        (entry.level.meta && entry.level.meta.tags && entry.level.meta.tags.length ? ' · <span class="level-tag">' + escapeHtml(entry.level.meta.tags.join(" · ")) + "</span>" : "") +
+        "</span></span>" +
         (done ? '<span class="level-done">\u2713 CLEARED</span>' : "") +
         (best ? '<span class="level-best">BEST ' + fmtTime(best) + "</span>" : "");
       b.addEventListener("click", () => startLevel(i));
@@ -1194,6 +1196,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     info.innerHTML =
       '<div class="n-title">' + escapeHtml(meta.title || "Untitled") + "</div>" +
       '<div class="n-sub">by <b class="n-author" style="cursor:pointer">' + escapeHtml(meta.authorName || "?") + "</b></div>" +
+      (meta.tags && meta.tags.length ? '<div class="n-sub"><span class="level-tag">' + escapeHtml(meta.tags.join(" · ")) + "</span></div>" : "") +
       '<div class="n-sub">' + escapeHtml((meta.desc || "").slice(0, 90)) + "</div>";
     const diff = document.createElement("div");
     diff.innerHTML = diffFaceImg(netDiff(meta));
@@ -1267,7 +1270,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
           !q ||
           String(l.title).toLowerCase().indexOf(q) !== -1 ||
           String(l.authorName).toLowerCase().indexOf(q) !== -1 ||
-          String(l.desc || "").toLowerCase().indexOf(q) !== -1
+          String(l.desc || "").toLowerCase().indexOf(q) !== -1 ||
+          String((l.tags || []).join(" ")).toLowerCase().indexOf(q) !== -1
       );
       if (!hits.length) {
         box.innerHTML = '<p class="loading-note">No levels match.</p>';

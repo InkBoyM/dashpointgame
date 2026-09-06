@@ -244,6 +244,16 @@ canvas { image-rendering: pixelated; }
 .level-info { flex: 1; min-width: 0; }
 .level-name { font-size: 19px; font-weight: 900; letter-spacing: 1px; text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.4); }
 .level-meta { font-size: 12px; color: #9db4d8; margin-top: 4px; letter-spacing: 1px; }
+.level-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: var(--cyan);
+  background: rgba(46, 230, 255, 0.12);
+  border: 2px solid var(--ink-dark);
+  padding: 1px 6px;
+}
 .level-done {
   font-weight: 900;
   font-size: 13px;

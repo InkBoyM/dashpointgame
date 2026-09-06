@@ -133,8 +133,9 @@
         const json = ed.exportJSON();
         const v = ed.getLevel().counts();
         if (v.goal < 1) throw new Error("Your level needs a goal before posting.");
+        const tags = json.meta && Array.isArray(json.meta.tags) ? json.meta.tags.slice(0, 8) : [];
         const id = await DPNet.postLevel(
-          { title: title, desc: el("postDesc").value.trim(), difficulty: difficulty },
+          { title: title, desc: el("postDesc").value.trim(), difficulty: difficulty, tags: tags },
           json
         );
         msg("");

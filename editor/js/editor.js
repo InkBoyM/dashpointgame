@@ -1006,6 +1006,9 @@
       validEl.textContent = v.issues.join(" · ") || "needs a goal";
       validEl.style.color = "var(--gold)";
     }
+    const tags = (state.level.meta && Array.isArray(state.level.meta.tags)) ? state.level.meta.tags : [];
+    const tagEl = document.getElementById("cTags");
+    if (tagEl) tagEl.textContent = tags.length ? tags.join(", ") : "—";
   }
 
   function exportLevel() {
