@@ -20,4 +20,5 @@ window.DashPointSkins = [
   { id: 18, name: "rich", src: "assets/skins/skin-18.png", hint: "Buy in the shop", unlock: { type: "shop", cost: 10000 } },
   { id: 19, name: "i'm with a noob", src: "assets/skins/skin-19.png", hint: "Redeem a code", unlock: { type: "code" } },
   { id: 20, name: "burger", src: "assets/skins/skin-20.png", hint: "Redeem a code", unlock: { type: "code" } },
+  { id: 21, name: "Torture Face", src: "assets/skins/skin-21.png", hint: "Beat any Torture level", unlock: { type: "diff", n: 5 } },
 ];

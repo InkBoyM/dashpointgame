@@ -59,17 +59,38 @@
   }
 
   function coinsForFile(file, meta) {
-    let tier = 2;
-    if (meta) tier = netDiff(meta);
-    else if (file && String(file).indexOf("net:") === 0) {
+    return COIN_BY_TIER[diffTier(fileDiff(file, meta))] || 0;
+  }
+
+  function fileDiff(file, meta) {
+    if (meta) return netDiff(meta);
+    if (file && String(file).indexOf("net:") === 0) {
+      const id = String(file).slice(4);
       try {
-        const id = String(file).slice(4);
         const net = window.DPNet;
         const sv = net && net.getSave && net.getSave(id);
-        if (sv && sv.meta) tier = netDiff(sv.meta);
+        if (sv && sv.meta) return netDiff(sv.meta);
       } catch (e) {}
-    } else if (file) tier = localDiff(file);
-    return COIN_BY_TIER[diffTier(tier)] || 0;
+      try {
+        if (levelIndexCache) {
+          const m = levelIndexCache.find(function (l) { return l.id === id; });
+          if (m) return netDiff(m);
+        }
+      } catch (e) {}
+      return 0;
+    }
+    if (file) return localDiff(file);
+    return 2;
+  }
+
+  function hasBeatenDiff(n) {
+    n = diffTier(n);
+    const beaten = save_.data.beaten || {};
+    for (const file in beaten) {
+      if (!Object.prototype.hasOwnProperty.call(beaten, file)) continue;
+      if (fileDiff(file) === n) return true;
+    }
+    return false;
   }
 
   function grantCoins(n, key) {
@@ -351,6 +372,7 @@
     if (u.type === "jumps") return (save_.data.jumps | 0) >= u.n;
     if (u.type === "either") return (save_.data.jumps | 0) >= (u.jumps | 0) || save_.data.deaths >= (u.deaths | 0);
     if (u.type === "beat") return Object.keys(save_.data.beaten).length > 0;
+    if (u.type === "diff") return hasBeatenDiff(u.n);
     if (u.type === "secreta") return save_.data.secretA === true;
     if (u.type === "shop" || u.type === "code") return false;
     return false;
@@ -625,12 +647,12 @@
     const starter = SKINS.filter(function(s){ return [1,2,3,4,5].indexOf(s.id)!==-1; });
     const deaths = SKINS.filter(function(s){ return s.unlock && (s.unlock.type==="deaths" || (s.unlock.type==="either" && s.unlock.deaths)); }).sort(function(a,b){ return (a.unlock.n || a.unlock.deaths || 0) - (b.unlock.n || b.unlock.deaths || 0); });
     const jumps = SKINS.filter(function(s){ return s.unlock && (s.unlock.type==="jumps" || (s.unlock.type==="either" && s.unlock.jumps)); }).sort(function(a,b){ return (a.unlock.n || a.unlock.jumps || 0) - (b.unlock.n || b.unlock.jumps || 0); });
-    const victory = SKINS.filter(function(s){ return s.unlock && s.unlock.type==="beat"; });
+    const victory = SKINS.filter(function(s){ return s.unlock && (s.unlock.type==="beat" || s.unlock.type==="diff"); });
     const secret = SKINS.filter(function(s){ return s.unlock && s.unlock.type==="secreta"; });
     addSection("STARTER", starter, "Always unlocked");
     addSection("DEATHS — die to unlock", deaths, "Progress shown per skin");
     addSection("JUMPS", jumps, "Jump to unlock");
-    addSection("VICTORY — beat any level", victory, "");
+    addSection("VICTORY — beat levels", victory, "");
     addSection("SECRET", secret, "Hidden — tap the SKINS title 7 times or press Alt+A");
     const shopOwned = SKINS.filter(function(s){ return isShopSkin(s) && isUnlocked(s.id); });
     if (shopOwned.length) addSection("SHOP", shopOwned, "Bought with coins");
@@ -1884,6 +1906,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
           "</p>";
       });
     migrateCoins();
+    checkUnlocks();
     applySpaceTheme();
     syncHomeStats();
     syncCoinUI();
