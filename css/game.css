@@ -290,8 +290,8 @@ canvas { image-rendering: pixelated; }
 .fps-debug {
   position: fixed;
   top: 10px;
-  left: 12px;
-  right: auto;
+  right: 12px;
+  left: auto;
   z-index: 80;
   font-family: var(--font);
   font-size: 28px;
