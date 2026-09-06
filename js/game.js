@@ -590,6 +590,7 @@
       this.skin = clamp((opts && opts.skin) | 0, 1, Math.max(1, SKINS.length));
       this.touched = new Set();
       this.checkpoint = null;
+      this.pendingJumps = 0;
       this.reset();
     }
 
@@ -1000,6 +1001,7 @@
         this.coyote = 0;
         this.buffer = 0;
         p.jumping = true;
+        this.pendingJumps = (this.pendingJumps || 0) + 1;
       }
 
       if (p.jumping && !jumpDown && p.vy < 0) {

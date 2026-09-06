@@ -52,7 +52,7 @@
   const CLIMB_FILE = "the_climb.dashpoint.json";
 
   function defaultSave() {
-    return { deaths: 0, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false };
+    return { deaths: 0, jumps: 0, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false };
   }
 
   function load() {
@@ -65,6 +65,7 @@
       s.best = s.best || {};
       s.attempts = s.attempts || {};
       s.spaceMenu = !!(s.spaceMenu || s.arcadeMenu);
+      s.jumps = s.jumps | 0;
       return s;
     } catch (e) {
       return defaultSave();
@@ -270,6 +271,7 @@
   function meetsUnlock(u) {
     if (!u) return true;
     if (u.type === "deaths") return save_.data.deaths >= u.n;
+    if (u.type === "jumps") return (save_.data.jumps | 0) >= u.n;
     if (u.type === "beat") return Object.keys(save_.data.beaten).length > 0;
     if (u.type === "secreta") return save_.data.secretA === true;
     return false;
@@ -483,11 +485,14 @@
         else if (s.unlock && s.unlock.type === "deaths") {
           let need = s.unlock.n; let have = save_.data.deaths; let pct = Math.min(100, Math.floor(have/need*100));
           hint = have + "/" + need + " deaths" + (pct < 100 ? " (" + pct + "%)" : "");
+        } else if (s.unlock && s.unlock.type === "jumps") {
+          let need = s.unlock.n; let have = save_.data.jumps | 0; let pct = Math.min(100, Math.floor(have/need*100));
+          hint = have + "/" + need + " jumps" + (pct < 100 ? " (" + pct + "%)" : "");
         } else hint = s.hint || "LOCKED";
       }
       b.innerHTML = '<img src="' + s.src + '" alt="" />' + '<span class="skin-name">' + escapeHtml(s.name) + "</span>" + '<span class="skin-hint">' + escapeHtml(hint) + "</span>";
-      if (!unlocked && s.unlock && s.unlock.type === "deaths") {
-        let need = s.unlock.n; let have = save_.data.deaths; let pct = Math.min(100, Math.floor(have/need*100));
+      if (!unlocked && s.unlock && (s.unlock.type === "deaths" || s.unlock.type === "jumps")) {
+        let need = s.unlock.n; let have = s.unlock.type === "jumps" ? (save_.data.jumps | 0) : save_.data.deaths; let pct = Math.min(100, Math.floor(have/need*100));
         let bar = document.createElement("div"); bar.className = "skin-progress";
         let fill = document.createElement("div"); fill.className = "skin-progress-fill"; fill.style.width = pct + "%";
         bar.appendChild(fill); b.appendChild(bar);
@@ -509,16 +514,24 @@
         let fill=document.createElement("div"); fill.className="skin-progress-fill"; fill.style.width=pct+"%"; prog.appendChild(fill); sec.appendChild(prog);
         let txt=document.createElement("div"); txt.className="skin-progress-text"; txt.textContent=have + " / " + maxNeed + " deaths (" + pct + "%)"; sec.appendChild(txt);
       }
+      if (titleText.indexOf("JUMPS") !== -1) {
+        let have = save_.data.jumps | 0; let maxNeed=100; let pct=Math.min(100, Math.floor(have/maxNeed*100));
+        let prog=document.createElement("div"); prog.className="skin-progress";
+        let fill=document.createElement("div"); fill.className="skin-progress-fill"; fill.style.width=pct+"%"; prog.appendChild(fill); sec.appendChild(prog);
+        let txt=document.createElement("div"); txt.className="skin-progress-text"; txt.textContent=have + " / " + maxNeed + " jumps (" + pct + "%)"; sec.appendChild(txt);
+      }
       const g=document.createElement("div"); g.className="skin-grid";
       skins.forEach(function(s){ g.appendChild(makeTile(s)); });
       sec.appendChild(g); grid.appendChild(sec);
     }
     const starter = SKINS.filter(function(s){ return [1,2,3,4,5].indexOf(s.id)!==-1; });
     const deaths = SKINS.filter(function(s){ return s.unlock && s.unlock.type==="deaths"; }).sort(function(a,b){ return a.unlock.n - b.unlock.n; });
+    const jumps = SKINS.filter(function(s){ return s.unlock && s.unlock.type==="jumps"; }).sort(function(a,b){ return a.unlock.n - b.unlock.n; });
     const victory = SKINS.filter(function(s){ return s.unlock && s.unlock.type==="beat"; });
     const secret = SKINS.filter(function(s){ return s.unlock && s.unlock.type==="secreta"; });
     addSection("STARTER", starter, "Always unlocked");
     addSection("DEATHS — die to unlock", deaths, "Progress shown per skin");
+    addSection("JUMPS", jumps, "Jump to unlock");
     addSection("VICTORY — beat any level", victory, "");
     addSection("SECRET", secret, "Hidden — tap the SKINS title 7 times or press Alt+A");
   }
@@ -768,6 +781,15 @@
     }
     const wasDead = state.engine.dead;
     state.engine.update(dt);
+    if (state.engine.pendingJumps) {
+      const n = state.engine.pendingJumps | 0;
+      state.engine.pendingJumps = 0;
+      if (n > 0) {
+        save_.data.jumps = (save_.data.jumps | 0) + n;
+        save();
+        checkUnlocks();
+      }
+    }
     if (state.engine.dead && !wasDead) {
       state.deaths += 1;
       save_.data.deaths += 1;
@@ -1501,7 +1523,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       if (!u) { profileMsg("Not logged in"); return; }
       const st = el("profCloudStatus"); if (st) st.textContent = "Uploading…";
       try {
-        const saved = await NET.syncCloud({ deaths: save_.data.deaths, skin: save_.data.skin, unlocked: save_.data.unlocked, beaten: save_.data.beaten, best: save_.data.best, secretA: !!save_.data.secretA, spaceMenu: !!save_.data.spaceMenu });
+        const saved = await NET.syncCloud({ deaths: save_.data.deaths, jumps: save_.data.jumps, skin: save_.data.skin, unlocked: save_.data.unlocked, beaten: save_.data.beaten, best: save_.data.best, secretA: !!save_.data.secretA, spaceMenu: !!save_.data.spaceMenu });
         if (st) st.textContent = "Cloud updated " + new Date(saved.updatedAt).toLocaleTimeString();
         profileMsg("Synced to cloud");
         syncHomeStats();
@@ -1515,6 +1537,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       try {
         const cloud = await NET.downloadCloud();
         save_.data.deaths = Math.max(save_.data.deaths|0, cloud.deaths|0);
+        save_.data.jumps = Math.max(save_.data.jumps|0, cloud.jumps|0);
         if (Array.isArray(cloud.unlocked)) { const s2 = {}; save_.data.unlocked.forEach(function(id){s2[id]=true;}); cloud.unlocked.forEach(function(id){s2[id]=true;}); save_.data.unlocked = Object.keys(s2).map(function(k){return parseInt(k,10);}).sort(function(a,b){return a-b;}); }
         if (cloud.beaten) { for (var k in cloud.beaten) save_.data.beaten[k]=true; }
         if (cloud.best) { for (var k2 in cloud.best) { if (save_.data.best[k2]==null || cloud.best[k2] < save_.data.best[k2]) save_.data.best[k2]=cloud.best[k2]; } }
