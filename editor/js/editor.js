@@ -229,6 +229,8 @@
     pan: { on: false, lastX: 0, lastY: 0, space: false },
     stroke: null,
     selection: null,
+    selectedPictureId: null,
+    picDrag: null,
     clipboard: null,
     settings: loadSettings(),
     listening: null,
@@ -256,6 +258,7 @@
     statusCell: document.getElementById("statusCell"),
     statusZoom: document.getElementById("statusZoom"),
     file: document.getElementById("fileInput"),
+    imageFile: document.getElementById("imageInput"),
     spikeIcon: document.getElementById("spikeIcon"),
   };
 
@@ -312,6 +315,8 @@
 
   function restoreSnap(json) {
     state.level = DP.Level.fromJSON(JSON.parse(json));
+    state.selectedPictureId = null;
+    state.picDrag = null;
     syncInspector();
     markDirty(true);
   }
@@ -389,6 +394,220 @@
     return cell;
   }
 
+  function selectedPicture() {
+    const list = state.level.pictures || [];
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].id === state.selectedPictureId) return list[i];
+    }
+    return null;
+  }
+
+  function pictureAt(x, y) {
+    const list = state.level.pictures || [];
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (DP.pictureContains(list[i], x, y)) return list[i];
+    }
+    return null;
+  }
+
+  function removePicture(id) {
+    const before = (state.level.pictures || []).length;
+    state.level.pictures = (state.level.pictures || []).filter((p) => p.id !== id);
+    if (state.selectedPictureId === id) state.selectedPictureId = null;
+    return state.level.pictures.length !== before;
+  }
+
+  function resizePicture(pic, handle, wx, wy, start) {
+    const min = 16;
+    let left = start.x;
+    let top = start.y;
+    let right = start.x + start.w;
+    let bottom = start.y + start.h;
+    if (handle === "nw" || handle === "w" || handle === "sw") left = wx;
+    if (handle === "ne" || handle === "e" || handle === "se") right = wx;
+    if (handle === "nw" || handle === "n" || handle === "ne") top = wy;
+    if (handle === "sw" || handle === "s" || handle === "se") bottom = wy;
+    if (right - left < min) {
+      if (handle === "nw" || handle === "w" || handle === "sw") left = right - min;
+      else right = left + min;
+    }
+    if (bottom - top < min) {
+      if (handle === "nw" || handle === "n" || handle === "ne") top = bottom - min;
+      else bottom = top + min;
+    }
+    pic.x = left;
+    pic.y = top;
+    pic.w = right - left;
+    pic.h = bottom - top;
+  }
+
+  function pictureCursor(handle) {
+    if (handle === "n" || handle === "s") return "ns-resize";
+    if (handle === "e" || handle === "w") return "ew-resize";
+    if (handle === "nw" || handle === "se") return "nwse-resize";
+    if (handle === "ne" || handle === "sw") return "nesw-resize";
+    return "move";
+  }
+
+  function updatePictureCursor(ev) {
+    if (state.playing || !els.canvas) return;
+    if (state.picDrag) {
+      els.canvas.style.cursor = state.picDrag.kind === "resize" ? pictureCursor(state.picDrag.handle) : "move";
+      return;
+    }
+    const w = screenToWorld(ev.clientX, ev.clientY);
+    const sel = selectedPicture();
+    if (sel) {
+      const handle = DP.pictureHandleAt(sel, w.x, w.y, state.cam.zoom);
+      if (handle) {
+        els.canvas.style.cursor = pictureCursor(handle);
+        return;
+      }
+      if (DP.pictureContains(sel, w.x, w.y)) {
+        els.canvas.style.cursor = "move";
+        return;
+      }
+    }
+    if (pictureAt(w.x, w.y)) {
+      els.canvas.style.cursor = "move";
+      return;
+    }
+    els.canvas.style.cursor = "";
+  }
+
+  function compressImageFile(file) {
+    const MAX_DIM = 1024;
+    const TARGET = 220000;
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = function () {
+        URL.revokeObjectURL(url);
+        let w = img.naturalWidth || 1;
+        let h = img.naturalHeight || 1;
+        const scale = Math.min(1, MAX_DIM / Math.max(w, h));
+        w = Math.max(1, Math.round(w * scale));
+        h = Math.max(1, Math.round(h * scale));
+        const canvas = document.createElement("canvas");
+        const c = canvas.getContext("2d");
+        function draw(dw, dh) {
+          canvas.width = dw;
+          canvas.height = dh;
+          c.imageSmoothingEnabled = true;
+          c.imageSmoothingQuality = "high";
+          c.drawImage(img, 0, 0, dw, dh);
+        }
+        draw(w, h);
+        const preferPng = /png|gif|webp/i.test(file.type || "");
+        let src = preferPng ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", 0.82);
+        if (preferPng && src.length > TARGET) src = canvas.toDataURL("image/jpeg", 0.82);
+        let q = 0.82;
+        while (src.length > TARGET && q > 0.38) {
+          q -= 0.12;
+          src = canvas.toDataURL("image/jpeg", q);
+        }
+        while (src.length > TARGET && Math.max(w, h) > 192) {
+          w = Math.max(192, Math.round(w * 0.72));
+          h = Math.max(192, Math.round(h * 0.72));
+          draw(w, h);
+          src = canvas.toDataURL("image/jpeg", Math.max(0.4, q));
+        }
+        resolve({ src: src, w: w, h: h });
+      };
+      img.onerror = function () {
+        URL.revokeObjectURL(url);
+        reject(new Error("Could not read that image."));
+      };
+      img.src = url;
+    });
+  }
+
+  async function addPicturesFromFiles(files) {
+    const list = Array.prototype.slice.call(files || []).filter(function (f) {
+      return f && String(f.type || "").indexOf("image/") === 0;
+    });
+    if (!list.length) {
+      setStatus("Pick a PNG or JPG");
+      return;
+    }
+    if (!state.level.pictures) state.level.pictures = [];
+    const room = DP.MAX_PICTURES - state.level.pictures.length;
+    if (room <= 0) {
+      setStatus("Max " + DP.MAX_PICTURES + " images per level");
+      return;
+    }
+    const take = list.slice(0, room);
+    pushUndo();
+    const viewW = els.canvas.width / state.cam.zoom;
+    const viewH = els.canvas.height / state.cam.zoom;
+    const cx = state.cam.x + viewW / 2;
+    const cy = state.cam.y + viewH / 2;
+    setStatus("Compressing image…");
+    let added = 0;
+    let lastId = null;
+    for (let i = 0; i < take.length; i++) {
+      try {
+        const packed = await compressImageFile(take[i]);
+        const maxShow = TILE * 8;
+        const show = Math.min(1, maxShow / Math.max(packed.w, packed.h));
+        const w = Math.max(16, Math.round(packed.w * show));
+        const h = Math.max(16, Math.round(packed.h * show));
+        const pic = {
+          id: "im" + Math.random().toString(36).slice(2, 9),
+          src: packed.src,
+          x: cx - w / 2 + i * 18,
+          y: cy - h / 2 + i * 18,
+          w: w,
+          h: h,
+        };
+        const clean = DP.sanitizePicture(pic);
+        if (clean) {
+          state.level.pictures.push(clean);
+          lastId = clean.id;
+          added += 1;
+        }
+      } catch (err) {
+        setStatus(err.message || "Image failed");
+      }
+    }
+    if (added) {
+      state.selectedPictureId = lastId;
+      setTool("image");
+      markDirty(true);
+      setStatus(added === 1 ? "Image added — drag to move, handles to resize" : added + " images added");
+      syncInspector();
+    } else if (!lastId) {
+      setStatus("Could not add those images");
+    }
+    if (list.length > take.length) setStatus("Added " + added + " — max " + DP.MAX_PICTURES + " images");
+  }
+
+  function drawPictureChrome(ctx) {
+    if (state.playing) return;
+    const pic = selectedPicture();
+    if (!pic) return;
+    const zoom = state.cam.zoom;
+    ctx.save();
+    ctx.scale(zoom, zoom);
+    ctx.translate(-state.cam.x, -state.cam.y);
+    ctx.strokeStyle = "rgba(46, 230, 255, 0.95)";
+    ctx.lineWidth = 1.5 / zoom;
+    ctx.setLineDash([5 / zoom, 3 / zoom]);
+    ctx.strokeRect(pic.x, pic.y, pic.w, pic.h);
+    ctx.setLineDash([]);
+    const hs = DP.pictureHandles(pic);
+    const s = 8 / zoom;
+    for (let i = 0; i < hs.length; i++) {
+      const h = hs[i];
+      ctx.fillStyle = "#2ee6ff";
+      ctx.fillRect(h.x - s / 2, h.y - s / 2, s, s);
+      ctx.strokeStyle = "#070b12";
+      ctx.lineWidth = 1 / zoom;
+      ctx.strokeRect(h.x - s / 2, h.y - s / 2, s, s);
+    }
+    ctx.restore();
+  }
+
   function editorZoom() {
     return 2;
   }
@@ -452,6 +671,7 @@
       btn.classList.toggle("active", btn.dataset.tool === tool);
     });
     if (tool !== "select") state.selection = null;
+    if (tool !== "image") state.picDrag = null;
     setStatus(tool.charAt(0).toUpperCase() + tool.slice(1));
   }
 
@@ -860,6 +1080,42 @@
       state.pan.lastY = ev.clientY;
       return;
     }
+    const world = screenToWorld(ev.clientX, ev.clientY);
+    const selPic = selectedPicture();
+    if (selPic) {
+      const handle = DP.pictureHandleAt(selPic, world.x, world.y, state.cam.zoom);
+      if (handle) {
+        pushUndo();
+        state.picDrag = {
+          kind: "resize",
+          id: selPic.id,
+          handle: handle,
+          start: { x: selPic.x, y: selPic.y, w: selPic.w, h: selPic.h },
+        };
+        els.canvas.classList.add("painting");
+        return;
+      }
+    }
+    const hitPic = pictureAt(world.x, world.y);
+    if (hitPic) {
+      if (ev.button === 2) {
+        pushUndo();
+        removePicture(hitPic.id);
+        setStatus("Deleted image");
+        return;
+      }
+      state.selectedPictureId = hitPic.id;
+      pushUndo();
+      state.picDrag = { kind: "move", id: hitPic.id, ox: world.x - hitPic.x, oy: world.y - hitPic.y };
+      setTool("image");
+      els.canvas.classList.add("painting");
+      return;
+    }
+    if (state.tool === "image") {
+      state.selectedPictureId = null;
+      return;
+    }
+    state.selectedPictureId = null;
     if (ev.button === 2 && !ev.ctrlKey) {
       if (ev.shiftKey) {
         pickAt(cell);
@@ -918,6 +1174,21 @@
     }
     const cell = eventCell(ev);
     state.hover = cell;
+    updatePictureCursor(ev);
+    if (state.picDrag) {
+      const world = screenToWorld(ev.clientX, ev.clientY);
+      const pic = (state.level.pictures || []).find(function (p) { return p.id === state.picDrag.id; });
+      if (pic) {
+        if (state.picDrag.kind === "move") {
+          pic.x = world.x - state.picDrag.ox;
+          pic.y = world.y - state.picDrag.oy;
+        } else {
+          resizePicture(pic, state.picDrag.handle, world.x, world.y, state.picDrag.start);
+        }
+        markDirty(true);
+      }
+      return;
+    }
     if (state.selection && state.selection.dragging) {
       state.selection.c1 = cell.c;
       state.selection.r1 = cell.r;
@@ -961,6 +1232,7 @@
       }
     }
     state.stroke = null;
+    state.picDrag = null;
     state.pan.on = false;
     els.canvas.classList.remove("painting", "selecting");
     syncInspector();
@@ -999,6 +1271,8 @@
     document.getElementById("cGoal").textContent = v.counts.goal;
     syncThemeUI();
     document.getElementById("cText").textContent = v.counts.labels;
+    const imgStat = document.getElementById("cImages");
+    if (imgStat) imgStat.textContent = v.counts.pictures || 0;
     document.getElementById("cSpawn").textContent = state.level.spawn.c + "," + state.level.spawn.r;
     const validEl = document.getElementById("cValid");
     if (v.ok) {
@@ -1042,6 +1316,8 @@
     pushUndo();
     state.level = level;
     state.selection = null;
+    state.selectedPictureId = null;
+    state.picDrag = null;
     syncInspector();
     focusOn(level.spawn.c, level.spawn.r, editorZoom());
     markDirty(true);
@@ -1081,6 +1357,8 @@
   function newLevel(force) {
     if (!force && state.dirty && !confirm("Discard unsaved changes?")) return;
     clearNetworkEdit();
+    state.selectedPictureId = null;
+    state.picDrag = null;
     state.level = DP.Level.createDefault("New Level");
     state.undo = [];
     state.redo = [];
@@ -1099,6 +1377,8 @@
       return;
     }
     state.level = window.DashPointGenerate.generate(DP);
+    state.selectedPictureId = null;
+    state.picDrag = null;
     state.undo = [];
     state.redo = [];
     state.selection = null;
@@ -1343,6 +1623,7 @@
             }
           : null,
     });
+    drawPictureChrome(ctx);
 
     drawMinimap();
     els.statusZoom.textContent = Math.round(state.cam.zoom * 100) + "%";
@@ -1578,6 +1859,8 @@
       if (state.playing) {
         ev.preventDefault();
         stopPlay();
+      } else if (state.selectedPictureId) {
+        state.selectedPictureId = null;
       }
       return;
     }
@@ -1663,6 +1946,7 @@
     if (ev.code === "KeyP") setTool("spawn");
     if (ev.code === "KeyG") setTool("prefab");
     if (ev.code === "KeyT") setTool("text");
+    if (ev.code === "KeyM") setTool("image");
     if (ev.code === "Digit1") setTile("brick");
     if (ev.code === "Digit2") setTile("spike");
     if (ev.code === "Digit4") setTile("ispike");
@@ -1675,8 +1959,13 @@
     if (ev.code === "BracketLeft") setRot(state.rot - 90);
     if (ev.code === "BracketRight") setRot(state.rot + 90);
     if (ev.code === "Delete" || ev.code === "Backspace") {
+      if (isTyping(ev)) return;
       ev.preventDefault();
-      if (state.selection) deleteSelection();
+      if (state.selectedPictureId) {
+        pushUndo();
+        removePicture(state.selectedPictureId);
+        setStatus("Deleted image");
+      } else if (state.selection) deleteSelection();
       else if (textAt(state.hover.c, state.hover.r)) {
         pushUndo();
         removeTextAt(state.hover.c, state.hover.r);
@@ -1762,6 +2051,7 @@
     els.canvas.addEventListener("pointermove", (ev) => {
       state.hover = eventCell(ev);
       moveStroke(ev);
+      if (!state.picDrag) updatePictureCursor(ev);
     });
     els.canvas.addEventListener("pointerup", endStroke);
     els.canvas.addEventListener("pointercancel", endStroke);
@@ -1853,6 +2143,19 @@
     document.getElementById("btnAi").addEventListener("click", () => generateLevel());
     document.getElementById("btnLibrary").addEventListener("click", () => openModal("modalLibrary"));
     document.getElementById("btnImport").addEventListener("click", () => els.file.click());
+    const addImg = document.getElementById("btnAddImage");
+    if (addImg) {
+      addImg.addEventListener("click", () => {
+        if (els.imageFile) els.imageFile.click();
+      });
+    }
+    if (els.imageFile) {
+      els.imageFile.addEventListener("change", () => {
+        const files = els.imageFile.files;
+        addPicturesFromFiles(files);
+        els.imageFile.value = "";
+      });
+    }
     document.getElementById("btnExport").addEventListener("click", exportLevel);
     document.getElementById("btnCopy").addEventListener("click", copyJSON);
     document.getElementById("btnClear").addEventListener("click", () => {

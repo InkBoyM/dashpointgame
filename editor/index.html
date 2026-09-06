@@ -48,6 +48,7 @@
         <button class="tool" data-tool="spawn" title="Spawn (P)"><span>Spawn</span><b class="k">P</b></button>
         <button class="tool" data-tool="prefab" title="Prefabs (G)"><span>Prefab</span><b class="k">G</b></button>
         <button class="tool" data-tool="text" title="Text (T)"><span>Text</span><b class="k">T</b></button>
+        <button class="tool" data-tool="image" title="Images (M)"><span>Image</span><b class="k">M</b></button>
       </div>
 
       <div class="section-title">Tiles</div>
@@ -99,6 +100,10 @@
         <button class="chip" data-scale="3">L</button>
       </div>
       <p class="hint">No collision. Click to stamp. Erase, right-click, or Delete removes a label — click the letters, not just the center tile.</p>
+
+      <div class="section-title" style="margin-top:14px">Level images</div>
+      <button class="text-btn gold" id="btnAddImage" style="width:100%">Add image</button>
+      <p class="hint">PNG or JPG. Big files get compressed to base64. Click an image to move it; drag the 8 handles to resize. Delete removes the selected one. Up to 8 per level.</p>
 
       <div class="section-title" style="margin-top:14px">Spike rotation</div>
       <div class="rot-preview" id="rotations"></div>
@@ -201,6 +206,7 @@
       <div class="stat">Dashes <b id="cDash">0</b></div>
       <div class="stat">Goals <b id="cGoal">0</b></div>
       <div class="stat">Text <b id="cText">0</b></div>
+      <div class="stat">Images <b id="cImages">0</b></div>
       <div class="stat">Spawn <b id="cSpawn">0,0</b></div>
       <div class="stat">Validate <b id="cValid">—</b></div>
       <div class="stat">Tags <b id="cTags">—</b></div>
@@ -222,6 +228,7 @@
   </div>
 
   <input id="fileInput" type="file" accept="application/json,.json,.dashpoint.json" hidden />
+  <input id="imageInput" type="file" accept="image/*" multiple hidden />
 
   <div class="modal-root" id="modalHelp">
     <div class="modal">
@@ -229,7 +236,7 @@
       <div class="help-grid">
         <b>B / E / F</b><span>Paint, erase, fill</span>
         <b>R / L / V</b><span>Rectangle, line, select</span>
-        <b>I / P / G / T</b><span>Eyedropper, spawn, prefab, text</span>
+        <b>I / P / G / T / M</b><span>Eyedropper, spawn, prefab, text, images</span>
         <b>1 2 3 4 5 6 7 8</b><span>Brick, spike, goal, invis spike, orb, pad, dash, invis block</span>
         <b>[ ] wheel</b><span>Rotate spike</span>
         <b>Right click</b><span>Eyedropper (or erase with right-drag)</span>
@@ -239,7 +246,7 @@
         <b>Ctrl+C / X / V</b><span>Copy / cut / paste selection</span>
         <b>H / Shift+H</b><span>Flip selection horizontal / vertical</span>
         <b>Q</b><span>Rotate selection 90°</span>
-        <b>Del</b><span>Delete selection</span>
+        <b>Del</b><span>Delete selection, text, or selected image</span>
         <b>Enter / Esc</b><span>Playtest / return to edit</span>
         <b>R in play</b><span>Restart from spawn</span>
         <b>Alt + click play</b><span>Play from hovered cell</span>

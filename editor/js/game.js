@@ -257,6 +257,89 @@
     return x0 < b.x + b.w && x0 + TILE > b.x && y0 < b.y + b.h && y0 + TILE > b.y;
   }
 
+  const MAX_PICTURES = 8;
+  const PIC_MIN = 16;
+  const PIC_MAX_DIM = 4096;
+  const PIC_MAX_SRC = 400000;
+  const pictureImgs = {};
+
+  function sanitizePicture(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    const src = String(raw.src || "");
+    if (!/^data:image\/(png|jpe?g|webp|gif);base64,/i.test(src)) return null;
+    if (src.length > PIC_MAX_SRC) return null;
+    const w = clamp(Number(raw.w) || 0, PIC_MIN, PIC_MAX_DIM);
+    const h = clamp(Number(raw.h) || 0, PIC_MIN, PIC_MAX_DIM);
+    const x = Number(raw.x);
+    const y = Number(raw.y);
+    if (!isFinite(x) || !isFinite(y)) return null;
+    return {
+      id: String(raw.id || "im" + Math.random().toString(36).slice(2, 9)),
+      src: src,
+      x: x,
+      y: y,
+      w: w,
+      h: h,
+    };
+  }
+
+  function pictureImage(pic) {
+    if (!pic || !pic.src) return null;
+    const key = pic.id || pic.src.slice(0, 64);
+    let rec = pictureImgs[key];
+    if (!rec || rec.src !== pic.src) {
+      rec = { src: pic.src, img: new Image() };
+      rec.img.src = pic.src;
+      pictureImgs[key] = rec;
+    }
+    return rec.img;
+  }
+
+  function pictureHandles(pic) {
+    return [
+      { id: "nw", x: pic.x, y: pic.y },
+      { id: "n", x: pic.x + pic.w / 2, y: pic.y },
+      { id: "ne", x: pic.x + pic.w, y: pic.y },
+      { id: "e", x: pic.x + pic.w, y: pic.y + pic.h / 2 },
+      { id: "se", x: pic.x + pic.w, y: pic.y + pic.h },
+      { id: "s", x: pic.x + pic.w / 2, y: pic.y + pic.h },
+      { id: "sw", x: pic.x, y: pic.y + pic.h },
+      { id: "w", x: pic.x, y: pic.y + pic.h / 2 },
+    ];
+  }
+
+  function pictureContains(pic, x, y) {
+    return x >= pic.x && y >= pic.y && x <= pic.x + pic.w && y <= pic.y + pic.h;
+  }
+
+  function pictureHandleAt(pic, x, y, zoom) {
+    const hit = 8 / Math.max(0.5, zoom || 1);
+    const hs = pictureHandles(pic);
+    for (let i = 0; i < hs.length; i++) {
+      if (Math.abs(x - hs[i].x) <= hit && Math.abs(y - hs[i].y) <= hit) return hs[i].id;
+    }
+    return null;
+  }
+
+  function drawPictures(ctx, level) {
+    const list = level.pictures || [];
+    if (!list.length) return;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    for (let i = 0; i < list.length; i++) {
+      const p = list[i];
+      const img = pictureImage(p);
+      if (img && img.naturalWidth) ctx.drawImage(img, p.x, p.y, p.w, p.h);
+      else {
+        ctx.fillStyle = "rgba(46, 230, 255, 0.18)";
+        ctx.fillRect(p.x, p.y, p.w, p.h);
+        ctx.strokeStyle = "rgba(46, 230, 255, 0.55)";
+        ctx.strokeRect(p.x, p.y, p.w, p.h);
+      }
+    }
+    ctx.imageSmoothingEnabled = false;
+  }
+
   function drawLevelText(ctx, label, opts) {
     opts = opts || {};
     const x = label.c * TILE + TILE / 2;
@@ -319,6 +402,7 @@
       this.theme = sanitizeTheme(opts.theme);
       this.grid = opts.grid || emptyGrid(this.cols, this.rows);
       this.texts = Array.isArray(opts.texts) ? opts.texts.map(sanitizeText).filter(Boolean) : [];
+      this.pictures = Array.isArray(opts.pictures) ? opts.pictures.map(sanitizePicture).filter(Boolean).slice(0, MAX_PICTURES) : [];
       this.triggers = sanitizeTriggers(opts.triggers);
       this.song = sanitizeSong(opts.song);
       this.meta = Object.assign(
@@ -367,7 +451,7 @@
     }
 
     counts() {
-      const out = { brick: 0, ibrick: 0, spike: 0, ispike: 0, goal: 0, orb: 0, pad: 0, dash: 0, empty: 0, labels: 0 };
+      const out = { brick: 0, ibrick: 0, spike: 0, ispike: 0, goal: 0, orb: 0, pad: 0, dash: 0, empty: 0, labels: 0, pictures: 0 };
       for (let r = 0; r < this.rows; r++) {
         for (let c = 0; c < this.cols; c++) {
           const t = this.grid[r][c];
@@ -376,6 +460,7 @@
         }
       }
       out.labels = this.texts.length;
+      out.pictures = this.pictures.length;
       return out;
     }
 
@@ -441,6 +526,10 @@
         t.r += shiftR;
       });
       this.texts = this.texts.filter((t) => this.inBounds(t.c, t.r));
+      (this.pictures || []).forEach((p) => {
+        p.x += shiftC * TILE;
+        p.y += shiftR * TILE;
+      });
       (this.triggers || []).forEach((t) => {
         t.tc += shiftC;
         t.tr += shiftR;
@@ -479,6 +568,14 @@
           color: t.color,
           scale: t.scale,
         })),
+        pictures: (this.pictures || []).map((p) => ({
+          id: p.id,
+          src: p.src,
+          x: p.x,
+          y: p.y,
+          w: p.w,
+          h: p.h,
+        })),
         gameplay: Object.assign({}, this.gameplay),
         triggers: JSON.parse(JSON.stringify(this.triggers)),
         song: this.song || "",
@@ -508,6 +605,7 @@
         theme: data.theme,
         meta: data.meta,
         texts: Array.isArray(data.texts) ? data.texts : [],
+        pictures: Array.isArray(data.pictures) ? data.pictures : [],
         triggers: data.triggers,
         song: data.song,
       });
@@ -1169,6 +1267,8 @@
       }
     }
 
+    drawPictures(ctx, level);
+
     const labels = level.texts || [];
     const hover = extras.hover;
     for (let i = 0; i < labels.length; i++) {
@@ -1421,8 +1521,13 @@
     sanitizeTheme,
     hexToRgba,
     sanitizeText,
+    sanitizePicture,
     labelBounds,
     labelHitsCell,
+    pictureHandles,
+    pictureContains,
+    pictureHandleAt,
+    MAX_PICTURES,
     SKINS,
     SONGS,
     Music,
