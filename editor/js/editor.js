@@ -5,6 +5,8 @@
   const STORAGE_LEVEL = "dashpoint.editor.autosave";
   const STORAGE_LIB = "dashpoint.editor.library";
   const STORAGE_SET = "dashpoint.settings";
+  const STORAGE_NET_EDIT = "dashpoint.editor.networkEdit";
+  let networkEdit = null;
 
   function B(c, r) {
     return { c: c, r: r, id: "brick" };
@@ -1046,8 +1048,39 @@
     setStatus("Imported “" + level.name + "”");
   }
 
+  function clearNetworkEdit() {
+    networkEdit = null;
+    try { localStorage.removeItem(STORAGE_NET_EDIT); } catch (e) {}
+    syncPostButton();
+  }
+
+  function syncPostButton() {
+    const btn = document.getElementById("btnPost");
+    if (!btn) return;
+    if (networkEdit) {
+      btn.textContent = "Update";
+      btn.title = "Update your Network level";
+    } else {
+      btn.textContent = "Post";
+      btn.title = "Post to DashPoint Network";
+    }
+  }
+
+  function readNetworkEdit() {
+    try {
+      const raw = localStorage.getItem(STORAGE_NET_EDIT);
+      if (!raw) return null;
+      const packet = JSON.parse(raw);
+      if (!packet || !packet.id || !packet.json) return null;
+      return packet;
+    } catch (e) {
+      return null;
+    }
+  }
+
   function newLevel(force) {
     if (!force && state.dirty && !confirm("Discard unsaved changes?")) return;
+    clearNetworkEdit();
     state.level = DP.Level.createDefault("New Level");
     state.undo = [];
     state.redo = [];
@@ -1935,29 +1968,50 @@
     }
 
     let loaded = false;
+    let loadedNet = false;
     try {
-      const raw = localStorage.getItem(STORAGE_LEVEL);
-      if (raw) {
-        state.level = DP.Level.fromJSON(JSON.parse(raw));
+      const packet = readNetworkEdit();
+      if (packet) {
+        state.level = DP.Level.fromJSON(packet.json);
+        if (packet.meta && packet.meta.title) state.level.name = String(packet.meta.title).slice(0, 48);
+        networkEdit = { id: packet.id, meta: packet.meta || {} };
         loaded = true;
+        loadedNet = true;
       }
     } catch (e) {
+      networkEdit = null;
       loaded = false;
+    }
+    if (!loaded) {
+      try {
+        const raw = localStorage.getItem(STORAGE_LEVEL);
+        if (raw) {
+          state.level = DP.Level.fromJSON(JSON.parse(raw));
+          loaded = true;
+        }
+      } catch (e) {
+        loaded = false;
+      }
     }
     if (!loaded) state.level = DP.Level.createDefault("New Level");
 
     syncInspector();
     syncSettingsUI();
     syncTextUI();
+    syncPostButton();
     focusOn(state.level.spawn.c, state.level.spawn.r, editorZoom());
     markDirty(false);
-    setStatus(loaded ? "Restored autosave" : "New level — paint bricks, place a goal, hit Playtest");
+    setStatus(loadedNet
+      ? "Editing Network level “" + (state.level.name || "Untitled") + "” — Update when you're done"
+      : (loaded ? "Restored autosave" : "New level — paint bricks, place a goal, hit Playtest"));
     window.DashPointEditor = {
       getLevel: () => state.level,
       getState: () => state,
       exportJSON: () => state.level.toJSON(),
       pushUndo: pushUndo,
       markDirty: () => markDirty(true),
+      getNetworkEdit: () => networkEdit,
+      clearNetworkEdit: clearNetworkEdit,
     };
     requestAnimationFrame(render);
   }

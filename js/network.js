@@ -240,6 +240,29 @@ window.DPNet = (function () {
     return id;
   }
 
+  async function updateLevel(id, meta, data) {
+    const u = getEffectiveUser() || getUser();
+    if (!u) throw new Error("You need an account to post levels.");
+    id = String(id || "").trim();
+    if (!id) throw new Error("Missing level id.");
+    let entry = null;
+    try { entry = await getJSON("/dashpoint/levelsIndex/" + encodeURIComponent(id)); } catch (e) {}
+    if (!entry) throw new Error("Level not found.");
+    if (entry.authorUid !== u.uid && !isAdmin()) throw new Error("You can only edit your own levels.");
+    data.name = String(meta.title || "Untitled").slice(0, 48);
+    await putJSON("/dashpoint/levelsData/" + encodeURIComponent(id), data);
+    await patchJSON("/dashpoint/levelsIndex/" + encodeURIComponent(id), {
+      title: String(meta.title || "Untitled").slice(0, 48),
+      desc: String(meta.desc || "").slice(0, 300),
+      difficulty: Math.max(1, Math.min(5, meta.difficulty | 0)),
+      diffV: 2,
+      authorName: u.name || entry.authorName || "player",
+      updatedAt: Date.now(),
+      tags: Array.isArray(meta.tags) ? meta.tags.map(function (t) { return String(t).slice(0, 32); }).filter(Boolean).slice(0, 8) : (entry.tags || []),
+    });
+    return id;
+  }
+
   async function bumpPlays(id) {
     try {
       const cur = (await getJSON("/dashpoint/levelsIndex/" + id + "/plays")) || 0;
@@ -575,6 +598,7 @@ window.DPNet = (function () {
     loadLevelIndex: loadLevelIndex,
     fetchLevel: fetchLevel,
     postLevel: postLevel,
+    updateLevel: updateLevel,
     bumpPlays: bumpPlays,
     loadUsersIndex: loadUsersIndex,
     getUserProfile: getUserProfile,

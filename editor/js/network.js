@@ -94,6 +94,45 @@ window.DPNet = (function () {
     return id;
   }
 
+  async function updateLevel(id, meta, data) {
+    ensure();
+    const u = getUser();
+    if (!u) throw new Error("You need an account to post levels.");
+    id = String(id || "").trim();
+    if (!id) throw new Error("Missing level id.");
+    const snap = await db.ref("dashpoint/levelsIndex/" + id).once("value");
+    if (!snap.exists()) throw new Error("Level not found.");
+    const entry = snap.val() || {};
+    if (entry.authorUid !== u.uid) throw new Error("You can only edit your own levels.");
+    const payload = JSON.parse(JSON.stringify({
+      format: data.format,
+      version: data.version,
+      name: String(meta.title || data.name || "Untitled").slice(0, 48),
+      cols: data.cols,
+      rows: data.rows,
+      tileSize: data.tileSize,
+      spawn: data.spawn,
+      tiles: data.tiles,
+      texts: data.texts || [],
+      gameplay: data.gameplay,
+      triggers: data.triggers || [],
+      song: data.song || "",
+      theme: data.theme,
+      meta: data.meta || {},
+    }));
+    await db.ref("dashpoint/levelsData/" + id).set(payload);
+    await db.ref("dashpoint/levelsIndex/" + id).update({
+      title: String(meta.title || "Untitled").slice(0, 48),
+      desc: String(meta.desc || "").slice(0, 300),
+      difficulty: Math.max(1, Math.min(5, meta.difficulty | 0)),
+      diffV: 2,
+      authorName: u.name || entry.authorName || "player",
+      updatedAt: Date.now(),
+      tags: Array.isArray(meta.tags) ? meta.tags.map(function (t) { return String(t).slice(0, 32); }).filter(Boolean).slice(0, 8) : (entry.tags || []),
+    });
+    return id;
+  }
+
   async function bumpPlays(id) {
     try {
       const ref = db.ref("dashpoint/levelsIndex/" + id + "/plays");
@@ -174,6 +213,7 @@ window.DPNet = (function () {
     loadLevelIndex: loadLevelIndex,
     fetchLevel: fetchLevel,
     postLevel: postLevel,
+    updateLevel: updateLevel,
     bumpPlays: bumpPlays,
     loadUsersIndex: loadUsersIndex,
     syncStats: syncStats,

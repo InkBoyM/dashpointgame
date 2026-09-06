@@ -22,7 +22,7 @@
 
   const MODAL = [
     '<div class="modal-root" id="modalPost"><div class="modal">',
-    "<h2>POST TO DASHPOINT NETWORK</h2>",
+    '<h2 id="postHeading">POST TO DASHPOINT NETWORK</h2>',
     '<div id="postAuthBox">',
     '<p class="post-note">You need an account to post levels. Searching and playing are account-free.</p>',
     '<label>Email</label><input type="email" id="postEmail" maxlength="64" placeholder="email" />',
@@ -35,7 +35,7 @@
     "<label>Difficulty (how hard you think it is)</label>",
     '<div class="face-row" id="postFaces"></div>',
     '<p class="post-note" id="postWho"></p>',
-    '<div class="row" style="margin-top:12px;justify-content:flex-end"><button class="text-btn good" id="postSend">POST LEVEL</button></div>',
+    '<div class="row" style="margin-top:12px;justify-content:flex-end;gap:8px"><button class="text-btn" id="postAsNew" style="display:none">POST AS NEW</button><button class="text-btn good" id="postSend">POST LEVEL</button></div>',
     "</div>",
     '<p id="postMsg"></p>',
     '<div class="row" style="margin-top:10px;justify-content:flex-end"><button class="text-btn" data-close="modalPost">Close</button></div>',
@@ -69,24 +69,36 @@
     });
   }
 
+  function editing() {
+    const ed = window.DashPointEditor;
+    return (ed && ed.getNetworkEdit && ed.getNetworkEdit()) || null;
+  }
+
   function syncAuth() {
     const logged = !!currentUser;
     el("postAuthBox").style.display = logged ? "none" : "";
     el("postForm").style.display = logged ? "" : "none";
+    const net = editing();
     if (logged) {
-      el("postWho").textContent = "Posting as " + currentUser.name;
+      el("postWho").textContent = net
+        ? "Updating as " + currentUser.name + " — this replaces your live Network listing"
+        : "Posting as " + currentUser.name;
       const st = window.DashPointEditor && window.DashPointEditor.getState();
       if (st && !el("postTitle").value) el("postTitle").value = String(st.level.name || "Untitled");
     }
+    el("postHeading").textContent = net ? "UPDATE NETWORK LEVEL" : "POST TO DASHPOINT NETWORK";
+    el("postSend").textContent = net ? "UPDATE LEVEL" : "POST LEVEL";
+    el("postAsNew").style.display = net && logged ? "" : "none";
   }
 
   function open() {
     if (!el("modalPost")) return;
     document.getElementById("modalPost").classList.add("visible");
     const st = window.DashPointEditor && window.DashPointEditor.getState();
+    const net = editing();
     el("postTitle").value = st ? String(st.level.name || "") : "";
-    el("postDesc").value = "";
-    difficulty = 2;
+    el("postDesc").value = net && net.meta ? String(net.meta.desc || "") : "";
+    difficulty = net && net.meta ? Math.max(1, Math.min(5, net.meta.difficulty | 0 || 2)) : 2;
     renderFaces();
     syncAuth();
     msg("");
@@ -125,25 +137,33 @@
     document.getElementById("btnPost").addEventListener("click", open);
     el("postLoginBtn").addEventListener("click", () => act(() => DPNet.login(el("postEmail").value.trim(), el("postPass").value)));
     el("postRegBtn").addEventListener("click", () => act(() => DPNet.register(el("postEmail").value.trim(), el("postPass").value)));
-    el("postSend").addEventListener("click", () =>
-      act(async () => {
-        const title = el("postTitle").value.trim();
-        if (!title) { throw new Error("Give your level a title."); }
-        const ed = window.DashPointEditor;
-        const json = ed.exportJSON();
-        const v = ed.getLevel().counts();
-        if (v.goal < 1) throw new Error("Your level needs a goal before posting.");
-        const tags = json.meta && Array.isArray(json.meta.tags) ? json.meta.tags.slice(0, 8) : [];
-        const id = await DPNet.postLevel(
-          { title: title, desc: el("postDesc").value.trim(), difficulty: difficulty, tags: tags },
-          json
-        );
-        msg("");
-        close();
-        const status = document.getElementById("statusMain");
-        if (status) status.textContent = "Posted to network as " + id;
-      })
-    );
+
+    async function publishLevel(asNew) {
+      const title = el("postTitle").value.trim();
+      if (!title) { throw new Error("Give your level a title."); }
+      const ed = window.DashPointEditor;
+      const json = ed.exportJSON();
+      const v = ed.getLevel().counts();
+      if (v.goal < 1) throw new Error("Your level needs a goal before posting.");
+      const net = editing();
+      const tags = (json.meta && Array.isArray(json.meta.tags) ? json.meta.tags : (net && net.meta && net.meta.tags) || []).slice(0, 8);
+      const meta = { title: title, desc: el("postDesc").value.trim(), difficulty: difficulty, tags: tags };
+      let id;
+      if (!asNew && net && net.id && DPNet.updateLevel) {
+        id = await DPNet.updateLevel(net.id, meta, json);
+        if (ed.clearNetworkEdit) ed.clearNetworkEdit();
+      } else {
+        id = await DPNet.postLevel(meta, json);
+        if (ed.clearNetworkEdit) ed.clearNetworkEdit();
+      }
+      msg("");
+      close();
+      const status = document.getElementById("statusMain");
+      if (status) status.textContent = (!asNew && net && net.id ? "Updated Network level " : "Posted to network as ") + id;
+    }
+
+    el("postSend").addEventListener("click", () => act(() => publishLevel(false)));
+    el("postAsNew").addEventListener("click", () => act(() => publishLevel(true)));
     el("modalPost").addEventListener("click", (ev) => {
       if (ev.target === el("modalPost")) close();
     });

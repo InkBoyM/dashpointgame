@@ -1213,6 +1213,21 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     row.appendChild(info);
     row.appendChild(play);
     try {
+      if (isMyLevel(meta)) {
+        const edit = document.createElement("button");
+        edit.className = "n-play";
+        edit.style.background = "var(--gold)";
+        edit.style.color = "#2a1a06";
+        edit.textContent = "EDIT";
+        edit.title = "Edit and update this level";
+        edit.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          startEditLevel(meta);
+        });
+        row.appendChild(edit);
+      }
+    } catch(e) {}
+    try {
       if (NET.canDeleteLevel && NET.canDeleteLevel(meta)) {
         const del = document.createElement("button");
         del.className = "n-play";
@@ -1236,6 +1251,30 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       return !!(u && u.uid && meta && meta.authorUid && u.uid === meta.authorUid);
     } catch (e) {
       return false;
+    }
+  }
+
+  async function startEditLevel(meta) {
+    if (!meta) return;
+    if (isTouch) {
+      showNotice("Get on PC to edit levels — editing is desktop-only.", true);
+      return;
+    }
+    if (!isMyLevel(meta)) {
+      showNotice("You can only edit your own levels.", true);
+      return;
+    }
+    try {
+      showNotice("Opening editor…", false);
+      const json = await NET.fetchLevel(meta.id);
+      localStorage.setItem("dashpoint.editor.networkEdit", JSON.stringify({
+        id: meta.id,
+        meta: meta,
+        json: json,
+      }));
+      window.open("editor/index.html", "_blank");
+    } catch (err) {
+      showNotice(NET.friendly(err), true);
     }
   }
 
@@ -1461,6 +1500,9 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("liAttempts").textContent = a.attempts || 0;
     el("liDeaths").textContent = a.deaths || 0;
     try {
+      el("btnLiEdit").style.display = isMyLevel(meta) ? "" : "none";
+    } catch(e){ el("btnLiEdit").style.display = "none"; }
+    try {
       el("btnLiDelete").style.display = (NET.canDeleteLevel && NET.canDeleteLevel(meta)) ? "" : "none";
     } catch(e){ el("btnLiDelete").style.display = "none"; }
     el("modalLevelInfo").classList.add("visible");
@@ -1626,6 +1668,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnPauseRestart").addEventListener("click", () => { resumeGame(); restartLevel(); });
     el("btnPauseQuit").addEventListener("click", quitToLevels);
     el("btnLiPlay").addEventListener("click", liPlay);
+    el("btnLiEdit").addEventListener("click", function(){ const m = levelInfoMeta; if (m) { el("modalLevelInfo").classList.remove("visible"); startEditLevel(m.meta); } });
     el("btnLiDelete").addEventListener("click", function(){ const m = levelInfoMeta; if (m) { el("modalLevelInfo").classList.remove("visible"); startDeleteLevel(m.meta); } });
     el("btnAdCancel").addEventListener("click", function(){ el("modalAdminDelete").classList.remove("visible"); pendingDeleteMeta = null; });
     el("btnAdConfirm").addEventListener("click", adminDeleteLevel);
