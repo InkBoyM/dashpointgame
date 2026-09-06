@@ -374,7 +374,8 @@
     if (u.type === "beat") return Object.keys(save_.data.beaten).length > 0;
     if (u.type === "diff") return hasBeatenDiff(u.n);
     if (u.type === "secreta") return save_.data.secretA === true;
-    if (u.type === "shop" || u.type === "code") return false;
+    if (u.type === "shop") return (u.deaths | 0) > 0 && save_.data.deaths >= u.deaths;
+    if (u.type === "code") return false;
     return false;
   }
 
@@ -410,10 +411,11 @@
 
   function checkUnlocks() {
     for (const s of SKINS) {
-      if (isShopSkin(s) || isCodeSkin(s)) continue;
+      if (isCodeSkin(s)) continue;
+      if (isShopSkin(s) && !((s.unlock && s.unlock.deaths) | 0)) continue;
       if (!isUnlocked(s.id) && meetsUnlock(s.unlock)) {
         save_.data.unlocked.push(s.id);
-        grantCoins(COIN_PER_SKIN, "skin:" + s.id);
+        if (!isShopSkin(s)) grantCoins(COIN_PER_SKIN, "skin:" + s.id);
         queueAchievement(s);
       }
     }
@@ -623,15 +625,20 @@
           let jNeed = s.unlock.jumps | 0; let jHave = save_.data.jumps | 0;
           let dNeed = s.unlock.deaths | 0; let dHave = save_.data.deaths | 0;
           hint = jHave + "/" + jNeed + " jumps or " + dHave + "/" + dNeed + " deaths";
+        } else if (s.unlock && s.unlock.type === "shop" && (s.unlock.deaths | 0) > 0) {
+          let need = s.unlock.deaths | 0; let have = save_.data.deaths | 0;
+          hint = have + "/" + need + " deaths or " + ((s.unlock.cost | 0)) + " coins";
         } else hint = s.hint || "LOCKED";
       }
       b.innerHTML = '<img src="' + s.src + '" alt="" />' + '<span class="skin-name">' + escapeHtml(s.name) + "</span>" + '<span class="skin-hint">' + escapeHtml(hint) + "</span>";
-      if (!unlocked && s.unlock && (s.unlock.type === "deaths" || s.unlock.type === "jumps" || s.unlock.type === "either")) {
+      if (!unlocked && s.unlock && (s.unlock.type === "deaths" || s.unlock.type === "jumps" || s.unlock.type === "either" || (s.unlock.type === "shop" && (s.unlock.deaths | 0) > 0))) {
         let pct = 0;
         if (s.unlock.type === "either") {
           let jp = s.unlock.jumps ? Math.min(100, Math.floor((save_.data.jumps | 0) / s.unlock.jumps * 100)) : 0;
           let dp = s.unlock.deaths ? Math.min(100, Math.floor(save_.data.deaths / s.unlock.deaths * 100)) : 0;
           pct = Math.max(jp, dp);
+        } else if (s.unlock.type === "shop") {
+          pct = Math.min(100, Math.floor((save_.data.deaths | 0) / s.unlock.deaths * 100));
         } else {
           let need = s.unlock.n; let have = s.unlock.type === "jumps" ? (save_.data.jumps | 0) : save_.data.deaths;
           pct = Math.min(100, Math.floor(have/need*100));
@@ -668,7 +675,7 @@
       sec.appendChild(g); grid.appendChild(sec);
     }
     const starter = SKINS.filter(function(s){ return [1,2,3,4,5].indexOf(s.id)!==-1; });
-    const deaths = SKINS.filter(function(s){ return s.unlock && (s.unlock.type==="deaths" || (s.unlock.type==="either" && s.unlock.deaths)); }).sort(function(a,b){ return (a.unlock.n || a.unlock.deaths || 0) - (b.unlock.n || b.unlock.deaths || 0); });
+    const deaths = SKINS.filter(function(s){ return s.unlock && (s.unlock.type==="deaths" || (s.unlock.type==="either" && s.unlock.deaths) || (s.unlock.type==="shop" && s.unlock.deaths)); }).sort(function(a,b){ return (a.unlock.n || a.unlock.deaths || 0) - (b.unlock.n || b.unlock.deaths || 0); });
     const jumps = SKINS.filter(function(s){ return s.unlock && (s.unlock.type==="jumps" || (s.unlock.type==="either" && s.unlock.jumps)); }).sort(function(a,b){ return (a.unlock.n || a.unlock.jumps || 0) - (b.unlock.n || b.unlock.jumps || 0); });
     const victory = SKINS.filter(function(s){ return s.unlock && (s.unlock.type==="beat" || s.unlock.type==="diff"); });
     const secret = SKINS.filter(function(s){ return s.unlock && s.unlock.type==="secreta"; });
@@ -677,7 +684,7 @@
     addSection("JUMPS", jumps, "Jump to unlock");
     addSection("VICTORY — beat levels", victory, "");
     addSection("SECRET", secret, "Hidden — tap the SKINS title 7 times or press Alt+A");
-    const shopOwned = SKINS.filter(function(s){ return isShopSkin(s) && isUnlocked(s.id); });
+    const shopOwned = SKINS.filter(function(s){ return isShopSkin(s) && isUnlocked(s.id) && !(s.unlock && s.unlock.deaths); });
     if (shopOwned.length) addSection("SHOP", shopOwned, "Bought with coins");
     const codeOwned = SKINS.filter(function(s){ return isCodeSkin(s) && isUnlocked(s.id); });
     if (codeOwned.length) addSection("CODES", codeOwned, "Unlocked with a code");
@@ -700,7 +707,14 @@
       const can = (save_.data.coins | 0) >= cost;
       const b = document.createElement("button");
       b.className = "skin-tile" + (owned && save_.data.skin === s.id ? " selected" : "") + (!owned && !can ? " cant" : "");
-      const hint = owned ? (save_.data.skin === s.id ? "EQUIPPED" : "TAP TO EQUIP") : can ? "TAP TO BUY" : "NEED " + cost;
+      const deathNeed = (s.unlock && s.unlock.deaths) | 0;
+      const hint = owned
+        ? (save_.data.skin === s.id ? "EQUIPPED" : "TAP TO EQUIP")
+        : can
+          ? "TAP TO BUY"
+          : deathNeed
+            ? "NEED " + cost + " OR DIE " + deathNeed
+            : "NEED " + cost;
       b.innerHTML =
         '<img src="' + s.src + '" alt="" />' +
         '<span class="skin-name">' + escapeHtml(s.name) + "</span>" +
