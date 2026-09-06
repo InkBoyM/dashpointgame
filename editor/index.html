@@ -126,8 +126,9 @@
       <p class="hint">Mouse wheel over canvas rotates spikes, invis spikes, and fake spikes. <span class="k">[</span> <span class="k">]</span> also work. Invisible tiles show as faded + INV and vanish in playtest. Fake bricks and spikes look real in play but have no collision.</p>
 
       <div class="section-title" style="margin-top:14px">Prefabs</div>
+      <button class="text-btn" id="btnSavePrefab" style="width:100%; margin-bottom:6px">Save selection (K)</button>
       <div class="chips" id="prefabs"></div>
-      <p class="hint">Click a prefab, then stamp it. Ghost preview follows the cursor. Hold <span class="k">Alt</span> to play from the hovered cell.</p>
+      <p class="hint">Select tiles, then press <span class="k">K</span> (or the button) to keep them as a prefab for other levels. Click a prefab to stamp it. Right-click a saved one to delete it. Hold <span class="k">Alt</span> to play from the hovered cell.</p>
     </aside>
 
     <div class="viewport-wrap" id="viewportWrap">
@@ -265,6 +266,7 @@
         <b>Ctrl+Z / Y</b><span>Undo / redo</span>
         <b>Ctrl+C / X / V</b><span>Copy / cut / paste selection</span>
         <b>H / Shift+H</b><span>Flip selection horizontal / vertical</span>
+        <b>K</b><span>Save selection as a prefab</span>
         <b>Q</b><span>Rotate selection 90°</span>
         <b>Del</b><span>Delete selection, text, or selected image</span>
         <b>Enter / Esc</b><span>Playtest / return to edit</span>

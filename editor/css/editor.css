@@ -424,6 +424,11 @@ input[type="range"] {
   padding: 5px 7px;
 }
 
+#prefabs .chip.user-prefab {
+  border-color: rgba(255, 209, 102, 0.55);
+  color: #ffe08a;
+}
+
 .color-chip {
   width: 22px;
   height: 22px;

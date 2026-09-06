@@ -6,6 +6,7 @@
   const STORAGE_LIB = "dashpoint.editor.library";
   const STORAGE_SET = "dashpoint.settings";
   const STORAGE_NET_EDIT = "dashpoint.editor.networkEdit";
+  const STORAGE_PREFABS = "dashpoint.editor.prefabs";
   let networkEdit = null;
 
   function B(c, r) {
@@ -203,6 +204,46 @@
       tiles: hstrip(0, 0, 5, B).concat(vstrip(2, 1, 3, B)),
     },
   };
+
+  function loadUserPrefabs() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(STORAGE_PREFABS) || "[]");
+      if (!Array.isArray(raw)) return [];
+      return raw.filter(function (p) {
+        return p && p.id && p.name && Array.isArray(p.tiles);
+      }).map(function (p) {
+        return {
+          id: String(p.id),
+          name: String(p.name).replace(/\s+/g, " ").trim().slice(0, 24) || "Prefab",
+          tiles: p.tiles.filter(function (t) {
+            return t && t.id != null && isFinite(t.c) && isFinite(t.r);
+          }).map(function (t) {
+            return { c: t.c | 0, r: t.r | 0, id: String(t.id), rot: t.rot | 0 };
+          }).slice(0, 2500),
+        };
+      }).filter(function (p) { return p.tiles.length; }).slice(0, 40);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  let userPrefabs = loadUserPrefabs();
+
+  function saveUserPrefabs() {
+    try {
+      localStorage.setItem(STORAGE_PREFABS, JSON.stringify(userPrefabs));
+    } catch (e) {
+      setStatus("Could not save prefab (storage full?)");
+    }
+  }
+
+  function getPrefab(id) {
+    if (PREFABS[id]) return PREFABS[id];
+    for (let i = 0; i < userPrefabs.length; i++) {
+      if (userPrefabs[i].id === id) return userPrefabs[i];
+    }
+    return null;
+  }
 
   const state = {
     images: null,
@@ -794,7 +835,7 @@
   }
 
   function prefabGhost(cell) {
-    const def = PREFABS[state.prefab];
+    const def = getPrefab(state.prefab);
     if (!def) return [];
     return def.tiles.map((t) => ({
       c: cell.c + t.c,
@@ -851,7 +892,8 @@
     }
     if (state.tool === "prefab") {
       const origin = ensureContains(cell.c, cell.r);
-      const def = PREFABS[state.prefab];
+      const def = getPrefab(state.prefab);
+      if (!def) return;
       let maxC = origin.c;
       let maxR = origin.r;
       for (const t of def.tiles) {
@@ -966,6 +1008,84 @@
       }
     }
     setStatus((cut ? "Cut" : "Copied") + " " + tiles.length + " tiles");
+  }
+
+  function harvestSelectionTiles() {
+    const b = selectionBounds();
+    if (!b) return null;
+    const tiles = [];
+    for (let r = b.r0; r <= b.r1; r++) {
+      for (let c = b.c0; c <= b.c1; c++) {
+        const t = state.level.get(c, r);
+        if (t) tiles.push({ c: c - b.c0, r: r - b.r0, id: t.id, rot: t.rot || 0 });
+      }
+    }
+    return tiles;
+  }
+
+  function saveSelectionAsPrefab() {
+    const tiles = harvestSelectionTiles();
+    if (!tiles) {
+      setStatus("Select tiles first, then press K");
+      return;
+    }
+    if (!tiles.length) {
+      setStatus("Selection is empty");
+      return;
+    }
+    const suggested = "Mine " + (userPrefabs.length + 1);
+    const name = window.prompt("Prefab name", suggested);
+    if (name === null) return;
+    const clean = String(name).replace(/\s+/g, " ").trim().slice(0, 24) || suggested;
+    if (userPrefabs.length >= 40) {
+      setStatus("Too many saved prefabs (40 max). Right-click one to delete.");
+      return;
+    }
+    const id = "user_" + Date.now().toString(36);
+    userPrefabs.push({ id: id, name: clean, tiles: tiles.slice(0, 2500) });
+    saveUserPrefabs();
+    state.prefab = id;
+    setTool("prefab");
+    renderPrefabs();
+    setStatus("Saved prefab \"" + clean + "\" (" + tiles.length + " tiles)");
+  }
+
+  function deleteUserPrefab(id) {
+    const i = userPrefabs.findIndex(function (p) { return p.id === id; });
+    if (i < 0) return;
+    if (!confirm("Delete prefab \"" + userPrefabs[i].name + "\"?")) return;
+    userPrefabs.splice(i, 1);
+    saveUserPrefabs();
+    if (state.prefab === id) state.prefab = "platform";
+    renderPrefabs();
+    setStatus("Deleted prefab");
+  }
+
+  function renderPrefabs() {
+    const pref = document.getElementById("prefabs");
+    if (!pref) return;
+    pref.innerHTML = "";
+    function addChip(id, name, custom) {
+      const b = document.createElement("button");
+      b.className = "chip" + (custom ? " user-prefab" : "") + (state.prefab === id ? " active" : "");
+      b.dataset.prefab = id;
+      b.textContent = name;
+      if (custom) b.title = "Right-click to delete";
+      b.addEventListener("click", function () {
+        state.prefab = id;
+        setTool("prefab");
+        renderPrefabs();
+      });
+      if (custom) {
+        b.addEventListener("contextmenu", function (ev) {
+          ev.preventDefault();
+          deleteUserPrefab(id);
+        });
+      }
+      pref.appendChild(b);
+    }
+    Object.keys(PREFABS).forEach(function (id) { addChip(id, PREFABS[id].name, false); });
+    userPrefabs.forEach(function (p) { addChip(p.id, p.name, true); });
   }
 
   function pasteAt(cell) {
@@ -1753,20 +1873,7 @@
     });
     updateRotUI();
 
-    const pref = document.getElementById("prefabs");
-    Object.keys(PREFABS).forEach((id) => {
-      const b = document.createElement("button");
-      b.className = "chip";
-      b.dataset.prefab = id;
-      b.textContent = PREFABS[id].name;
-      b.addEventListener("click", () => {
-        state.prefab = id;
-        setTool("prefab");
-        document.querySelectorAll("#prefabs .chip").forEach((x) => x.classList.toggle("active", x.dataset.prefab === id));
-      });
-      pref.appendChild(b);
-    });
-    pref.querySelector(".chip").classList.add("active");
+    renderPrefabs();
 
     const colorBox = document.getElementById("textColors");
     DP.TEXT_COLORS.forEach((col) => {
@@ -1989,6 +2096,11 @@
         deleteSelection();
       }
     }
+    if (ev.code === "KeyK" && !ctrl) {
+      ev.preventDefault();
+      saveSelectionAsPrefab();
+      return;
+    }
     if (ev.code === "KeyH") transformSelection(ev.shiftKey ? "flipV" : "flipH");
     if (ev.code === "KeyQ") transformSelection("rot90");
     if (ev.code === "Slash" && ev.shiftKey) openModal("modalHelp");
@@ -2171,6 +2283,8 @@
         els.imageFile.value = "";
       });
     }
+    const savePrefabBtn = document.getElementById("btnSavePrefab");
+    if (savePrefabBtn) savePrefabBtn.addEventListener("click", saveSelectionAsPrefab);
     document.getElementById("btnExport").addEventListener("click", exportLevel);
     document.getElementById("btnCopy").addEventListener("click", copyJSON);
     document.getElementById("btnClear").addEventListener("click", () => {
