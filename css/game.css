@@ -374,6 +374,7 @@ canvas { image-rendering: pixelated; }
 .skin-tile.cant { opacity: 0.72; }
 .row-end { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
 .row-end.skin-actions { justify-content: space-between; align-items: center; }
+#codeMsg { min-height: 18px; margin: 4px 0 0; }
 .sep { border: 0; border-top: 3px solid var(--ink-dark); margin: 14px 0; }
 
 .skin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 12px; }

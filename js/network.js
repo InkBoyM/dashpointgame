@@ -301,6 +301,7 @@ window.DPNet = (function () {
       coins: fullSave.coins | 0,
       coinPaid: sanitizeObjectKeys(rawPaid),
       coinMigrated: !!fullSave.coinMigrated,
+      codes: sanitizeObjectKeys(fullSave.codes || {}),
       skin: fullSave.skin | 0,
       unlocked: Array.isArray(fullSave.unlocked) ? fullSave.unlocked.slice() : [],
       beaten: sanitizeObjectKeys(rawBeaten),
@@ -343,6 +344,12 @@ window.DPNet = (function () {
       for (var pk in localPaid) mergedPaid[pk] = true;
       toSave.coinPaid = mergedPaid;
     }
+    if (cloud.codes) {
+      const mergedCodes = sanitizeObjectKeys(desanitizeObjectKeys(cloud.codes));
+      const localCodes = sanitizeObjectKeys(fullSave.codes || {});
+      for (var ck in localCodes) mergedCodes[ck] = true;
+      toSave.codes = mergedCodes;
+    }
     if (cloud.skin && toSave.skin === 1 && cloud.skin !== 1) toSave.skin = cloud.skin;
     if (cloud.secretA) toSave.secretA = true;
     if (cloud.spaceMenu) toSave.spaceMenu = true;
@@ -362,6 +369,7 @@ window.DPNet = (function () {
     if (cloud.beaten) cloud.beaten = desanitizeObjectKeys(cloud.beaten);
     if (cloud.best) cloud.best = desanitizeObjectKeys(cloud.best);
     if (cloud.coinPaid) cloud.coinPaid = desanitizeObjectKeys(cloud.coinPaid);
+    if (cloud.codes) cloud.codes = desanitizeObjectKeys(cloud.codes);
     return cloud;
   }
 
