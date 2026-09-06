@@ -14,4 +14,5 @@ window.DashPointSkins = [
   { id: 12, name: "Goofy", src: "assets/skins/skin-12.png", hint: "Die 100 times", unlock: { type: "deaths", n: 100 } },
   { id: 13, name: "Triple T", src: "assets/skins/skin-13.png", hint: "Die 1000 times", unlock: { type: "deaths", n: 1000 } },
   { id: 14, name: "Gucci Morty", src: "assets/skins/skin-14.png", hint: "Jump 100 times", unlock: { type: "jumps", n: 100 } },
+  { id: 15, name: "please touch grass", src: "assets/skins/skin-15.png", hint: "Jump 5000 times or die 4000 times", unlock: { type: "either", jumps: 5000, deaths: 4000 } },
 ];

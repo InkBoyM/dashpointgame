@@ -272,6 +272,7 @@
     if (!u) return true;
     if (u.type === "deaths") return save_.data.deaths >= u.n;
     if (u.type === "jumps") return (save_.data.jumps | 0) >= u.n;
+    if (u.type === "either") return (save_.data.jumps | 0) >= (u.jumps | 0) || save_.data.deaths >= (u.deaths | 0);
     if (u.type === "beat") return Object.keys(save_.data.beaten).length > 0;
     if (u.type === "secreta") return save_.data.secretA === true;
     return false;
@@ -488,11 +489,23 @@
         } else if (s.unlock && s.unlock.type === "jumps") {
           let need = s.unlock.n; let have = save_.data.jumps | 0; let pct = Math.min(100, Math.floor(have/need*100));
           hint = have + "/" + need + " jumps" + (pct < 100 ? " (" + pct + "%)" : "");
+        } else if (s.unlock && s.unlock.type === "either") {
+          let jNeed = s.unlock.jumps | 0; let jHave = save_.data.jumps | 0;
+          let dNeed = s.unlock.deaths | 0; let dHave = save_.data.deaths | 0;
+          hint = jHave + "/" + jNeed + " jumps or " + dHave + "/" + dNeed + " deaths";
         } else hint = s.hint || "LOCKED";
       }
       b.innerHTML = '<img src="' + s.src + '" alt="" />' + '<span class="skin-name">' + escapeHtml(s.name) + "</span>" + '<span class="skin-hint">' + escapeHtml(hint) + "</span>";
-      if (!unlocked && s.unlock && (s.unlock.type === "deaths" || s.unlock.type === "jumps")) {
-        let need = s.unlock.n; let have = s.unlock.type === "jumps" ? (save_.data.jumps | 0) : save_.data.deaths; let pct = Math.min(100, Math.floor(have/need*100));
+      if (!unlocked && s.unlock && (s.unlock.type === "deaths" || s.unlock.type === "jumps" || s.unlock.type === "either")) {
+        let pct = 0;
+        if (s.unlock.type === "either") {
+          let jp = s.unlock.jumps ? Math.min(100, Math.floor((save_.data.jumps | 0) / s.unlock.jumps * 100)) : 0;
+          let dp = s.unlock.deaths ? Math.min(100, Math.floor(save_.data.deaths / s.unlock.deaths * 100)) : 0;
+          pct = Math.max(jp, dp);
+        } else {
+          let need = s.unlock.n; let have = s.unlock.type === "jumps" ? (save_.data.jumps | 0) : save_.data.deaths;
+          pct = Math.min(100, Math.floor(have/need*100));
+        }
         let bar = document.createElement("div"); bar.className = "skin-progress";
         let fill = document.createElement("div"); fill.className = "skin-progress-fill"; fill.style.width = pct + "%";
         bar.appendChild(fill); b.appendChild(bar);
@@ -525,8 +538,8 @@
       sec.appendChild(g); grid.appendChild(sec);
     }
     const starter = SKINS.filter(function(s){ return [1,2,3,4,5].indexOf(s.id)!==-1; });
-    const deaths = SKINS.filter(function(s){ return s.unlock && s.unlock.type==="deaths"; }).sort(function(a,b){ return a.unlock.n - b.unlock.n; });
-    const jumps = SKINS.filter(function(s){ return s.unlock && s.unlock.type==="jumps"; }).sort(function(a,b){ return a.unlock.n - b.unlock.n; });
+    const deaths = SKINS.filter(function(s){ return s.unlock && (s.unlock.type==="deaths" || (s.unlock.type==="either" && s.unlock.deaths)); }).sort(function(a,b){ return (a.unlock.n || a.unlock.deaths || 0) - (b.unlock.n || b.unlock.deaths || 0); });
+    const jumps = SKINS.filter(function(s){ return s.unlock && (s.unlock.type==="jumps" || (s.unlock.type==="either" && s.unlock.jumps)); }).sort(function(a,b){ return (a.unlock.n || a.unlock.jumps || 0) - (b.unlock.n || b.unlock.jumps || 0); });
     const victory = SKINS.filter(function(s){ return s.unlock && s.unlock.type==="beat"; });
     const secret = SKINS.filter(function(s){ return s.unlock && s.unlock.type==="secreta"; });
     addSection("STARTER", starter, "Always unlocked");
