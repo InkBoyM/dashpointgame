@@ -1162,6 +1162,83 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     const pidle = el("profMpIdleRow"); if (pidle) pidle.style.display = active ? "none" : "flex";
     const pact = el("profMpActiveRow"); if (pact) pact.style.display = active ? "flex" : "none";
     const pl = el("btnProfLeave"); if (pl) pl.textContent = MP.getSlot() === "host" ? "CLOSE ROOM" : "LEAVE";
+    const hint = el("profChatHint"); if (hint) hint.style.display = active ? "" : "none";
+    syncRoomChat();
+  }
+
+  let chatUnread = 0;
+  const seenChatIds = {};
+
+  function setChatOpen(open) {
+    const box = el("roomChat");
+    if (!box) return;
+    box.classList.toggle("open", !!open);
+    if (open) {
+      chatUnread = 0;
+      const tog = el("roomChatToggle");
+      if (tog) {
+        tog.textContent = "CHAT";
+        tog.classList.remove("has-new");
+      }
+      const log = el("roomChatLog");
+      if (log) log.scrollTop = log.scrollHeight;
+    }
+  }
+
+  function clearRoomChat() {
+    chatUnread = 0;
+    for (const k in seenChatIds) delete seenChatIds[k];
+    const log = el("roomChatLog");
+    if (log) log.innerHTML = "";
+    const tog = el("roomChatToggle");
+    if (tog) {
+      tog.textContent = "CHAT";
+      tog.classList.remove("has-new");
+    }
+    setChatOpen(false);
+  }
+
+  function appendChatLine(msg) {
+    const log = el("roomChatLog");
+    if (!log || !msg || seenChatIds[msg.id]) return;
+    seenChatIds[msg.id] = true;
+    const line = document.createElement("p");
+    line.className = "room-chat-line" + (msg.me ? " me" : "") + (msg.sys ? " sys" : "");
+    if (msg.sys) line.textContent = msg.text;
+    else line.innerHTML = "<b>" + escapeHtml(msg.name) + "</b> " + escapeHtml(msg.text);
+    log.appendChild(line);
+    while (log.childNodes.length > 40) log.removeChild(log.firstChild);
+    log.scrollTop = log.scrollHeight;
+    const box = el("roomChat");
+    if (box && !box.classList.contains("open") && !msg.me && !msg.sys) {
+      chatUnread += 1;
+      const tog = el("roomChatToggle");
+      if (tog) {
+        tog.textContent = "CHAT (" + chatUnread + ")";
+        tog.classList.add("has-new");
+      }
+    }
+  }
+
+  function syncRoomChat() {
+    const box = el("roomChat");
+    if (!box) return;
+    const active = MP.isActive();
+    box.classList.toggle("hidden", !active);
+    if (!active) {
+      clearRoomChat();
+      return;
+    }
+    const peer = MP.peerName();
+    const head = box.querySelector(".room-chat-head span");
+    if (head) head.textContent = peer ? "CHAT · " + peer.toUpperCase() : "ROOM CHAT";
+  }
+
+  function submitRoomChat() {
+    const inp = el("roomChatInput");
+    if (!inp || !MP.isActive()) return;
+    const text = inp.value;
+    if (MP.sendChat(text)) inp.value = "";
   }
 
   const NET = window.DPNet;
@@ -1676,13 +1753,21 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
   /* ---------------- /DASHPOINT NETWORK ---------------- */
 
   function onKeyDown(ev) {
-    state.keys.add(ev.code);
+    if (!isTyping(ev)) state.keys.add(ev.code);
     if (ev.code === "KeyA" && ev.altKey && el("modalSkins").classList.contains("visible")) {
       ev.preventDefault();
       unlockSecretA();
       return;
     }
     if (ev.code === "Escape") {
+      const chat = el("roomChat");
+      if (chat && !chat.classList.contains("hidden") && chat.classList.contains("open")) {
+        ev.preventDefault();
+        setChatOpen(false);
+        const inp = el("roomChatInput");
+        if (inp) inp.blur();
+        return;
+      }
       if (document.querySelector(".modal-root.visible")) {
         document.querySelectorAll(".modal-root.visible").forEach((m) => m.classList.remove("visible"));
         return;
@@ -1694,6 +1779,13 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       return;
     }
     if (isTyping(ev)) return;
+    if (ev.code === "Enter" && MP.isActive()) {
+      ev.preventDefault();
+      setChatOpen(true);
+      const inp = el("roomChatInput");
+      if (inp) inp.focus();
+      return;
+    }
     if (ev.code === "KeyT" && state.screen === "game" && !el("winCard").classList.contains("visible")) { ev.preventDefault(); startGhostRace(); return; }
     if (ev.code === "Space") ev.preventDefault();
     if (state.screen === "game" && ev.code === "KeyR") {
@@ -1801,6 +1893,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         syncMpUI();
       },
       onNotice: (msg) => showNotice(msg, true),
+      onChat: (msg) => appendChatLine(msg),
+      onChatClear: () => clearRoomChat(),
     });
     MP.init();
 
@@ -1872,6 +1966,30 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       showNotice(wasHost ? "Room closed" : "Left the room", false);
       syncMpUI();
     });
+
+    const chatForm = el("roomChatForm");
+    if (chatForm) {
+      chatForm.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        submitRoomChat();
+      });
+    }
+    const chatInp = el("roomChatInput");
+    if (chatInp) {
+      chatInp.addEventListener("keydown", function (ev) {
+        if (ev.code === "Escape") {
+          ev.preventDefault();
+          setChatOpen(false);
+          chatInp.blur();
+          return;
+        }
+        ev.stopPropagation();
+      });
+    }
+    const chatTog = el("roomChatToggle");
+    if (chatTog) chatTog.addEventListener("click", function () { setChatOpen(true); const inp = el("roomChatInput"); if (inp) inp.focus(); });
+    const chatMin = el("roomChatMin");
+    if (chatMin) chatMin.addEventListener("click", function () { setChatOpen(false); });
 
     el("btnProfSync").addEventListener("click", async () => {
       const cu = (typeof firebase !== 'undefined' && firebase.auth().currentUser) ? firebase.auth().currentUser : null;

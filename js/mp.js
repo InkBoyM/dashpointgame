@@ -14,6 +14,8 @@ window.DashPointMP = (function () {
   const PEER_TIMEOUT = 9000;
   const HEARTBEAT_MS = 3000;
   const FLUSH_MS = 50;
+  const CHAT_MAX = 80;
+  const CHAT_COOLDOWN = 400;
 
   let db = null;
   let roomRef = null;
@@ -125,6 +127,7 @@ window.DashPointMP = (function () {
   }
 
   let lastSent = null;
+  let lastChatAt = 0;
 
   function teardownLocal() {
     stopHeartbeat();
@@ -139,6 +142,8 @@ window.DashPointMP = (function () {
     pendingCube = null;
     cubeActive = false;
     lastSent = null;
+    lastChatAt = 0;
+    if (cbs.onChatClear) cbs.onChatClear();
   }
 
   async function host() {
@@ -240,6 +245,36 @@ window.DashPointMP = (function () {
       cachedPlayers = snap.val() || {};
       emitState();
     });
+    watch(roomRef.child("chat").limitToLast(40), "child_added", (snap) => {
+      const v = snap.val();
+      if (!v || v.text == null) return;
+      if (cbs.onChat) {
+        cbs.onChat({
+          id: snap.key,
+          name: String(v.name || "player").slice(0, 16),
+          uid: String(v.uid || ""),
+          text: String(v.text).slice(0, CHAT_MAX),
+          ts: Number(v.ts) || Date.now(),
+          me: !!(user && v.uid && v.uid === user.uid),
+        });
+      }
+    });
+  }
+
+  function sendChat(text) {
+    if (!active || !roomRef || !user) return false;
+    const clean = String(text || "").replace(/\s+/g, " ").trim().slice(0, CHAT_MAX);
+    if (!clean) return false;
+    const now = Date.now();
+    if (now - lastChatAt < CHAT_COOLDOWN) return false;
+    lastChatAt = now;
+    roomRef.child("chat").push({
+      name: user.name,
+      uid: user.uid,
+      text: clean,
+      ts: now,
+    }).catch(reportWriteError);
+    return true;
   }
 
   function sendCube(data) {
@@ -333,6 +368,7 @@ window.DashPointMP = (function () {
     join: join,
     leave: leave,
     sendCube: sendCube,
+    sendChat: sendChat,
     clearCube: clearCube,
     peers: peers,
     peerOnline: peerOnline,
