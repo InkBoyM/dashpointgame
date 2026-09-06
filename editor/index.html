@@ -16,6 +16,7 @@
       <input id="levelName" class="level-name" maxlength="48" spellcheck="false" value="New Level" />
       <div class="top-actions">
         <button class="text-btn" id="btnNew" title="New level (Ctrl+N)">New</button>
+        <button class="text-btn gold" id="btnAi" title="Generate a random AI level (Ctrl+G)">AI</button>
         <button class="text-btn" id="btnLibrary" title="Local drafts">Library</button>
         <button class="text-btn" id="btnImport" title="Import JSON (Ctrl+O)">Import</button>
         <button class="text-btn good" id="btnExport" title="Export JSON (Ctrl+E)">Export</button>
@@ -244,6 +245,7 @@
         <b>+R / paint past edge</b><span>Make the level as long as you want (max 20000)</span>
         <b>Ctrl+S</b><span>Save to library</span>
         <b>Ctrl+E / O / N</b><span>Export / import / new</span>
+        <b>Ctrl+G</b><span>Generate a random AI level</span>
         <b>WASD / arrows</b><span>Move in playtest · jump is W / Up / Space</span>
       </div>
       <p class="hint">Jump is included so spikes are avoidable. Keybinds are remappable in Settings.</p>
@@ -305,6 +307,7 @@
   <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-database-compat.js"></script>
   <script src="js/game.js"></script>
+  <script src="js/generate.js"></script>
   <script src="js/network.js"></script>
   <script src="js/post.js"></script>
   <script src="js/editor.js"></script>

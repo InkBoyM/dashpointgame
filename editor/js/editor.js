@@ -1056,6 +1056,23 @@
     setStatus("New level");
   }
 
+  function generateLevel(force) {
+    if (!force && state.dirty && !confirm("Replace the current level with a random AI course?")) return;
+    if (!window.DashPointGenerate) {
+      setStatus("AI generator failed to load");
+      return;
+    }
+    state.level = window.DashPointGenerate.generate(DP);
+    state.undo = [];
+    state.redo = [];
+    state.selection = null;
+    stopPlay();
+    syncInspector();
+    focusOn(state.level.spawn.c, state.level.spawn.r, editorZoom());
+    markDirty(true);
+    setStatus("AI built “" + state.level.name + "” — playtest it");
+  }
+
   function library() {
     try {
       return JSON.parse(localStorage.getItem(STORAGE_LIB) || "[]");
@@ -1579,6 +1596,11 @@
       newLevel();
       return;
     }
+    if (ctrl && ev.code === "KeyG") {
+      ev.preventDefault();
+      generateLevel();
+      return;
+    }
     if (ctrl && ev.code === "KeyC") {
       ev.preventDefault();
       copySelection(false);
@@ -1792,6 +1814,7 @@
     }
 
     document.getElementById("btnNew").addEventListener("click", () => newLevel());
+    document.getElementById("btnAi").addEventListener("click", () => generateLevel());
     document.getElementById("btnLibrary").addEventListener("click", () => openModal("modalLibrary"));
     document.getElementById("btnImport").addEventListener("click", () => els.file.click());
     document.getElementById("btnExport").addEventListener("click", exportLevel);

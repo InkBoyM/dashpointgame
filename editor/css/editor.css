@@ -142,6 +142,7 @@ img { image-rendering: pixelated; }
 
 .text-btn.danger { border-color: var(--red-dim); color: #ffb3ba; }
 .text-btn.good { border-color: #1c7a44; color: var(--good); }
+.text-btn.gold { border-color: #8a6a10; color: var(--gold); }
 .text-btn.play {
   height: 40px;
   padding: 0 14px 0 8px;
