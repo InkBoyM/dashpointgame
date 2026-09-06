@@ -32,15 +32,29 @@ window.DashPointMP = (function () {
   let cubeActive = false;
   let cbs = {};
 
+  function guestStoredName() {
+    try {
+      const n = localStorage.getItem("dashpoint.guestName");
+      if (n) return String(n).replace(/\s+/g, " ").trim().slice(0, 16);
+    } catch (e) {}
+    return "";
+  }
+
+  function makeAuthUser(u) {
+    if (!u) return null;
+    const guest = !!u.isAnonymous;
+    let name = guest ? guestStoredName() : String(u.email || u.displayName || "player").split("@")[0];
+    if (!name) name = guest ? "Guest" : "player";
+    return { uid: u.uid, email: u.email || "", name: String(name).slice(0, 16), guest: guest };
+  }
+
   function ensureDb() {
     if (typeof firebase === "undefined") throw new Error("Firebase did not load (offline?)");
     if (!db) {
       if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
       db = firebase.database();
       firebase.auth().onAuthStateChanged((u) => {
-        user = u
-          ? { uid: u.uid, name: String(u.email || "player").split("@")[0].slice(0, 16) }
-          : null;
+        user = makeAuthUser(u);
         if (!user && active) leave(false);
         emitState();
       });
@@ -338,6 +352,20 @@ window.DashPointMP = (function () {
     return firebase.auth().signInWithEmailAndPassword(email, password);
   }
 
+  async function loginGuest() {
+    ensureDb();
+    return firebase.auth().signInAnonymously();
+  }
+
+  function setDisplayName(name) {
+    const clean = String(name || "").replace(/\s+/g, " ").trim().slice(0, 16);
+    if (!clean) return "";
+    if (user) user.name = clean;
+    try { localStorage.setItem("dashpoint.guestName", clean); } catch (e) {}
+    emitState();
+    return clean;
+  }
+
   async function logout() {
     ensureDb();
     await firebase.auth().signOut();
@@ -375,6 +403,8 @@ window.DashPointMP = (function () {
     peerName: peerName,
     register: register,
     login: login,
+    loginGuest: loginGuest,
+    setDisplayName: setDisplayName,
     logout: logout,
   };
 })();

@@ -168,9 +168,13 @@
           <button class="px-btn small good" id="btnProfLogin">LOG IN</button>
           <button class="px-btn small gold" id="btnProfRegister">REGISTER</button>
         </div>
+        <p class="hint" style="margin-top:10px">No email? Play without making an account.</p>
+        <div class="row-gap">
+          <button class="px-btn small" id="btnProfGuest">CONTINUE AS GUEST</button>
+        </div>
       </div>
       <div id="profLoggedIn" style="display:none">
-        <p class="hint">Signed in as <b id="profName" style="color:var(--good)"></b></p>
+        <p class="hint">Signed in as <b id="profName" style="color:var(--good)"></b> <span id="profGuestTag" style="display:none;color:var(--gold)">(guest)</span></p>
         <div class="row-gap"><button class="px-btn small danger" id="btnProfLogout">LOG OUT</button></div>
       </div>
 
@@ -179,11 +183,13 @@
       <input class="px-input" id="profUser" maxlength="24" placeholder="new username" />
       <div class="row-gap"><button class="px-btn small gold" id="btnProfUser">SAVE USERNAME</button></div>
 
-      <hr class="sep" />
-      <div class="section-title">Change password</div>
-      <input class="px-input" id="profOldPass" type="password" maxlength="64" placeholder="old password" />
-      <input class="px-input" id="profNewPass" type="password" maxlength="64" placeholder="new password" />
-      <div class="row-gap"><button class="px-btn small gold" id="btnProfPass">CHANGE PASSWORD</button></div>
+      <div id="profPassSection">
+        <hr class="sep" />
+        <div class="section-title">Change password</div>
+        <input class="px-input" id="profOldPass" type="password" maxlength="64" placeholder="old password" />
+        <input class="px-input" id="profNewPass" type="password" maxlength="64" placeholder="new password" />
+        <div class="row-gap"><button class="px-btn small gold" id="btnProfPass">CHANGE PASSWORD</button></div>
+      </div>
 
       <hr class="sep" />
       <div class="section-title">Cloud</div>

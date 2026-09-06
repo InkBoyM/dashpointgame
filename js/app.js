@@ -1123,9 +1123,13 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
 
   const MP = window.DashPointMP;
 
-  function friendlyAuthError(err) {
+  function friendlyAuthError(err, kind) {
     const code = String((err && err.code) || "");
-    if (code === "auth/operation-not-allowed") return "Enable Email/Password sign-in in your Firebase console first.";
+    if (code === "auth/operation-not-allowed") {
+      return kind === "guest"
+        ? "Guest play is not turned on yet — use email, or ask the owner to enable Anonymous sign-in."
+        : "Enable Email/Password sign-in in your Firebase console first.";
+    }
     if (code === "auth/email-already-in-use") return "That email already has an account — try logging in.";
     if (code === "auth/weak-password") return "Password must be at least 6 characters.";
     if (code === "auth/invalid-email") return "That email doesn't look right.";
@@ -1143,10 +1147,13 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
   function syncAccountUI() {
     const u = MP.getUser();
     const name = u ? u.name : "";
+    const guest = !!(u && u.guest);
     // profile modal (account moved here)
     const plo = el("profLoggedOut"); if (plo) plo.style.display = u ? "none" : "";
     const pli = el("profLoggedIn"); if (pli) pli.style.display = u ? "" : "none";
     const pn = el("profName"); if (pn) pn.textContent = name;
+    const tag = el("profGuestTag"); if (tag) tag.style.display = guest ? "" : "none";
+    const pass = el("profPassSection"); if (pass) pass.style.display = u && !guest ? "" : "none";
   }
 
   function syncMpUI() {
@@ -1916,6 +1923,20 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         .then(() => { profileMsg(""); syncAccountUI(); syncMpUI(); })
         .catch((e) => profileMsg(friendlyAuthError(e)));
     });
+    const guestBtn = el("btnProfGuest");
+    if (guestBtn) {
+      guestBtn.addEventListener("click", () => {
+        profileMsg("");
+        MP.loginGuest()
+          .then(() => {
+            profileMsg("");
+            showNotice("Playing as guest", false);
+            syncAccountUI();
+            syncMpUI();
+          })
+          .catch((e) => profileMsg(friendlyAuthError(e, "guest")));
+      });
+    }
     el("btnProfLogout").addEventListener("click", async () => {
       if (MP.isActive()) await MP.leave(false);
       MP.logout().then(() => { syncAccountUI(); syncMpUI(); }).catch((e) => profileMsg(friendlyAuthError(e)));
@@ -1925,6 +1946,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       try {
         const nm = await NET.updateUsername(el("profUser").value.trim());
         el("profUser").value = "";
+        if (MP.setDisplayName) MP.setDisplayName(nm);
         profileMsg("Username set to " + nm);
         syncAccountUI();
       } catch (e) { profileMsg(e.message || String(e)); }

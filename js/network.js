@@ -54,11 +54,27 @@ window.DPNet = (function () {
       db = firebase.database();
       auth = firebase.auth();
       firebase.auth().onAuthStateChanged((u) => {
-        user = u ? { uid: u.uid, email: u.email || "", name: String(u.email || "player").split("@")[0].slice(0, 16) } : null;
+        user = makeAuthUser(u);
         for (const fn of authListeners) fn(user);
       });
     }
     return db;
+  }
+
+  function guestStoredName() {
+    try {
+      const n = localStorage.getItem("dashpoint.guestName");
+      if (n) return String(n).replace(/\s+/g, " ").trim().slice(0, 16);
+    } catch (e) {}
+    return "";
+  }
+
+  function makeAuthUser(u) {
+    if (!u) return null;
+    const guest = !!u.isAnonymous;
+    let name = guest ? guestStoredName() : String(u.email || u.displayName || "player").split("@")[0];
+    if (!name) name = guest ? "Guest" : "player";
+    return { uid: u.uid, email: u.email || "", name: String(name).slice(0, 16), guest: guest };
   }
 
   function onAuth(fn) { ensure(); authListeners.push(fn); fn(user); }
@@ -66,7 +82,7 @@ window.DPNet = (function () {
     if (user) return user;
     try {
       const cu = firebase.auth().currentUser;
-      if (cu) return { uid: cu.uid, email: cu.email || "", name: String(cu.email || "player").split("@")[0].slice(0, 16) };
+      if (cu) return makeAuthUser(cu);
     } catch(e){}
     try {
       const mp = window.DashPointMP && window.DashPointMP.getUser && window.DashPointMP.getUser();
@@ -79,7 +95,7 @@ window.DPNet = (function () {
     if (u) return u;
     try {
       const cu = firebase.auth().currentUser;
-      if (cu) return { uid: cu.uid, email: cu.email || "", name: String(cu.email || "player").split("@")[0].slice(0, 16) };
+      if (cu) return makeAuthUser(cu);
     } catch(e){}
     return null;
   }
@@ -319,6 +335,7 @@ window.DPNet = (function () {
     await patchJSON("/dashpoint/usersIndex/" + u.uid, { name: clean, lastSeen: Date.now() });
     // update local user object too
     if (user && user.uid === u.uid) user.name = clean;
+    try { localStorage.setItem("dashpoint.guestName", clean.slice(0, 16)); } catch (e) {}
     return clean;
   }
 
