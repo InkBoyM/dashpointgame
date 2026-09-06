@@ -152,6 +152,26 @@ window.DPNet = (function () {
     return true;
   }
 
+  async function deleteJSON(path) {
+    let url = rtURL(path);
+    try {
+      const tok = await getAuthToken();
+      if (tok) url += (url.indexOf("?") === -1 ? "?" : "&") + "auth=" + encodeURIComponent(tok);
+    } catch(e){}
+    const res = await fetch(url, { method: "DELETE" });
+    if (!res.ok) {
+      let extra = res.status;
+      try {
+        const j = await res.json();
+        if (j && j.error) extra = j.error;
+      } catch (e) {
+        try { const t = await res.text(); if (t) extra = t.slice(0, 200); } catch(e2){}
+      }
+      throw new Error("Delete failed (" + extra + ")");
+    }
+    return true;
+  }
+
   async function patchJSON(path, value) {
     let url = rtURL(path);
     try {
@@ -483,25 +503,34 @@ window.DPNet = (function () {
     return ADMIN_EMAILS.indexOf(e) !== -1;
   }
 
+  function canDeleteLevel(meta) {
+    if (!meta) return false;
+    if (isAdmin()) return true;
+    const u = getEffectiveUser() || getUser();
+    return !!(u && u.uid && meta.authorUid && u.uid === meta.authorUid);
+  }
+
   async function deleteNetworkLevel(id, reason) {
     ensure();
-    if (!isAdmin()) throw new Error("Only an admin can delete levels.");
-    reason = String(reason || "").trim() || "Removed by an admin.";
-    // fetch level entry to learn who authored it
     let entry = null;
     try { entry = await getJSON("/dashpoint/levelsIndex/" + encodeURIComponent(id)); } catch(e) {}
     const authorUid = entry && entry.authorUid ? entry.authorUid : null;
     const title = entry && entry.title ? entry.title : String(id).slice(0, 24);
+    const me = getEffectiveUser() || getUser();
+    const mine = !!(me && me.uid && authorUid && me.uid === authorUid);
+    if (!isAdmin() && !mine) throw new Error("You can only delete your own levels.");
+    const notifyAuthor = isAdmin() && !mine;
+    reason = String(reason || "").trim() || (notifyAuthor ? "Removed by an admin." : "Removed by the author.");
 
     // 1) delete level data + index entry + author's userLevels mapping
-    try { await fetch(rtURL("/dashpoint/levelsData/" + encodeURIComponent(id)) + (await getAuthToken() ? "?auth=" + encodeURIComponent(await getAuthToken()) : ""), { method: "DELETE" }); } catch(e) {}
-    try { await fetch(rtURL("/dashpoint/levelsIndex/" + encodeURIComponent(id)) + (await getAuthToken() ? "?auth=" + encodeURIComponent(await getAuthToken()) : ""), { method: "DELETE" }); } catch(e) {}
+    await deleteJSON("/dashpoint/levelsData/" + encodeURIComponent(id));
+    await deleteJSON("/dashpoint/levelsIndex/" + encodeURIComponent(id));
     if (authorUid) {
-      try { await fetch(rtURL("/dashpoint/userLevels/" + encodeURIComponent(authorUid) + "/" + encodeURIComponent(id)) + (await getAuthToken() ? "?auth=" + encodeURIComponent(await getAuthToken()) : ""), { method: "DELETE" }); } catch(e) {}
+      try { await deleteJSON("/dashpoint/userLevels/" + encodeURIComponent(authorUid) + "/" + encodeURIComponent(id)); } catch(e) {}
     }
 
     // 2) write a deletion notice for the author (so they see a popup next login)
-    if (authorUid) {
+    if (authorUid && notifyAuthor) {
       const notice = {
         title: title,
         reason: reason,
@@ -564,6 +593,7 @@ window.DPNet = (function () {
     saveLocal: saveLocal,
     deleteSave: deleteSave,
     isAdmin: isAdmin,
+    canDeleteLevel: canDeleteLevel,
     deleteNetworkLevel: deleteNetworkLevel,
     getDeletionNotices: getDeletionNotices,
     clearDeletionNotices: clearDeletionNotices,

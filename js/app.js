@@ -1212,23 +1212,58 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     row.appendChild(diff);
     row.appendChild(info);
     row.appendChild(play);
-    // admin: delete this level
     try {
-      if (NET.isAdmin && NET.isAdmin()) {
+      if (NET.canDeleteLevel && NET.canDeleteLevel(meta)) {
         const del = document.createElement("button");
         del.className = "n-play";
         del.style.background = "var(--red)";
         del.style.color = "#33060c";
         del.textContent = "DELETE";
-        del.title = "Admin: delete this level";
+        del.title = (NET.isAdmin && NET.isAdmin() && !isMyLevel(meta)) ? "Admin: delete this level" : "Delete your level";
         del.addEventListener("click", (ev) => {
           ev.stopPropagation();
-          openAdminDelete(meta);
+          startDeleteLevel(meta);
         });
         row.appendChild(del);
       }
     } catch(e) {}
     return row;
+  }
+
+  function isMyLevel(meta) {
+    try {
+      const u = (NET.getEffectiveUser && NET.getEffectiveUser()) || (NET.getUser && NET.getUser());
+      return !!(u && u.uid && meta && meta.authorUid && u.uid === meta.authorUid);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function startDeleteLevel(meta) {
+    if (!meta) return;
+    if (NET.isAdmin && NET.isAdmin() && !isMyLevel(meta)) {
+      openAdminDelete(meta);
+      return;
+    }
+    if (!confirm("Delete \"" + (meta.title || "this level") + "\" from the Network? This cannot be undone.")) return;
+    ownerDeleteLevel(meta);
+  }
+
+  async function ownerDeleteLevel(meta) {
+    try {
+      const res = await NET.deleteNetworkLevel(meta.id);
+      showNotice("Deleted \"" + (res.title || meta.id) + "\"", false);
+      try { NET.deleteSave(meta.id); } catch (e) {}
+      try { levelIndexCache = await NET.loadLevelIndex(); } catch (e) {}
+      if (netTab === "levels") renderResults();
+      if (typeof renderSavedList === "function") renderSavedList();
+      if (typeof renderNetworkHome === "function") renderNetworkHome();
+      try {
+        if (el("modalAccount").classList.contains("visible") && meta.authorUid) openAccount(meta.authorUid);
+      } catch (e) {}
+    } catch (err) {
+      showNotice(NET.friendly(err), true);
+    }
   }
 
   let pendingDeleteMeta = null;
@@ -1249,8 +1284,14 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       showNotice("Deleted \"" + (res.title || meta.id) + "\"", false);
       el("modalAdminDelete").classList.remove("visible");
       pendingDeleteMeta = null;
+      try { NET.deleteSave(meta.id); } catch(e){}
       try { levelIndexCache = await NET.loadLevelIndex(); } catch(e){}
       if (netTab === "levels") renderResults();
+      if (typeof renderSavedList === "function") renderSavedList();
+      if (typeof renderNetworkHome === "function") renderNetworkHome();
+      try {
+        if (el("modalAccount").classList.contains("visible") && meta.authorUid) openAccount(meta.authorUid);
+      } catch (e) {}
     } catch (err) {
       showNotice(NET.friendly(err), true);
     }
@@ -1419,10 +1460,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     const a = save_.data.attempts[key] || { attempts: 0, deaths: 0 };
     el("liAttempts").textContent = a.attempts || 0;
     el("liDeaths").textContent = a.deaths || 0;
-    // admin delete button
     try {
-      const isAdmin = NET.isAdmin && NET.isAdmin();
-      el("btnLiDelete").style.display = isAdmin ? "" : "none";
+      el("btnLiDelete").style.display = (NET.canDeleteLevel && NET.canDeleteLevel(meta)) ? "" : "none";
     } catch(e){ el("btnLiDelete").style.display = "none"; }
     el("modalLevelInfo").classList.add("visible");
   }
@@ -1587,7 +1626,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnPauseRestart").addEventListener("click", () => { resumeGame(); restartLevel(); });
     el("btnPauseQuit").addEventListener("click", quitToLevels);
     el("btnLiPlay").addEventListener("click", liPlay);
-    el("btnLiDelete").addEventListener("click", function(){ const m = levelInfoMeta; if (m) { el("modalLevelInfo").classList.remove("visible"); openAdminDelete(m.meta); } });
+    el("btnLiDelete").addEventListener("click", function(){ const m = levelInfoMeta; if (m) { el("modalLevelInfo").classList.remove("visible"); startDeleteLevel(m.meta); } });
     el("btnAdCancel").addEventListener("click", function(){ el("modalAdminDelete").classList.remove("visible"); pendingDeleteMeta = null; });
     el("btnAdConfirm").addEventListener("click", adminDeleteLevel);
     el("btnWinRestart").addEventListener("click", restartLevel);
