@@ -144,7 +144,7 @@
       const ed = window.DashPointEditor;
       const json = ed.exportJSON();
       const v = ed.getLevel().counts();
-      if (v.goal < 1) throw new Error("Your level needs a goal before posting.");
+        if ((v.goals || v.goal || 0) < 1) throw new Error("Your level needs a goal before posting.");
       const net = editing();
       const tags = (json.meta && Array.isArray(json.meta.tags) ? json.meta.tags : (net && net.meta && net.meta.tags) || []).slice(0, 8);
       const meta = { title: title, desc: el("postDesc").value.trim(), difficulty: difficulty, tags: tags };

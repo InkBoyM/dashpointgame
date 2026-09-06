@@ -695,6 +695,8 @@
     if (els.spikeIcon) els.spikeIcon.style.transform = "rotate(" + state.rot + "deg)";
     const invisIcon = document.getElementById("ispikeIcon");
     if (invisIcon) invisIcon.style.transform = "rotate(" + state.rot + "deg)";
+    const fakeIcon = document.getElementById("fspikeIcon");
+    if (fakeIcon) fakeIcon.style.transform = "rotate(" + state.rot + "deg)";
   }
 
   function bresenham(c0, r0, c1, r1) {
@@ -1242,10 +1244,12 @@
     const counts = state.level.counts();
     const spawnTile = state.level.get(state.level.spawn.c, state.level.spawn.r);
     const issues = [];
-    if (counts.goal < 1) issues.push("needs a goal");
-    if (spawnTile && DP.isSpikeId(spawnTile.id)) issues.push("spawn on spike");
-    if (spawnTile && DP.isBrickId(spawnTile.id)) issues.push("spawn inside brick");
-    return { counts, issues, ok: issues.length === 0 && counts.goal > 0 };
+    const goals = (counts.goal || 0) + (counts.igoal || 0);
+    if (goals < 1) issues.push("needs a goal");
+    const spawnType = spawnTile && DP.TILE_TYPES[spawnTile.id];
+    if (spawnType && spawnType.hazard) issues.push("spawn on spike");
+    if (spawnType && spawnType.solid) issues.push("spawn inside brick");
+    return { counts, issues, ok: issues.length === 0 && goals > 0 };
   }
 
   function syncInspector() {
@@ -1268,7 +1272,15 @@
     document.getElementById("cOrb").textContent = v.counts.orb;
     document.getElementById("cPad").textContent = v.counts.pad;
     document.getElementById("cDash").textContent = v.counts.dash;
-    document.getElementById("cGoal").textContent = v.counts.goal;
+    document.getElementById("cGoal").textContent = (v.counts.goal || 0) + (v.counts.igoal || 0);
+    const setStat = function (id, n) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = n || 0;
+    };
+    setStat("cFBrick", v.counts.fbrick);
+    setStat("cFSpike", v.counts.fspike);
+    setStat("cIOrb", v.counts.iorb);
+    setStat("cIGoal", v.counts.igoal);
     syncThemeUI();
     document.getElementById("cText").textContent = v.counts.labels;
     const imgStat = document.getElementById("cImages");
@@ -1542,9 +1554,12 @@
     state.level.forEachTile((tile, col, row) => {
       if (tile.id === "brick") c.fillStyle = "#3aa0ff";
       else if (tile.id === "ibrick") c.fillStyle = "#6e9cff";
+      else if (tile.id === "fbrick") c.fillStyle = "#8a7a40";
       else if (tile.id === "spike") c.fillStyle = "#ff4d62";
       else if (tile.id === "ispike") c.fillStyle = "#b45cff";
+      else if (tile.id === "fspike") c.fillStyle = "#c9a24a";
       else if (tile.id === "orb") c.fillStyle = "#3ee07a";
+      else if (tile.id === "iorb") c.fillStyle = "#6ee0a0";
       else if (tile.id === "pad") c.fillStyle = "#ff9d2e";
       else if (tile.id === "dash") c.fillStyle = "#2ee6ff";
       else c.fillStyle = "#ffd23c";

@@ -12,25 +12,41 @@
   const TILE_TYPES = {
     brick: { id: "brick", solid: true, hazard: false, rotatable: false, label: "Brick" },
     ibrick: { id: "ibrick", solid: true, hazard: false, rotatable: false, hidden: true, label: "Invis block" },
+    fbrick: { id: "fbrick", solid: false, hazard: false, rotatable: false, fake: true, label: "Fake brick" },
     spike: { id: "spike", solid: false, hazard: true, rotatable: true, label: "Spike" },
     ispike: { id: "ispike", solid: false, hazard: true, rotatable: true, hidden: true, label: "Invis spike" },
+    fspike: { id: "fspike", solid: false, hazard: false, rotatable: true, fake: true, label: "Fake spike" },
     goal: { id: "goal", solid: false, hazard: false, rotatable: false, label: "Goal" },
+    igoal: { id: "igoal", solid: false, hazard: false, rotatable: false, hidden: true, label: "Invis goal" },
     orb: { id: "orb", solid: false, hazard: false, rotatable: false, label: "Bounce orb" },
+    iorb: { id: "iorb", solid: false, hazard: false, rotatable: false, hidden: true, label: "Invis orb" },
     pad: { id: "pad", solid: false, hazard: false, rotatable: false, label: "Bounce pad" },
     dash: { id: "dash", solid: false, hazard: false, rotatable: false, label: "Dash" },
     checkpoint: { id: "checkpoint", solid: false, hazard: false, rotatable: false, label: "Checkpoint" },
   };
 
   function isSpikeId(id) {
-    return id === "spike" || id === "ispike";
+    return id === "spike" || id === "ispike" || id === "fspike";
   }
 
   function isBrickId(id) {
-    return id === "brick" || id === "ibrick";
+    return id === "brick" || id === "ibrick" || id === "fbrick";
+  }
+
+  function isGoalId(id) {
+    return id === "goal" || id === "igoal";
+  }
+
+  function isOrbId(id) {
+    return id === "orb" || id === "iorb";
+  }
+
+  function isFakeId(id) {
+    return id === "fspike" || id === "fbrick";
   }
 
   function isInvisibleId(id) {
-    return id === "ispike" || id === "ibrick";
+    return id === "ispike" || id === "ibrick" || id === "iorb" || id === "igoal";
   }
 
   const SKINS = window.DashPointSkins || [];
@@ -462,7 +478,7 @@
     }
 
     counts() {
-      const out = { brick: 0, ibrick: 0, spike: 0, ispike: 0, goal: 0, orb: 0, pad: 0, dash: 0, empty: 0, labels: 0, pictures: 0 };
+      const out = { brick: 0, ibrick: 0, fbrick: 0, spike: 0, ispike: 0, fspike: 0, goal: 0, igoal: 0, orb: 0, iorb: 0, pad: 0, dash: 0, empty: 0, labels: 0, pictures: 0 };
       for (let r = 0; r < this.rows; r++) {
         for (let c = 0; c < this.cols; c++) {
           const t = this.grid[r][c];
@@ -472,6 +488,7 @@
       }
       out.labels = this.texts.length;
       out.pictures = this.pictures.length;
+      out.goals = (out.goal || 0) + (out.igoal || 0);
       return out;
     }
 
@@ -911,12 +928,13 @@
       const box = this.playerBox();
       const hits = this.nearbyTiles(box.x, box.y, box.w, box.h, 4);
       for (const { tile, c, r } of hits) {
-        if (isSpikeId(tile.id)) {
+        const type = TILE_TYPES[tile.id];
+        if (type && type.hazard) {
           if (aabbOverlap(box, spikeBox(c, r, tile.rot || 0))) {
             this.kill("spike");
             return;
           }
-        } else if (tile.id === "goal") {
+        } else if (isGoalId(tile.id)) {
           if (aabbOverlap(box, goalBox(c, r))) {
             this.win();
             return;
@@ -925,12 +943,13 @@
       }
       for (const m of this.movers || []) {
         if (m.done) continue;
-        if (isSpikeId(m.tile.id)) {
+        const mType = TILE_TYPES[m.tile.id];
+        if (mType && mType.hazard) {
           if (aabbOverlap(box, spikeBox(m.x / TILE, m.y / TILE, m.tile.rot || 0))) {
             this.kill("spike");
             return;
           }
-        } else if (m.tile.id === "goal") {
+        } else if (isGoalId(m.tile.id)) {
           if (aabbOverlap(box, goalBox(m.x / TILE, m.y / TILE))) {
             this.win();
             return;
@@ -965,9 +984,9 @@
       const p = this.player;
       const box = this.playerBox();
       const hits = this.nearbyTiles(box.x, box.y, box.w, box.h, 2);
-      const orbs = hits.filter(({ tile }) => tile.id === "orb").map(({ c, r }) => orbBox(c, r));
+      const orbs = hits.filter(({ tile }) => isOrbId(tile.id)).map(({ c, r }) => orbBox(c, r));
       for (const m of this.movers || []) {
-        if (!m.done && m.tile.id === "orb") orbs.push(orbBox(m.x / TILE, m.y / TILE));
+        if (!m.done && isOrbId(m.tile.id)) orbs.push(orbBox(m.x / TILE, m.y / TILE));
       }
       for (const b of orbs) {
         if (!aabbOverlap(box, b)) continue;
@@ -1156,19 +1175,18 @@
     if (tile.id === "checkpoint") {
       const touched = opts.touched && opts.c != null && opts.touched.has(opts.c + "," + opts.r);
       img = touched ? images.checkpointTouched : images.checkpoint;
-    } else {
-      img =
-        isBrickId(tile.id)
-          ? images.brick
-          : isSpikeId(tile.id)
-            ? images.spike
-            : tile.id === "orb"
-              ? images.orb
-              : tile.id === "pad"
-                ? images.pad
-                : tile.id === "dash"
-                  ? images.dash
-                  : images.goal;
+    } else if (isBrickId(tile.id)) {
+      img = images.brick;
+    } else if (isSpikeId(tile.id)) {
+      img = images.spike;
+    } else if (isOrbId(tile.id)) {
+      img = images.orb;
+    } else if (tile.id === "pad") {
+      img = images.pad;
+    } else if (tile.id === "dash") {
+      img = images.dash;
+    } else if (isGoalId(tile.id)) {
+      img = images.goal;
     }
     if (!img) return;
     const rot = isSpikeId(tile.id) ? tile.rot || 0 : 0;
@@ -1182,7 +1200,7 @@
       ctx.drawImage(img, x, y, size, size);
     }
     ctx.restore();
-    if (isInvisibleId(tile.id) && !opts.hideInvisible) {
+    if (!opts.hideInvisible && isInvisibleId(tile.id)) {
       ctx.save();
       ctx.strokeStyle = "rgba(176, 92, 255, 0.95)";
       ctx.setLineDash([4, 3]);
@@ -1193,6 +1211,19 @@
       ctx.font = "bold " + Math.max(7, size * 0.22) + "px Consolas, monospace";
       ctx.textAlign = "center";
       ctx.fillText("INV", x + size / 2, y + size - 3);
+      ctx.textAlign = "start";
+      ctx.restore();
+    } else if (!opts.hideInvisible && isFakeId(tile.id)) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(255, 210, 60, 0.95)";
+      ctx.setLineDash([4, 3]);
+      ctx.lineWidth = Math.max(1, size / 16);
+      ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(255, 220, 90, 0.95)";
+      ctx.font = "bold " + Math.max(7, size * 0.2) + "px Consolas, monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("FAKE", x + size / 2, y + size - 3);
       ctx.textAlign = "start";
       ctx.restore();
     }
@@ -1375,15 +1406,15 @@
         for (let c = c0; c <= c1; c++) {
           const tile = level.grid[r][c];
           if (!tile) continue;
-          if (isSpikeId(tile.id)) {
+          if (isSpikeId(tile.id) && TILE_TYPES[tile.id] && TILE_TYPES[tile.id].hazard) {
             const b = spikeBox(c, r, tile.rot || 0);
             ctx.strokeStyle = tile.id === "ispike" ? "rgba(176,92,255,0.95)" : "rgba(255,60,80,0.9)";
             ctx.strokeRect(b.x, b.y, b.w, b.h);
-          } else if (tile.id === "goal") {
+          } else if (isGoalId(tile.id)) {
             const b = goalBox(c, r);
             ctx.strokeStyle = "rgba(255,210,60,0.9)";
             ctx.strokeRect(b.x, b.y, b.w, b.h);
-          } else if (tile.id === "orb") {
+          } else if (isOrbId(tile.id)) {
             const b = orbBox(c, r);
             ctx.strokeStyle = "rgba(62,224,122,0.9)";
             ctx.strokeRect(b.x, b.y, b.w, b.h);
@@ -1395,7 +1426,7 @@
             const b = dashBox(c, r);
             ctx.strokeStyle = "rgba(46,230,255,0.9)";
             ctx.strokeRect(b.x, b.y, b.w, b.h);
-          } else if (isBrickId(tile.id)) {
+          } else if (isBrickId(tile.id) && TILE_TYPES[tile.id] && TILE_TYPES[tile.id].solid) {
             ctx.strokeStyle = tile.id === "ibrick" ? "rgba(176,92,255,0.7)" : "rgba(80,180,255,0.35)";
             ctx.strokeRect(c * TILE, r * TILE, TILE, TILE);
           }
@@ -1525,6 +1556,9 @@
     TILE_TYPES,
     isSpikeId,
     isBrickId,
+    isGoalId,
+    isOrbId,
+    isFakeId,
     isInvisibleId,
     TEXT_COLORS,
     DEFAULT_THEME,

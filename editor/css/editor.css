@@ -219,8 +219,15 @@ img { image-rendering: pixelated; }
 }
 
 .tile-btn[data-tile="ispike"] span,
-.tile-btn[data-tile="ibrick"] span {
+.tile-btn[data-tile="ibrick"] span,
+.tile-btn[data-tile="iorb"] span,
+.tile-btn[data-tile="igoal"] span {
   color: #c9a0ff;
+}
+
+.tile-btn[data-tile="fspike"] span,
+.tile-btn[data-tile="fbrick"] span {
+  color: #ffd23c;
 }
 
 .tile-btn span, .tool span, .chip span {

@@ -89,6 +89,22 @@
           <img src="assets/tiles/checkpoint.png" alt="" />
           <span>Checkpoint 9</span>
         </button>
+        <button class="tile-btn" data-tile="fbrick" title="Fake brick — looks solid, no collision">
+          <img src="assets/tiles/brick.png" alt="" />
+          <span>F-Blk</span>
+        </button>
+        <button class="tile-btn" data-tile="fspike" title="Fake spike — looks deadly, does not kill">
+          <img src="assets/tiles/spike.png" alt="" id="fspikeIcon" />
+          <span>F-Spk</span>
+        </button>
+        <button class="tile-btn" data-tile="iorb" title="Invisible orb — bounce orb, hidden while playing">
+          <img src="assets/tiles/BounceOrb.png" alt="" class="invis-icon" />
+          <span>I-Orb</span>
+        </button>
+        <button class="tile-btn" data-tile="igoal" title="Invisible goal — ends the level, hidden while playing">
+          <img src="assets/tiles/goal.png" alt="" class="invis-icon" />
+          <span>I-Goal</span>
+        </button>
       </div>
 
       <div class="section-title" style="margin-top:14px">Level text</div>
@@ -107,7 +123,7 @@
 
       <div class="section-title" style="margin-top:14px">Spike rotation</div>
       <div class="rot-preview" id="rotations"></div>
-      <p class="hint">Mouse wheel over canvas rotates spikes and invis spikes. <span class="k">[</span> <span class="k">]</span> also work. Invisible tiles show as faded + INV in the editor, and vanish in playtest.</p>
+      <p class="hint">Mouse wheel over canvas rotates spikes, invis spikes, and fake spikes. <span class="k">[</span> <span class="k">]</span> also work. Invisible tiles show as faded + INV and vanish in playtest. Fake bricks and spikes look real in play but have no collision.</p>
 
       <div class="section-title" style="margin-top:14px">Prefabs</div>
       <div class="chips" id="prefabs"></div>
@@ -205,6 +221,10 @@
       <div class="stat">Pads <b id="cPad">0</b></div>
       <div class="stat">Dashes <b id="cDash">0</b></div>
       <div class="stat">Goals <b id="cGoal">0</b></div>
+      <div class="stat">Fake blk <b id="cFBrick">0</b></div>
+      <div class="stat">Fake spk <b id="cFSpike">0</b></div>
+      <div class="stat">I-Orb <b id="cIOrb">0</b></div>
+      <div class="stat">I-Goal <b id="cIGoal">0</b></div>
       <div class="stat">Text <b id="cText">0</b></div>
       <div class="stat">Images <b id="cImages">0</b></div>
       <div class="stat">Spawn <b id="cSpawn">0,0</b></div>
