@@ -51,6 +51,7 @@
     rich: { coins: 5000 },
     noob: { skin: 19 },
     imbad: { coins: 1000 },
+    "did you just say your name was burger? do you come with fries? ahahahahahahaha": { skin: 20 },
   };
 
   function coinIcon(cls) {
@@ -694,7 +695,7 @@
   function redeemCode() {
     const inp = el("codeInput");
     const msg = el("codeMsg");
-    const raw = inp ? String(inp.value || "").trim().toLowerCase() : "";
+    const raw = inp ? String(inp.value || "").trim().toLowerCase().replace(/\s+/g, " ") : "";
     function say(text, bad) {
       if (msg) {
         msg.textContent = text || "";
