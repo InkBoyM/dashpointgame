@@ -260,13 +260,24 @@
   const MAX_PICTURES = 8;
   const PIC_MIN = 16;
   const PIC_MAX_DIM = 4096;
-  const PIC_MAX_SRC = 400000;
+  const PIC_MAX_SRC = 1000000;
   const pictureImgs = {};
+
+  function asList(v) {
+    if (Array.isArray(v)) return v;
+    if (v && typeof v === "object") {
+      return Object.keys(v).map(function (k) { return v[k]; }).filter(Boolean);
+    }
+    return [];
+  }
 
   function sanitizePicture(raw) {
     if (!raw || typeof raw !== "object") return null;
-    const src = String(raw.src || "");
-    if (!/^data:image\/(png|jpe?g|webp|gif);base64,/i.test(src)) return null;
+    let src = String(raw.src || "").replace(/\s+/g, "");
+    if (!src && raw.data) {
+      src = "data:" + (raw.mime || "image/jpeg") + ";base64," + String(raw.data).replace(/\s+/g, "");
+    }
+    if (!/^data:image\/[a-z0-9.+-]+;base64,/i.test(src)) return null;
     if (src.length > PIC_MAX_SRC) return null;
     const w = clamp(Number(raw.w) || 0, PIC_MIN, PIC_MAX_DIM);
     const h = clamp(Number(raw.h) || 0, PIC_MIN, PIC_MAX_DIM);
@@ -402,7 +413,7 @@
       this.theme = sanitizeTheme(opts.theme);
       this.grid = opts.grid || emptyGrid(this.cols, this.rows);
       this.texts = Array.isArray(opts.texts) ? opts.texts.map(sanitizeText).filter(Boolean) : [];
-      this.pictures = Array.isArray(opts.pictures) ? opts.pictures.map(sanitizePicture).filter(Boolean).slice(0, MAX_PICTURES) : [];
+      this.pictures = asList(opts.pictures).map(sanitizePicture).filter(Boolean).slice(0, MAX_PICTURES);
       this.triggers = sanitizeTriggers(opts.triggers);
       this.song = sanitizeSong(opts.song);
       this.meta = Object.assign(
@@ -605,7 +616,7 @@
         theme: data.theme,
         meta: data.meta,
         texts: Array.isArray(data.texts) ? data.texts : [],
-        pictures: Array.isArray(data.pictures) ? data.pictures : [],
+        pictures: asList(data.pictures),
         triggers: data.triggers,
         song: data.song,
       });
@@ -1229,6 +1240,8 @@
     ctx.scale(zoom, zoom);
     ctx.translate(-cam.x, -cam.y);
 
+    drawPictures(ctx, level);
+
     ctx.fillStyle = "rgba(255, 42, 60, 0.16)";
     ctx.fillRect(-6, worldH, worldW + 12, 10);
 
@@ -1268,8 +1281,6 @@
         });
       }
     }
-
-    drawPictures(ctx, level);
 
     const labels = level.texts || [];
     const hover = extras.hover;

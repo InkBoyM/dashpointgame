@@ -1516,19 +1516,19 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
 
   async function playNetworkLevel(meta, fromLocal) {
     let json = null;
-    if (fromLocal) {
-      const sv = NET.getSave(meta.id);
-      if (sv) json = sv.json;
-    }
-    if (!json) {
-      try {
-        json = await NET.fetchLevel(meta.id);
-      } catch (err) {
+    try {
+      json = await NET.fetchLevel(meta.id);
+    } catch (err) {
+      if (fromLocal) {
+        const sv = NET.getSave(meta.id);
+        if (sv) json = sv.json;
+      }
+      if (!json) {
         showNotice(NET.friendly(err), true);
         return;
       }
     }
-    NET.saveLocal(meta.id, meta, json);
+    try { NET.saveLocal(meta.id, meta, json); } catch (e) {}
     if (!fromLocal) NET.bumpPlays(meta.id);
     let level;
     try {

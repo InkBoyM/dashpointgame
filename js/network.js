@@ -493,7 +493,9 @@ window.DPNet = (function () {
     let all = {};
     try { all = JSON.parse(localStorage.getItem(SAVES_KEY) || "{}"); } catch (e) {}
     all[id] = { id: id, meta: meta, json: json, savedAt: Date.now() };
-    localStorage.setItem(SAVES_KEY, JSON.stringify(all));
+    try {
+      localStorage.setItem(SAVES_KEY, JSON.stringify(all));
+    } catch (e) {}
   }
   function deleteSave(id) {
     let all = {};
