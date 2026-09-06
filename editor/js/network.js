@@ -81,6 +81,7 @@ window.DPNet = (function () {
       title: String(meta.title || "Untitled").slice(0, 48),
       desc: String(meta.desc || "").slice(0, 300),
       difficulty: Math.max(1, Math.min(5, meta.difficulty | 0)),
+      diffV: 2,
       authorUid: u.uid,
       authorName: u.name,
       createdAt: Date.now(),

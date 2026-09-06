@@ -8,7 +8,7 @@
     "#modalPost label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:10px 0 4px}",
     "#postTitle,#postDesc{width:100%;background:var(--inset);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:8px 10px;font-family:var(--font);font-size:13px}",
     "#postDesc{resize:vertical;min-height:70px}",
-    ".face-row { display: flex; gap: 12px; margin-top: 2px; }",
+    ".face-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 2px; }",
     ".face-row button { background: none; border: 3px solid transparent; padding: 4px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; }",
     ".face-row button img { width: 46px; height: auto; image-rendering: pixelated; opacity: 0.35; }",
     ".face-row button span { font-family: var(--mono); font-size: 9px; letter-spacing: 1px; color: var(--muted); }",
@@ -47,6 +47,7 @@
     { src: "assets/ui/diff-easy.png", name: "EASY" },
     { src: "assets/ui/diff-normal.png", name: "NORMAL" },
     { src: "assets/ui/diff-hard.png", name: "HARD" },
+    { src: "assets/ui/diff-harder.png", name: "HARDER" },
     { src: "assets/ui/diff-torture.png", name: "TORTURE" },
   ];
   let currentUser = null;

@@ -207,7 +207,8 @@ window.DPNet = (function () {
     await putJSON("/dashpoint/levelsIndex/" + id, {
       title: String(meta.title || "Untitled").slice(0, 48),
       desc: String(meta.desc || "").slice(0, 300),
-      difficulty: Math.max(1, Math.min(4, meta.difficulty | 0)),
+      difficulty: Math.max(1, Math.min(5, meta.difficulty | 0)),
+      diffV: 2,
       authorUid: u.uid,
       authorName: u.name,
       createdAt: Date.now(),

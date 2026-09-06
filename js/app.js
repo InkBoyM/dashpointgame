@@ -3,19 +3,29 @@
   const DP = window.DashPoint;
   const TILE = DP.TILE;
   const STORAGE = "dashpoint.game";
-  const DIFF_FACES = ["diff-easy", "diff-normal", "diff-hard", "diff-torture"];
+  const DIFF_FACES = ["diff-easy", "diff-normal", "diff-hard", "diff-harder", "diff-torture"];
+  const DIFF_NAMES = ["Easy", "Normal", "Hard", "Harder", "Torture"];
   const LEVEL_DIFF = {
     "00_Welcome.dashpoint.json": 1,
     "Orb_run.dashpoint.json": 2,
     "spike_run.dashpoint.json": 3,
     "the_climb.dashpoint.json": 3,
-    "Agony.dashpoint.json": 4,
-    "The_Tower_of_Torture.dashpoint.json": 4,
-    "The_Tunnel.dashpoint.json": 3,
+    "The_Tunnel.dashpoint.json": 4,
+    "Agony.dashpoint.json": 5,
+    "The_Tower_of_Torture.dashpoint.json": 5,
   };
 
   function diffTier(d) {
-    return Math.max(1, Math.min(4, d | 0 || 1));
+    return Math.max(1, Math.min(5, d | 0 || 1));
+  }
+
+  function netDiff(meta) {
+    let n = (meta && meta.difficulty) | 0 || 1;
+    if (!meta || (meta.diffV | 0) < 2) {
+      if (n >= 4) n = 5;
+      else if (n >= 3) n = 4;
+    }
+    return diffTier(n);
   }
 
   function diffFaceImg(d, cls) {
@@ -962,8 +972,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       '<div class="n-sub">by <b class="n-author" style="cursor:pointer">' + escapeHtml(meta.authorName || "?") + "</b></div>" +
       '<div class="n-sub">' + escapeHtml((meta.desc || "").slice(0, 90)) + "</div>";
     const diff = document.createElement("div");
-    diff.innerHTML = diffFaceImg(meta.difficulty);
-    diff.title = "Difficulty: " + ["Easy", "Normal", "Hard", "Torture"][diffTier(meta.difficulty) - 1];
+    diff.innerHTML = diffFaceImg(netDiff(meta));
+    diff.title = "Difficulty: " + DIFF_NAMES[netDiff(meta) - 1];
     const play = document.createElement("button");
     play.className = "n-play";
     play.textContent = "PLAY";
@@ -1141,7 +1151,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       row.className = "net-row";
       row.style.cursor = "pointer";
       row.innerHTML =
-        '<span class="lc-face">' + diffFaceImg(sv.meta.difficulty) + "</span>" +
+        '<span class="lc-face">' + diffFaceImg(netDiff(sv.meta)) + "</span>" +
         '<span class="n-main"><span class="n-title">' + escapeHtml(sv.meta.title || "Untitled") + "</span>" +
         '<div class="n-sub">by ' + escapeHtml(sv.meta.authorName || "?") + " · offline ready</div></span>";
       row.addEventListener("click", () => openLevelInfo(sv));
@@ -1174,7 +1184,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     const key = "net:" + (sv.id || sv.meta.id);
     const meta = sv.meta;
     el("liName").textContent = meta.title || "Untitled";
-    el("liDiff").innerHTML = diffFaceImg(meta.difficulty);
+    el("liDiff").innerHTML = diffFaceImg(netDiff(meta));
     el("liAuthor").textContent = meta.authorName || "—";
     const best = save_.data.best[key];
     el("liBest").textContent = best !== undefined ? fmtTime(best) : "—";

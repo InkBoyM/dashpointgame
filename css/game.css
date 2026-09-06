@@ -224,7 +224,8 @@ canvas { image-rendering: pixelated; }
 .level-card.diff-1 { border-left-color: var(--good); }
 .level-card.diff-2 { border-left-color: var(--gold); }
 .level-card.diff-3 { border-left-color: #ff9d2e; }
-.level-card.diff-4 { border-left-color: var(--red); }
+.level-card.diff-4 { border-left-color: #ff5a1a; }
+.level-card.diff-5 { border-left-color: var(--red); }
 .level-card.cleared { background: #1a3a2a; }
 .level-card:hover { transform: translate(-2px, -2px); box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.09), 7px 7px 0 rgba(6, 12, 24, 0.55); filter: brightness(1.1); }
 .level-card:active { transform: translate(2px, 2px); cursor: var(--cursor-select); }
