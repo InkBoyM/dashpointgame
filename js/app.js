@@ -36,6 +36,66 @@
     return LEVEL_DIFF[file] || 2;
   }
 
+  const COIN_BY_TIER = [0, 10, 50, 100, 500, 1000];
+  const COIN_PER_SKIN = 50;
+
+  function isShopSkin(s) {
+    return !!(s && s.unlock && s.unlock.type === "shop");
+  }
+
+  function coinIcon(cls) {
+    return '<img class="' + (cls || "coin-icon") + '" src="assets/ui/coin.png" alt="" />';
+  }
+
+  function coinsForFile(file, meta) {
+    let tier = 2;
+    if (meta) tier = netDiff(meta);
+    else if (file && String(file).indexOf("net:") === 0) {
+      try {
+        const id = String(file).slice(4);
+        const net = window.DPNet;
+        const sv = net && net.getSave && net.getSave(id);
+        if (sv && sv.meta) tier = netDiff(sv.meta);
+      } catch (e) {}
+    } else if (file) tier = localDiff(file);
+    return COIN_BY_TIER[diffTier(tier)] || 0;
+  }
+
+  function grantCoins(n, key) {
+    n = n | 0;
+    if (n <= 0) return 0;
+    save_.data.coinPaid = save_.data.coinPaid || {};
+    if (key && save_.data.coinPaid[key]) return 0;
+    if (key) save_.data.coinPaid[key] = true;
+    save_.data.coins = (save_.data.coins | 0) + n;
+    return n;
+  }
+
+  function migrateCoins() {
+    save_.data.coins = save_.data.coins | 0;
+    save_.data.coinPaid = save_.data.coinPaid || {};
+    if (save_.data.coinMigrated) return;
+    const beaten = save_.data.beaten || {};
+    for (const file in beaten) {
+      if (!Object.prototype.hasOwnProperty.call(beaten, file)) continue;
+      grantCoins(coinsForFile(file), "level:" + file);
+    }
+    for (const s of SKINS) {
+      if (isShopSkin(s) || !s.unlock) continue;
+      if (isUnlocked(s.id)) grantCoins(COIN_PER_SKIN, "skin:" + s.id);
+    }
+    save_.data.coinMigrated = true;
+    save();
+  }
+
+  function syncCoinUI() {
+    const html = coinIcon() + "<b>" + (save_.data.coins | 0) + "</b>";
+    const a = el("skinsCoins");
+    if (a) a.innerHTML = html;
+    const b = el("shopCoins");
+    if (b) b.innerHTML = html;
+  }
+
   const LEVEL_FILES = [
     "00_Welcome.dashpoint.json",
     "Orb_run.dashpoint.json",
@@ -52,7 +112,7 @@
   const CLIMB_FILE = "the_climb.dashpoint.json";
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false };
+    return { deaths: 0, jumps: 0, coins: 0, coinPaid: {}, coinMigrated: false, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false };
   }
 
   function load() {
@@ -66,6 +126,9 @@
       s.attempts = s.attempts || {};
       s.spaceMenu = !!(s.spaceMenu || s.arcadeMenu);
       s.jumps = s.jumps | 0;
+      s.coins = s.coins | 0;
+      s.coinPaid = s.coinPaid && typeof s.coinPaid === "object" ? s.coinPaid : {};
+      s.coinMigrated = !!s.coinMigrated;
       return s;
     } catch (e) {
       return defaultSave();
@@ -275,6 +338,7 @@
     if (u.type === "either") return (save_.data.jumps | 0) >= (u.jumps | 0) || save_.data.deaths >= (u.deaths | 0);
     if (u.type === "beat") return Object.keys(save_.data.beaten).length > 0;
     if (u.type === "secreta") return save_.data.secretA === true;
+    if (u.type === "shop") return false;
     return false;
   }
 
@@ -310,14 +374,18 @@
 
   function checkUnlocks() {
     for (const s of SKINS) {
+      if (isShopSkin(s)) continue;
       if (!isUnlocked(s.id) && meetsUnlock(s.unlock)) {
         save_.data.unlocked.push(s.id);
+        grantCoins(COIN_PER_SKIN, "skin:" + s.id);
         queueAchievement(s);
       }
     }
     save();
     syncHomeStats();
+    syncCoinUI();
     if (el("modalSkins").classList.contains("visible")) renderSkins();
+    if (el("modalShop") && el("modalShop").classList.contains("visible")) renderShop();
   }
 
   function unlockSecretA() {
@@ -374,10 +442,11 @@
         stats.innerHTML =
           '<span class="hs-chip">LEVELS <b>' + beaten + "/" + state.levels.length + "</b></span>" +
           '<span class="hs-chip">DEATHS <b>' + save_.data.deaths + "</b></span>" +
-          '<span class="hs-chip">SKINS <b>' + got + "/" + total + "</b></span>";
+          '<span class="hs-chip">SKINS <b>' + got + "/" + total + "</b></span>" +
+          '<span class="hs-chip">COINS <b>' + (save_.data.coins | 0) + "</b></span>";
       } else {
         stats.textContent =
-          "LEVELS " + beaten + "/" + state.levels.length + " CLEARED · DEATHS " + save_.data.deaths + " · SKINS " + got + "/" + total;
+          "LEVELS " + beaten + "/" + state.levels.length + " CLEARED · DEATHS " + save_.data.deaths + " · SKINS " + got + "/" + total + " · COINS " + (save_.data.coins | 0);
       }
     }
     const preview = el("homeSkinPreview");
@@ -547,11 +616,70 @@
     addSection("JUMPS", jumps, "Jump to unlock");
     addSection("VICTORY — beat any level", victory, "");
     addSection("SECRET", secret, "Hidden — tap the SKINS title 7 times or press Alt+A");
+    const shopOwned = SKINS.filter(function(s){ return isShopSkin(s) && isUnlocked(s.id); });
+    if (shopOwned.length) addSection("SHOP", shopOwned, "Bought with coins");
+    syncCoinUI();
+  }
+
+  function renderShop() {
+    const box = el("shopGrid");
+    if (!box) return;
+    box.innerHTML = "";
+    const items = SKINS.filter(isShopSkin);
+    if (!items.length) {
+      box.innerHTML = '<p class="loading-note">The shop is empty.</p>';
+      syncCoinUI();
+      return;
+    }
+    items.forEach(function (s) {
+      const owned = isUnlocked(s.id);
+      const cost = (s.unlock && s.unlock.cost) | 0;
+      const can = (save_.data.coins | 0) >= cost;
+      const b = document.createElement("button");
+      b.className = "skin-tile" + (owned && save_.data.skin === s.id ? " selected" : "") + (!owned && !can ? " cant" : "");
+      const hint = owned ? (save_.data.skin === s.id ? "EQUIPPED" : "TAP TO EQUIP") : can ? "TAP TO BUY" : "NEED " + cost;
+      b.innerHTML =
+        '<img src="' + s.src + '" alt="" />' +
+        '<span class="skin-name">' + escapeHtml(s.name) + "</span>" +
+        '<span class="shop-cost">' + coinIcon() + cost + "</span>" +
+        '<span class="skin-hint">' + escapeHtml(hint) + "</span>";
+      b.addEventListener("click", function () {
+        if (owned) {
+          save_.data.skin = s.id;
+          save();
+          renderShop();
+          renderSkins();
+          syncHomeStats();
+          return;
+        }
+        buyShopSkin(s);
+      });
+      box.appendChild(b);
+    });
+    syncCoinUI();
+  }
+
+  function buyShopSkin(s) {
+    if (!isShopSkin(s) || isUnlocked(s.id)) return;
+    const cost = (s.unlock && s.unlock.cost) | 0;
+    if ((save_.data.coins | 0) < cost) {
+      showNotice("Not enough coins", true);
+      return;
+    }
+    save_.data.coins = (save_.data.coins | 0) - cost;
+    save_.data.unlocked.push(s.id);
+    save();
+    queueAchievement(s);
+    renderShop();
+    if (el("modalSkins").classList.contains("visible")) renderSkins();
+    syncHomeStats();
+    syncCoinUI();
   }
 
   function openModal(id) {
     el(id).classList.add("visible");
     if (id === "modalSkins") renderSkins();
+    if (id === "modalShop") renderShop();
     if (id === "modalSettings") {
       el("setHitbox").checked = !!save_.data.hitboxes;
       el("setFps").checked = !!save_.data.debugFps;
@@ -716,8 +844,10 @@
     if (save_.data.best[entry.file] === undefined || t < save_.data.best[entry.file]) {
       save_.data.best[entry.file] = t;
     }
+    let gained = 0;
+    if (firstClear) gained = grantCoins(coinsForFile(entry.file, entry.meta), "level:" + entry.file);
     save();
-    el("winText").textContent = "Time " + fmtTime(t) + " · deaths " + state.deaths + (firstClear ? " · FIRST CLEAR!" : "");
+    el("winText").textContent = "Time " + fmtTime(t) + " · deaths " + state.deaths + (firstClear ? " · FIRST CLEAR!" : "") + (gained ? " · +" + gained + " coins" : "");
     el("winCard").classList.add("visible");
     checkUnlocks();
 
@@ -1377,6 +1507,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     bindNetworkUI();
     el("btnPlay").addEventListener("click", () => show("levels"));
     el("btnSkinsHome").addEventListener("click", () => openModal("modalSkins"));
+    el("btnOpenShop").addEventListener("click", () => openModal("modalShop"));
     el("btnSettingsHome").addEventListener("click", () => openModal("modalSettings"));
     el("btnBackHome").addEventListener("click", () => show("home"));
     el("btnRestart").addEventListener("click", restartLevel);
@@ -1536,7 +1667,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       if (!u) { profileMsg("Not logged in"); return; }
       const st = el("profCloudStatus"); if (st) st.textContent = "Uploading…";
       try {
-        const saved = await NET.syncCloud({ deaths: save_.data.deaths, jumps: save_.data.jumps, skin: save_.data.skin, unlocked: save_.data.unlocked, beaten: save_.data.beaten, best: save_.data.best, secretA: !!save_.data.secretA, spaceMenu: !!save_.data.spaceMenu });
+        const saved = await NET.syncCloud({ deaths: save_.data.deaths, jumps: save_.data.jumps, coins: save_.data.coins, coinPaid: save_.data.coinPaid, coinMigrated: !!save_.data.coinMigrated, skin: save_.data.skin, unlocked: save_.data.unlocked, beaten: save_.data.beaten, best: save_.data.best, secretA: !!save_.data.secretA, spaceMenu: !!save_.data.spaceMenu });
         if (st) st.textContent = "Cloud updated " + new Date(saved.updatedAt).toLocaleTimeString();
         profileMsg("Synced to cloud");
         syncHomeStats();
@@ -1551,6 +1682,9 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         const cloud = await NET.downloadCloud();
         save_.data.deaths = Math.max(save_.data.deaths|0, cloud.deaths|0);
         save_.data.jumps = Math.max(save_.data.jumps|0, cloud.jumps|0);
+        save_.data.coins = Math.max(save_.data.coins|0, cloud.coins|0);
+        if (cloud.coinMigrated) save_.data.coinMigrated = true;
+        if (cloud.coinPaid) { save_.data.coinPaid = save_.data.coinPaid || {}; for (var ck in cloud.coinPaid) save_.data.coinPaid[ck] = true; }
         if (Array.isArray(cloud.unlocked)) { const s2 = {}; save_.data.unlocked.forEach(function(id){s2[id]=true;}); cloud.unlocked.forEach(function(id){s2[id]=true;}); save_.data.unlocked = Object.keys(s2).map(function(k){return parseInt(k,10);}).sort(function(a,b){return a-b;}); }
         if (cloud.beaten) { for (var k in cloud.beaten) save_.data.beaten[k]=true; }
         if (cloud.best) { for (var k2 in cloud.best) { if (save_.data.best[k2]==null || cloud.best[k2] < save_.data.best[k2]) save_.data.best[k2]=cloud.best[k2]; } }
@@ -1595,8 +1729,10 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
           escapeHtml(err.message || String(err)) +
           "</p>";
       });
+    migrateCoins();
     applySpaceTheme();
     syncHomeStats();
+    syncCoinUI();
     syncFpsVis();
     show("home");
     requestAnimationFrame(frame);

@@ -294,9 +294,13 @@ window.DPNet = (function () {
     // Desanitize cloud's already-sanitized keys for merging
     const cloudBeatenDes = desanitizeObjectKeys(cloud.beaten || {});
     const cloudBestDes = desanitizeObjectKeys(cloud.best || {});
+    const rawPaid = fullSave.coinPaid ? JSON.parse(JSON.stringify(fullSave.coinPaid)) : {};
     const toSave = {
       deaths: fullSave.deaths | 0,
       jumps: fullSave.jumps | 0,
+      coins: fullSave.coins | 0,
+      coinPaid: sanitizeObjectKeys(rawPaid),
+      coinMigrated: !!fullSave.coinMigrated,
       skin: fullSave.skin | 0,
       unlocked: Array.isArray(fullSave.unlocked) ? fullSave.unlocked.slice() : [],
       beaten: sanitizeObjectKeys(rawBeaten),
@@ -331,6 +335,14 @@ window.DPNet = (function () {
     }
     if (cloud.deaths) toSave.deaths = Math.max(cloud.deaths|0, toSave.deaths|0);
     if (cloud.jumps) toSave.jumps = Math.max(cloud.jumps|0, toSave.jumps|0);
+    if (cloud.coins) toSave.coins = Math.max(cloud.coins|0, toSave.coins|0);
+    if (cloud.coinMigrated) toSave.coinMigrated = true;
+    if (cloud.coinPaid) {
+      const mergedPaid = sanitizeObjectKeys(desanitizeObjectKeys(cloud.coinPaid));
+      const localPaid = sanitizeObjectKeys(rawPaid);
+      for (var pk in localPaid) mergedPaid[pk] = true;
+      toSave.coinPaid = mergedPaid;
+    }
     if (cloud.skin && toSave.skin === 1 && cloud.skin !== 1) toSave.skin = cloud.skin;
     if (cloud.secretA) toSave.secretA = true;
     if (cloud.spaceMenu) toSave.spaceMenu = true;
@@ -349,6 +361,7 @@ window.DPNet = (function () {
     // Desanitize beaten/best keys for local use
     if (cloud.beaten) cloud.beaten = desanitizeObjectKeys(cloud.beaten);
     if (cloud.best) cloud.best = desanitizeObjectKeys(cloud.best);
+    if (cloud.coinPaid) cloud.coinPaid = desanitizeObjectKeys(cloud.coinPaid);
     return cloud;
   }
 

@@ -96,10 +96,28 @@
 
   <div class="modal-root" id="modalSkins">
     <div class="modal">
-      <h2>SKINS</h2>
+      <div class="modal-head">
+        <h2>SKINS</h2>
+        <div class="coin-chip" id="skinsCoins"></div>
+      </div>
       <div class="skin-grid" id="skinGrid"></div>
-      <p class="hint" id="skinHint">Beat levels and collect deaths to unlock new cubes. Some are hidden…</p>
-      <div class="row-end"><button class="px-btn small" data-close="modalSkins">DONE</button></div>
+      <p class="hint" id="skinHint">Beat levels and collect deaths to unlock new cubes. Buy extras in the shop.</p>
+      <div class="row-end skin-actions">
+        <button class="px-btn small gold" id="btnOpenShop"><img src="assets/ui/coin.png" alt="" /><span>SHOP</span></button>
+        <button class="px-btn small" data-close="modalSkins">DONE</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-root" id="modalShop">
+    <div class="modal">
+      <div class="modal-head">
+        <h2>SHOP</h2>
+        <div class="coin-chip" id="shopCoins"></div>
+      </div>
+      <p class="hint">Earn coins by beating levels (first clear) or unlocking skins. Easy 10 · Normal 50 · Hard 100 · Harder 500 · Torture 1000.</p>
+      <div class="skin-grid" id="shopGrid"></div>
+      <div class="row-end"><button class="px-btn small" data-close="modalShop">BACK</button></div>
     </div>
   </div>
 

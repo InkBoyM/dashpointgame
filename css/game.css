@@ -361,7 +361,16 @@ canvas { image-rendering: pixelated; }
   to { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
 }
 .modal h2 { margin: 0 0 14px; font-size: 22px; letter-spacing: 3px; text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.4); }
-.row-end { display: flex; justify-content: flex-end; margin-top: 14px; }
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.modal-head h2 { margin: 0; }
+.coin-chip { display: inline-flex; align-items: center; gap: 6px; font-weight: 900; letter-spacing: 1px; color: var(--gold); }
+.coin-chip img, .coin-icon { width: 22px; height: 22px; }
+.coin-chip b { color: var(--gold); }
+.shop-cost { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 900; color: var(--gold); }
+.shop-cost img, .shop-cost .coin-icon { width: 14px; height: 14px; }
+.skin-tile.cant { opacity: 0.72; }
+.row-end { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+.row-end.skin-actions { justify-content: space-between; align-items: center; }
 .sep { border: 0; border-top: 3px solid var(--ink-dark); margin: 14px 0; }
 
 .skin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 12px; }
