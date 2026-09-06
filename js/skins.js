@@ -17,4 +17,5 @@ window.DashPointSkins = [
   { id: 15, name: "please touch grass", src: "assets/skins/skin-15.png", hint: "Jump 5000 times or die 4000 times", unlock: { type: "either", jumps: 5000, deaths: 4000 } },
   { id: 16, name: "mogity", src: "assets/skins/skin-16.png", hint: "Buy in the shop", unlock: { type: "shop", cost: 500 } },
   { id: 17, name: "I love DP", src: "assets/skins/skin-17.png", hint: "Buy in the shop", unlock: { type: "shop", cost: 1000 } },
+  { id: 18, name: "rich", src: "assets/skins/skin-18.png", hint: "Buy in the shop", unlock: { type: "shop", cost: 10000 } },
 ];
