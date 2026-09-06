@@ -63,7 +63,7 @@ window.DPNet = (function () {
     const u = getUser();
     if (!u) throw new Error("You need an account to post levels.");
     const id = db.ref("dashpoint/levelsData").push().key;
-    await db.ref("dashpoint/levelsData/" + id).set({
+    const payload = JSON.parse(JSON.stringify({
       format: data.format,
       version: data.version,
       name: String(meta.title || data.name || "Untitled").slice(0, 48),
@@ -75,8 +75,9 @@ window.DPNet = (function () {
       texts: data.texts || [],
       gameplay: data.gameplay,
       theme: data.theme,
-      meta: data.meta,
-    });
+      meta: data.meta || {},
+    }));
+    await db.ref("dashpoint/levelsData/" + id).set(payload);
     await db.ref("dashpoint/levelsIndex/" + id).set({
       title: String(meta.title || "Untitled").slice(0, 48),
       desc: String(meta.desc || "").slice(0, 300),

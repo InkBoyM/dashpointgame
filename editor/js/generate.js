@@ -54,7 +54,7 @@ window.DashPointGenerate = {
     plat(0, 7, startSurf, 2);
     level.spawn = { c: 2, r: startSurf - 1 };
     level.texts = [
-      { c: 2, r: Math.max(2, startSurf - 5), text: "AI COURSE", color: "#ffffff", scale: 2 },
+      { id: "txai", c: 2, r: Math.max(2, startSurf - 5), text: "AI COURSE", color: "#ffffff", scale: 2 },
     ];
 
     let x = 8;

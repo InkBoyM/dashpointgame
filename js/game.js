@@ -472,7 +472,7 @@
         spawn: { c: this.spawn.c, r: this.spawn.r },
         tiles,
         texts: this.texts.map((t) => ({
-          id: t.id,
+          id: t.id || "tx" + Math.random().toString(36).slice(2, 9),
           c: t.c,
           r: t.r,
           text: t.text,
