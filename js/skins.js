@@ -27,4 +27,5 @@ window.DashPointSkins = [
   { id: 25, name: "banana skin", src: "assets/skins/skin-25.png", hint: "Buy in the shop", unlock: { type: "shop", cost: 200 } },
   { id: 26, name: "ramen", src: "assets/skins/skin-26.png", hint: "Buy in the shop", unlock: { type: "shop", cost: 500 } },
   { id: 27, name: "Donut", src: "assets/skins/skin-27.png", hint: "Buy in the shop", unlock: { type: "shop", cost: 300 } },
+  { id: 28, name: "invisible", src: "assets/skins/skin-28.png", hint: "Jump 5000 times", unlock: { type: "jumps", n: 5000 } },
 ];
