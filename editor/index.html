@@ -125,6 +125,14 @@
       <div class="rot-preview" id="rotations"></div>
       <p class="hint">Mouse wheel over canvas rotates spikes, invis spikes, and fake spikes. <span class="k">[</span> <span class="k">]</span> also work. Invisible tiles show as faded + INV and vanish in playtest. Fake bricks and spikes look real in play but have no collision.</p>
 
+      <div class="section-title" style="margin-top:14px">Offset</div>
+      <label>X <span id="vOffX">0</span></label>
+      <input type="range" id="offX" min="-24" max="24" step="1" value="0" />
+      <label>Y <span id="vOffY">0</span></label>
+      <input type="range" id="offY" min="-24" max="24" step="1" value="0" />
+      <button class="text-btn" id="btnOffReset" style="width:100%; margin-top:4px">Reset offset</button>
+      <p class="hint">Shift objects off the grid by up to 24 pixels. New tiles use this offset. Select tiles and press <span class="k">Shift+arrows</span> to nudge them (hold <span class="k">Alt</span> for 4px).</p>
+
       <div class="section-title" style="margin-top:14px">Prefabs</div>
       <button class="text-btn" id="btnSavePrefab" style="width:100%; margin-bottom:6px">Save selection (K)</button>
       <div class="chips" id="prefabs"></div>
@@ -267,6 +275,7 @@
         <b>Ctrl+C / X / V</b><span>Copy / cut / paste selection</span>
         <b>H / Shift+H</b><span>Flip selection horizontal / vertical</span>
         <b>K</b><span>Save selection as a prefab</span>
+        <b>Shift+arrows</b><span>Nudge tile offset off-grid</span>
         <b>Q</b><span>Rotate selection 90°</span>
         <b>Del</b><span>Delete selection, text, or selected image</span>
         <b>Enter / Esc</b><span>Playtest / return to edit</span>

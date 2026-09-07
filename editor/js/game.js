@@ -8,6 +8,7 @@
   const MAX_COLS = 20000;
   const MIN_ROWS = 8;
   const MAX_ROWS = 400;
+  const MAX_OFF = 24;
 
   const TILE_TYPES = {
     brick: { id: "brick", solid: true, hazard: false, rotatable: false, label: "Brick" },
@@ -90,6 +91,32 @@
 
   function clamp(v, a, b) {
     return Math.max(a, Math.min(b, v));
+  }
+
+  function tileOx(tile) {
+    return tile ? clamp(tile.ox | 0, -MAX_OFF, MAX_OFF) : 0;
+  }
+
+  function tileOy(tile) {
+    return tile ? clamp(tile.oy | 0, -MAX_OFF, MAX_OFF) : 0;
+  }
+
+  function packTile(tile) {
+    if (!tile) return null;
+    const t = { id: tile.id, rot: tile.rot || 0 };
+    const ox = tileOx(tile);
+    const oy = tileOy(tile);
+    if (ox) t.ox = ox;
+    if (oy) t.oy = oy;
+    return t;
+  }
+
+  function cellX(c, tile) {
+    return c * TILE + tileOx(tile);
+  }
+
+  function cellY(r, tile) {
+    return r * TILE + tileOy(tile);
   }
 
   function aabbOverlap(a, b) {
@@ -464,7 +491,7 @@
 
     set(c, r, tile) {
       if (!this.inBounds(c, r)) return false;
-      this.grid[r][c] = tile ? { id: tile.id, rot: tile.rot || 0 } : null;
+      this.grid[r][c] = packTile(tile);
       return true;
     }
 
@@ -577,6 +604,8 @@
       this.forEachTile((tile, c, r) => {
         const entry = { c, r, id: tile.id };
         if (TILE_TYPES[tile.id] && TILE_TYPES[tile.id].rotatable && tile.rot) entry.rot = tile.rot;
+        if (tile.ox) entry.ox = tile.ox;
+        if (tile.oy) entry.oy = tile.oy;
         tiles.push(entry);
       });
       return {
@@ -644,7 +673,12 @@
         const r = t.r | 0;
         if (!level.inBounds(c, r)) continue;
         const rot = ((t.rot | 0) % 360 + 360) % 360;
-        level.set(c, r, { id: t.id, rot: TILE_TYPES[t.id].rotatable ? rot : 0 });
+        level.set(c, r, {
+          id: t.id,
+          rot: TILE_TYPES[t.id].rotatable ? rot : 0,
+          ox: t.ox | 0,
+          oy: t.oy | 0,
+        });
       }
       return level;
     }
@@ -663,13 +697,13 @@
   const PLAYER_W = 24;
   const PLAYER_H = 24;
 
-  function solidBox(c, r) {
-    return { x: c * TILE, y: r * TILE, w: TILE, h: TILE };
+  function solidBox(c, r, tile) {
+    return { x: cellX(c, tile), y: cellY(r, tile), w: TILE, h: TILE };
   }
 
-  function spikeBox(c, r, rot) {
-    const x = c * TILE;
-    const y = r * TILE;
+  function spikeBox(c, r, rot, tile) {
+    const x = cellX(c, tile);
+    const y = cellY(r, tile);
     const m = 7;
     switch (rot) {
       case 90:
@@ -683,22 +717,22 @@
     }
   }
 
-  function goalBox(c, r) {
-    return { x: c * TILE + 5, y: r * TILE + 5, w: TILE - 10, h: TILE - 10 };
+  function goalBox(c, r, tile) {
+    return { x: cellX(c, tile) + 5, y: cellY(r, tile) + 5, w: TILE - 10, h: TILE - 10 };
   }
 
-  function orbBox(c, r) {
+  function orbBox(c, r, tile) {
     const m = TILE * 0.14;
-    return { x: c * TILE + m, y: r * TILE + m, w: TILE - m * 2, h: TILE - m * 2 };
+    return { x: cellX(c, tile) + m, y: cellY(r, tile) + m, w: TILE - m * 2, h: TILE - m * 2 };
   }
 
-  function padBox(c, r) {
-    return { x: c * TILE + 2, y: r * TILE + TILE * 0.5, w: TILE - 4, h: TILE * 0.5 };
+  function padBox(c, r, tile) {
+    return { x: cellX(c, tile) + 2, y: cellY(r, tile) + TILE * 0.5, w: TILE - 4, h: TILE * 0.5 };
   }
 
-  function dashBox(c, r) {
+  function dashBox(c, r, tile) {
     const m = TILE * 0.18;
-    return { x: c * TILE + m, y: r * TILE + m, w: TILE - m * 2, h: TILE - m * 2 };
+    return { x: cellX(c, tile) + m, y: cellY(r, tile) + m, w: TILE - m * 2, h: TILE - m * 2 };
   }
 
   function spawnWorldPos(level) {
@@ -725,8 +759,8 @@
       let p;
       if (this.checkpoint) {
         p = {
-          x: this.checkpoint.c * TILE + (TILE - PLAYER_W) / 2,
-          y: this.checkpoint.r * TILE + TILE - PLAYER_H,
+          x: this.checkpoint.c * TILE + (TILE - PLAYER_W) / 2 + (this.checkpoint.ox || 0),
+          y: this.checkpoint.r * TILE + TILE - PLAYER_H + (this.checkpoint.oy || 0),
         };
       } else {
         p = spawnWorldPos(this.level);
@@ -772,11 +806,11 @@
         if (!tile) continue;
         this.movers.push({
           tg: tg,
-          tile: { id: tile.id, rot: tile.rot || 0 },
-          ox: tg.tc * TILE,
-          oy: ty * TILE,
-          x: tg.tc * TILE,
-          y: ty * TILE,
+          tile: packTile(tile),
+          ox: tg.tc * TILE + tileOx(tile),
+          oy: ty * TILE + tileOy(tile),
+          x: tg.tc * TILE + tileOx(tile),
+          y: ty * TILE + tileOy(tile),
           cx: tg.tc,
           cy: ty,
           dist: Math.hypot(tg.dx * TILE, tg.dy * TILE),
@@ -805,7 +839,7 @@
     }
 
     nearbyTiles(x, y, w, h, pad) {
-      pad = pad || 0;
+      pad = (pad || 0) + MAX_OFF;
       const c0 = Math.floor((x - pad) / TILE);
       const r0 = Math.floor((y - pad) / TILE);
       const c1 = Math.floor((x + w + pad - 0.001) / TILE);
@@ -828,7 +862,7 @@
       for (const { tile, c, r } of hits) {
         const type = TILE_TYPES[tile.id];
         if (!type || !type.solid) continue;
-        solids.push(solidBox(c, r));
+        solids.push(solidBox(c, r, tile));
       }
       for (const m of this.movers || []) {
         if (m.done) continue;
@@ -931,12 +965,12 @@
       for (const { tile, c, r } of hits) {
         const type = TILE_TYPES[tile.id];
         if (type && type.hazard) {
-          if (aabbOverlap(box, spikeBox(c, r, tile.rot || 0))) {
+          if (aabbOverlap(box, spikeBox(c, r, tile.rot || 0, tile))) {
             this.kill("spike");
             return;
           }
         } else if (isGoalId(tile.id)) {
-          if (aabbOverlap(box, goalBox(c, r))) {
+          if (aabbOverlap(box, goalBox(c, r, tile))) {
             this.win();
             return;
           }
@@ -970,11 +1004,11 @@
       for (const { tile, c, r } of hits) {
         if (tile.id === "checkpoint") {
           const key = c + "," + r;
-          const cpBox = { x: c * TILE, y: r * TILE, w: TILE, h: TILE };
+          const cpBox = { x: cellX(c, tile), y: cellY(r, tile), w: TILE, h: TILE };
           if (aabbOverlap(box, cpBox)) {
             if (!this.touched.has(key)) {
               this.touched.add(key);
-              this.checkpoint = { c: c, r: r };
+              this.checkpoint = { c: c, r: r, ox: tileOx(tile), oy: tileOy(tile) };
             }
           }
         }
@@ -985,7 +1019,7 @@
       const p = this.player;
       const box = this.playerBox();
       const hits = this.nearbyTiles(box.x, box.y, box.w, box.h, 2);
-      const orbs = hits.filter(({ tile }) => isOrbId(tile.id)).map(({ c, r }) => orbBox(c, r));
+      const orbs = hits.filter(({ tile }) => isOrbId(tile.id)).map(({ c, r, tile }) => orbBox(c, r, tile));
       for (const m of this.movers || []) {
         if (!m.done && isOrbId(m.tile.id)) orbs.push(orbBox(m.x / TILE, m.y / TILE));
       }
@@ -1009,7 +1043,7 @@
       const p = this.player;
       const box = this.playerBox();
       const hits = this.nearbyTiles(box.x, box.y, box.w, box.h, 2);
-      const pads = hits.filter(({ tile }) => tile.id === "pad").map(({ c, r }) => padBox(c, r));
+      const pads = hits.filter(({ tile }) => tile.id === "pad").map(({ c, r, tile }) => padBox(c, r, tile));
       for (const m of this.movers || []) {
         if (!m.done && m.tile.id === "pad") pads.push(padBox(m.x / TILE, m.y / TILE));
       }
@@ -1032,7 +1066,7 @@
       const p = this.player;
       const box = this.playerBox();
       const hits = this.nearbyTiles(box.x, box.y, box.w, box.h, 2);
-      const dashes = hits.filter(({ tile }) => tile.id === "dash").map(({ c, r }) => dashBox(c, r));
+      const dashes = hits.filter(({ tile }) => tile.id === "dash").map(({ c, r, tile }) => dashBox(c, r, tile));
       for (const m of this.movers || []) {
         if (!m.done && m.tile.id === "dash") dashes.push(dashBox(m.x / TILE, m.y / TILE));
       }
@@ -1292,7 +1326,7 @@
         const tile = level.grid[r][c];
         if (tile) {
           if (extras.engine && moverCells[c + "," + r]) continue;
-          drawTile(ctx, images, tile, c * TILE, r * TILE, TILE, {
+          drawTile(ctx, images, tile, cellX(c, tile), cellY(r, tile), TILE, {
             hideInvisible: !!extras.engine && !extras.hitboxes,
             c: c,
             r: r,
@@ -1360,9 +1394,9 @@
       for (const g of extras.ghostTiles) {
         if (g.id === "erase") {
           ctx.fillStyle = "rgba(255, 50, 70, 0.35)";
-          ctx.fillRect(g.c * TILE, g.r * TILE, TILE, TILE);
+          ctx.fillRect(cellX(g.c, g), cellY(g.r, g), TILE, TILE);
         } else {
-          drawTile(ctx, images, g, g.c * TILE, g.r * TILE, TILE);
+          drawTile(ctx, images, g, cellX(g.c, g), cellY(g.r, g), TILE);
         }
       }
       ctx.globalAlpha = 1;
@@ -1408,28 +1442,28 @@
           const tile = level.grid[r][c];
           if (!tile) continue;
           if (isSpikeId(tile.id) && TILE_TYPES[tile.id] && TILE_TYPES[tile.id].hazard) {
-            const b = spikeBox(c, r, tile.rot || 0);
+            const b = spikeBox(c, r, tile.rot || 0, tile);
             ctx.strokeStyle = tile.id === "ispike" ? "rgba(176,92,255,0.95)" : "rgba(255,60,80,0.9)";
             ctx.strokeRect(b.x, b.y, b.w, b.h);
           } else if (isGoalId(tile.id)) {
-            const b = goalBox(c, r);
+            const b = goalBox(c, r, tile);
             ctx.strokeStyle = "rgba(255,210,60,0.9)";
             ctx.strokeRect(b.x, b.y, b.w, b.h);
           } else if (isOrbId(tile.id)) {
-            const b = orbBox(c, r);
+            const b = orbBox(c, r, tile);
             ctx.strokeStyle = "rgba(62,224,122,0.9)";
             ctx.strokeRect(b.x, b.y, b.w, b.h);
           } else if (tile.id === "pad") {
-            const b = padBox(c, r);
+            const b = padBox(c, r, tile);
             ctx.strokeStyle = "rgba(255,157,46,0.9)";
             ctx.strokeRect(b.x, b.y, b.w, b.h);
           } else if (tile.id === "dash") {
-            const b = dashBox(c, r);
+            const b = dashBox(c, r, tile);
             ctx.strokeStyle = "rgba(46,230,255,0.9)";
             ctx.strokeRect(b.x, b.y, b.w, b.h);
           } else if (isBrickId(tile.id) && TILE_TYPES[tile.id] && TILE_TYPES[tile.id].solid) {
             ctx.strokeStyle = tile.id === "ibrick" ? "rgba(176,92,255,0.7)" : "rgba(80,180,255,0.35)";
-            ctx.strokeRect(c * TILE, r * TILE, TILE, TILE);
+            ctx.strokeRect(cellX(c, tile), cellY(r, tile), TILE, TILE);
           }
         }
       }
@@ -1554,6 +1588,12 @@
     MAX_COLS,
     MIN_ROWS,
     MAX_ROWS,
+    MAX_OFF,
+    packTile,
+    tileOx,
+    tileOy,
+    cellX,
+    cellY,
     TILE_TYPES,
     isSpikeId,
     isBrickId,

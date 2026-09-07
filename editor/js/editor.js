@@ -218,7 +218,7 @@
           tiles: p.tiles.filter(function (t) {
             return t && t.id != null && isFinite(t.c) && isFinite(t.r);
           }).map(function (t) {
-            return { c: t.c | 0, r: t.r | 0, id: String(t.id), rot: t.rot | 0 };
+            return { c: t.c | 0, r: t.r | 0, id: String(t.id), rot: t.rot | 0, ox: t.ox | 0, oy: t.oy | 0 };
           }).slice(0, 2500),
         };
       }).filter(function (p) { return p.tiles.length; }).slice(0, 40);
@@ -251,6 +251,8 @@
     tool: "paint",
     tile: "brick",
     rot: 0,
+    ox: 0,
+    oy: 0,
     prefab: "platform",
     cam: { x: 0, y: 0, zoom: 2 },
     growAmount: 32,
@@ -392,13 +394,82 @@
   }
 
   function currentTile() {
-    return { id: state.tile, rot: DP.isSpikeId(state.tile) ? state.rot : 0 };
+    return { id: state.tile, rot: DP.isSpikeId(state.tile) ? state.rot : 0, ox: state.ox || 0, oy: state.oy || 0 };
   }
 
   function tilesEqual(a, b) {
     if (!a && !b) return true;
     if (!a || !b) return false;
-    return a.id === b.id && (a.rot || 0) === (b.rot || 0);
+    return a.id === b.id && (a.rot || 0) === (b.rot || 0) && (a.ox || 0) === (b.ox || 0) && (a.oy || 0) === (b.oy || 0);
+  }
+
+  function stampFrom(t) {
+    return { id: t.id, rot: t.rot || 0, ox: t.ox || 0, oy: t.oy || 0 };
+  }
+
+  function clampOff(v) {
+    return DP.clamp(v | 0, -(DP.MAX_OFF || 24), DP.MAX_OFF || 24);
+  }
+
+  function syncOffsetUI() {
+    const x = clampOff(state.ox);
+    const y = clampOff(state.oy);
+    const ix = document.getElementById("offX");
+    const iy = document.getElementById("offY");
+    const vx = document.getElementById("vOffX");
+    const vy = document.getElementById("vOffY");
+    if (ix) ix.value = String(x);
+    if (iy) iy.value = String(y);
+    if (vx) vx.textContent = String(x);
+    if (vy) vy.textContent = String(y);
+  }
+
+  function setOffset(ox, oy, applySel) {
+    state.ox = clampOff(ox);
+    state.oy = clampOff(oy);
+    syncOffsetUI();
+    if (applySel) applyOffsetToSelection(state.ox, state.oy);
+  }
+
+  function applyOffsetToSelection(ox, oy) {
+    const b = selectionBounds();
+    if (!b) return;
+    pushUndo();
+    for (let r = b.r0; r <= b.r1; r++) {
+      for (let c = b.c0; c <= b.c1; c++) {
+        const t = state.level.get(c, r);
+        if (!t) continue;
+        applyTile(c, r, { id: t.id, rot: t.rot || 0, ox: ox, oy: oy });
+      }
+    }
+    setStatus("Offset " + ox + "," + oy);
+  }
+
+  function nudgeOffset(dx, dy) {
+    const b = selectionBounds();
+    if (!b) {
+      setOffset(state.ox + dx, state.oy + dy, false);
+      setStatus("Brush offset " + state.ox + "," + state.oy);
+      return;
+    }
+    pushUndo();
+    let n = 0;
+    for (let r = b.r0; r <= b.r1; r++) {
+      for (let c = b.c0; c <= b.c1; c++) {
+        const t = state.level.get(c, r);
+        if (!t) continue;
+        const ox = clampOff((t.ox || 0) + dx);
+        const oy = clampOff((t.oy || 0) + dy);
+        applyTile(c, r, { id: t.id, rot: t.rot || 0, ox: ox, oy: oy });
+        n++;
+      }
+    }
+    if (n) {
+      state.ox = clampOff((state.ox || 0) + dx);
+      state.oy = clampOff((state.oy || 0) + dy);
+      syncOffsetUI();
+    }
+    setStatus("Nudged offset " + dx + "," + dy);
   }
 
   function resizeCanvas() {
@@ -794,7 +865,7 @@
   function stampPrefab(origin, list) {
     let changed = false;
     for (const t of list) {
-      changed = applyTile(origin.c + t.c, origin.r + t.r, { id: t.id, rot: t.rot || 0 }) || changed;
+      changed = applyTile(origin.c + t.c, origin.r + t.r, stampFrom(t)) || changed;
     }
     return changed;
   }
@@ -826,10 +897,10 @@
     if (!state.stroke) return null;
     const s = state.stroke;
     if (s.kind === "rect") {
-      return rectCells(s.c0, s.r0, s.c1, s.r1).map((p) => Object.assign({ id: s.erase ? "erase" : state.tile, rot: state.rot }, p));
+      return rectCells(s.c0, s.r0, s.c1, s.r1).map((p) => Object.assign({ id: s.erase ? "erase" : state.tile, rot: state.rot, ox: state.ox || 0, oy: state.oy || 0 }, p));
     }
     if (s.kind === "line") {
-      return bresenham(s.c0, s.r0, s.c1, s.r1).map((p) => Object.assign({ id: s.erase ? "erase" : state.tile, rot: state.rot }, p));
+      return bresenham(s.c0, s.r0, s.c1, s.r1).map((p) => Object.assign({ id: s.erase ? "erase" : state.tile, rot: state.rot, ox: state.ox || 0, oy: state.oy || 0 }, p));
     }
     return null;
   }
@@ -842,6 +913,8 @@
       r: cell.r + t.r,
       id: t.id,
       rot: t.rot || 0,
+      ox: t.ox || 0,
+      oy: t.oy || 0,
     }));
   }
 
@@ -973,6 +1046,7 @@
     }
     setTile(t.id);
     if (DP.isSpikeId(t.id)) setRot(t.rot || 0);
+    setOffset(t.ox || 0, t.oy || 0, false);
     setTool("paint");
   }
 
@@ -994,7 +1068,7 @@
     for (let r = b.r0; r <= b.r1; r++) {
       for (let c = b.c0; c <= b.c1; c++) {
         const t = state.level.get(c, r);
-        if (t) tiles.push({ c: c - b.c0, r: r - b.r0, id: t.id, rot: t.rot || 0 });
+        if (t) tiles.push({ c: c - b.c0, r: r - b.r0, id: t.id, rot: t.rot || 0, ox: t.ox || 0, oy: t.oy || 0 });
       }
     }
     state.clipboard = { w: b.c1 - b.c0 + 1, h: b.r1 - b.r0 + 1, tiles };
@@ -1017,7 +1091,7 @@
     for (let r = b.r0; r <= b.r1; r++) {
       for (let c = b.c0; c <= b.c1; c++) {
         const t = state.level.get(c, r);
-        if (t) tiles.push({ c: c - b.c0, r: r - b.r0, id: t.id, rot: t.rot || 0 });
+        if (t) tiles.push({ c: c - b.c0, r: r - b.r0, id: t.id, rot: t.rot || 0, ox: t.ox || 0, oy: t.oy || 0 });
       }
     }
     return tiles;
@@ -1121,7 +1195,7 @@
     for (let r = b.r0; r <= b.r1; r++) {
       for (let c = b.c0; c <= b.c1; c++) {
         const t = state.level.get(c, r);
-        if (t) harvested.push({ c: c - b.c0, r: r - b.r0, id: t.id, rot: t.rot || 0 });
+        if (t) harvested.push({ c: c - b.c0, r: r - b.r0, id: t.id, rot: t.rot || 0, ox: t.ox || 0, oy: t.oy || 0 });
       }
     }
     pushUndo();
@@ -1132,20 +1206,28 @@
       let c = t.c;
       let r = t.r;
       let rot = t.rot || 0;
+      let ox = t.ox || 0;
+      let oy = t.oy || 0;
       if (mode === "flipH") {
         c = w - 1 - t.c;
+        ox = -ox;
         if (DP.isSpikeId(t.id)) rot = rot === 90 ? 270 : rot === 270 ? 90 : rot;
       } else if (mode === "flipV") {
         r = h - 1 - t.r;
+        oy = -oy;
         if (DP.isSpikeId(t.id)) rot = rot === 0 ? 180 : rot === 180 ? 0 : rot;
       } else if (mode === "rot90") {
         const nc = h - 1 - t.r;
         const nr = t.c;
         c = nc;
         r = nr;
+        const nx = -oy;
+        const ny = ox;
+        ox = nx;
+        oy = ny;
         if (DP.isSpikeId(t.id)) rot = (rot + 90) % 360;
       }
-      return { c, r, id: t.id, rot };
+      return { c, r, id: t.id, rot, ox, oy };
     });
     stampPrefab({ c: b.c0, r: b.r0 }, mapped);
     if (mode === "rot90") {
@@ -1160,7 +1242,7 @@
     for (let r = b.r0; r <= b.r1; r++) {
       for (let c = b.c0; c <= b.c1; c++) {
         const t = state.level.get(c, r);
-        if (t) harvested.push({ c: c - b.c0, r: r - b.r0, id: t.id, rot: t.rot || 0 });
+        if (t) harvested.push({ c: c - b.c0, r: r - b.r0, id: t.id, rot: t.rot || 0, ox: t.ox || 0, oy: t.oy || 0 });
       }
     }
     const movingLabels = (state.level.texts || []).filter(
@@ -2110,6 +2192,25 @@
     }
 
     if (state.selection && !ctrl) {
+      if (ev.shiftKey) {
+        const step = ev.altKey ? 4 : 1;
+        if (ev.code === "ArrowLeft") {
+          ev.preventDefault();
+          nudgeOffset(-step, 0);
+        }
+        if (ev.code === "ArrowRight") {
+          ev.preventDefault();
+          nudgeOffset(step, 0);
+        }
+        if (ev.code === "ArrowUp") {
+          ev.preventDefault();
+          nudgeOffset(0, -step);
+        }
+        if (ev.code === "ArrowDown") {
+          ev.preventDefault();
+          nudgeOffset(0, step);
+        }
+      } else {
       if (ev.code === "ArrowLeft") {
         ev.preventDefault();
         moveSelection(-1, 0, ev.altKey);
@@ -2126,6 +2227,13 @@
         ev.preventDefault();
         moveSelection(0, 1, ev.altKey);
       }
+      }
+    } else if (ev.shiftKey && !ctrl) {
+      const step = ev.altKey ? 4 : 1;
+      if (ev.code === "ArrowLeft") { ev.preventDefault(); nudgeOffset(-step, 0); }
+      if (ev.code === "ArrowRight") { ev.preventDefault(); nudgeOffset(step, 0); }
+      if (ev.code === "ArrowUp") { ev.preventDefault(); nudgeOffset(0, -step); }
+      if (ev.code === "ArrowDown") { ev.preventDefault(); nudgeOffset(0, step); }
     }
   }
 
@@ -2251,6 +2359,23 @@
     bindRange("gSpeed", "moveSpeed", "vSpeed");
     bindRange("gJump", "jumpForce", "vJump");
     bindRange("gGrav", "gravity", "vGrav");
+    const offX = document.getElementById("offX");
+    const offY = document.getElementById("offY");
+    if (offX) {
+      offX.addEventListener("input", (ev) => {
+        setOffset(Number(ev.target.value), state.oy, false);
+      });
+    }
+    if (offY) {
+      offY.addEventListener("input", (ev) => {
+        setOffset(state.ox, Number(ev.target.value), false);
+      });
+    }
+    const offReset = document.getElementById("btnOffReset");
+    if (offReset) {
+      offReset.addEventListener("click", () => setOffset(0, 0, !!state.selection));
+    }
+    syncOffsetUI();
     const songSel = document.getElementById("gSong");
     if (songSel) {
       songSel.innerHTML = "";
