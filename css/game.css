@@ -516,19 +516,19 @@ canvas { image-rendering: pixelated; }
 .home-fab-row {
   display: flex;
   flex-direction: row;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
   justify-content: center;
   margin-top: 4px;
 }
 .home-settings-btn {
   margin-top: 4px;
-  width: 38px; height: 38px;
-  border-radius: 10px;
+  width: 48px; height: 48px;
+  border-radius: 12px;
   background: rgba(17,27,46,.85);
   border: 3px solid #22334f;
   display: flex; align-items: center; justify-content: center;
-  padding: 7px;
+  padding: 9px;
 }
 .home-settings-btn img { width: 100%; height: auto; opacity: .75; image-rendering: pixelated; }
 .home-settings-btn:hover { border-color: #2c4269; }
@@ -669,7 +669,7 @@ canvas { image-rendering: pixelated; }
   .home-stats { font-size: 10px; padding: 5px 10px; border-width: 2px; }
   .ui-space .hs-chip { font-size: 10px; padding: 5px 8px; border-width: 2px; }
   .ui-space .home-skin { width: 32px; height: 32px; }
-  .home-settings-btn { width: 32px; height: 32px; padding: 6px; }
+  .home-settings-btn { width: 40px; height: 40px; padding: 8px; }
 
   .topbar { padding: 8px 10px; gap: 10px; }
   .bar-title { font-size: 16px; letter-spacing: 2px; }
