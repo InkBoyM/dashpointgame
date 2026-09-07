@@ -396,7 +396,7 @@
     const root = doc && doc.body ? doc.body.firstChild : null;
     if (!root) return "";
     const BAD = {
-      SCRIPT: 1, STYLE: 1, IFRAME: 1, OBJECT: 1, EMBED: 1, LINK: 1, META: 1,
+      SCRIPT: 1, STYLE: 1, OBJECT: 1, EMBED: 1, LINK: 1, META: 1,
       FORM: 1, INPUT: 1, BUTTON: 1, TEXTAREA: 1, SELECT: 1, OPTION: 1,
       VIDEO: 1, AUDIO: 1, SOURCE: 1, TRACK: 1, CANVAS: 1, APPLET: 1,
       BASE: 1, FRAME: 1, FRAMESET: 1, NOFRAMES: 1, NOSCRIPT: 1, TEMPLATE: 1, SLOT: 1,
@@ -412,6 +412,29 @@
     for (let i = nodes.length - 1; i >= 0; i--) {
       const node = nodes[i];
       const tag = String((node.tagName || "").toUpperCase());
+      if (tag === "IFRAME") {
+        // Video embeds: rebuild locked-down. https src only, no srcdoc, forced
+        // sandbox (no top-navigation/popups/modals), safe feature allow-list.
+        const src = String(node.getAttribute("src") || "").trim();
+        if (!/^https:\/\/[^\s"'<>]+$/i.test(src) || src.length > 2000) {
+          if (node.parentNode) node.parentNode.removeChild(node);
+          continue;
+        }
+        const clean = doc.createElement("iframe");
+        clean.setAttribute("src", src);
+        clean.setAttribute("sandbox", "allow-scripts allow-same-origin allow-presentation");
+        clean.setAttribute("allow", "autoplay; fullscreen; picture-in-picture; encrypted-media");
+        clean.setAttribute("allowfullscreen", "");
+        clean.setAttribute("loading", "lazy");
+        const t = node.getAttribute("title");
+        if (t && String(t).trim()) clean.setAttribute("title", String(t).slice(0, 120));
+        clean.setAttribute("style", "width:100%;height:100%;border:0;");
+        // Empty text child forces an explicit </iframe> close tag: a self-closed
+        // "<iframe/>" would swallow following siblings when used as innerHTML.
+        clean.appendChild(doc.createTextNode(""));
+        if (node.parentNode) node.parentNode.replaceChild(clean, node);
+        continue;
+      }
       if (BAD[tag]) {
         if (node.parentNode) node.parentNode.removeChild(node);
         continue;
@@ -426,6 +449,14 @@
     }
     let out = "";
     try {
+      // Fully stripped input (e.g. only a dropped iframe) leaves an empty
+      // wrapper — reject it so callers can report "stripped to nothing".
+      const innerText = String(root.textContent || "").trim();
+      let anyEl = false;
+      try {
+        anyEl = !!root.querySelector("*");
+      } catch (e) {}
+      if (!innerText && !anyEl) return "";
       out = new XMLSerializer().serializeToString(root);
     } catch (e) {
       return "";

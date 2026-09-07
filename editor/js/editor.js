@@ -768,6 +768,16 @@
       setStatus("Type some HTML first");
       return;
     }
+    // Video embeds only play in the live front layer (behind-tiles blocks are
+    // static pictures) — switch automatically instead of saving a dead block.
+    let switched = false;
+    if (/<\s*iframe[\s>/]/i.test(String(raw || "")) && htmlModalLayer === 0) {
+      htmlModalLayer = 1;
+      switched = true;
+      document.querySelectorAll("#htmlLayerChips .chip").forEach((c) => {
+        c.classList.toggle("active", Number(c.dataset.layer) === 1);
+      });
+    }
     if (htmlModalMode === "edit") {
       const wd = selectedWidget();
       if (!wd) {
@@ -785,7 +795,7 @@
       markDirty(true);
       syncInspector();
       closeModal("modalHtml");
-      setStatus("HTML updated");
+      setStatus(switched ? "Video needs In front — layer switched. HTML updated" : "HTML updated");
       return;
     }
     if (!state.level.widgets) state.level.widgets = [];
@@ -818,7 +828,9 @@
     markDirty(true);
     syncInspector();
     closeModal("modalHtml");
-    setStatus("HTML added — drag to move, handles to resize, right-click for layer");
+    setStatus(switched
+      ? "Video needs In front — layer switched. Drag to move, handles to resize"
+      : "HTML added — drag to move, handles to resize, right-click for layer");
   }
 
   function setWidgetLayer(id, layer) {
