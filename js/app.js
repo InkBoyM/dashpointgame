@@ -583,8 +583,6 @@
     order.forEach(function (pair, n) {
       const entry = pair.entry;
       const i = pair.i;
-      const wrap = document.createElement("div");
-      wrap.className = "level-card-wrap";
       const b = document.createElement("button");
       const done = save_.data.beaten[entry.file] !== undefined;
       const best = save_.data.best[entry.file];
@@ -601,18 +599,7 @@
         (done ? '<span class="level-done">\u2713 CLEARED</span>' : "") +
         (best ? '<span class="level-best">BEST ' + fmtTime(best) + "</span>" : "");
       b.addEventListener("click", () => startLevel(i));
-      const dl = document.createElement("button");
-      dl.className = "n-play n-dl lc-dl";
-      dl.textContent = "DL";
-      dl.title = "Download and edit in the editor";
-      dl.style.animationDelay = n * 0.04 + "s";
-      dl.addEventListener("click", function (ev) {
-        ev.stopPropagation();
-        downloadCampaignLevel(entry);
-      });
-      wrap.appendChild(b);
-      wrap.appendChild(dl);
-      box.appendChild(wrap);
+      box.appendChild(b);
     });
   }
 
@@ -1697,22 +1684,12 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     }
   }
 
-  function downloadCampaignLevel(entry) {
-    if (!entry || !entry.level) return;
-    try {
-      const json = entry.level.toJSON();
-      downloadBlob(entry.level.name || entry.file, json);
-      openEditorWithJson(json, entry.level.name);
-    } catch (err) {
-      showNotice(String(err && err.message || err), true);
-    }
-  }
-
   function makeDownloadBtn(onClick) {
     const dl = document.createElement("button");
     dl.className = "n-play n-dl";
-    dl.textContent = "DL";
+    dl.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="square"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 21h16"/></svg>';
     dl.title = "Download and edit in the editor";
+    dl.setAttribute("aria-label", "Download and edit in the editor");
     dl.addEventListener("click", function (ev) {
       ev.stopPropagation();
       onClick();

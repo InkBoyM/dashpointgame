@@ -516,19 +516,19 @@ canvas { image-rendering: pixelated; }
 .home-fab-row {
   display: flex;
   flex-direction: row;
-  gap: 20px;
+  gap: 16px;
   align-items: center;
   justify-content: center;
-  margin-top: 8px;
+  margin-top: 4px;
 }
 .home-settings-btn {
   margin-top: 4px;
-  width: 110px; height: 110px;
-  border-radius: 20px;
+  width: 78px; height: 78px;
+  border-radius: 16px;
   background: rgba(17,27,46,.85);
-  border: 4px solid #22334f;
+  border: 3px solid #22334f;
   display: flex; align-items: center; justify-content: center;
-  padding: 20px;
+  padding: 14px;
 }
 .home-settings-btn img { width: 100%; height: auto; opacity: .75; image-rendering: pixelated; }
 .home-settings-btn:hover { border-color: #2c4269; }
@@ -650,11 +650,14 @@ canvas { image-rendering: pixelated; }
   background: var(--good); color: #062a14; border: 3px solid var(--ink-dark);
   box-shadow: inset -2px -2px 0 rgba(0,0,0,.25);
 }
-.net-row .n-play.n-dl,
-.lc-dl {
+.net-row .n-play.n-dl {
   background: var(--cyan);
   color: #062a14;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
+.net-row .n-play.n-dl svg { display: block; }
 .n-opts { position: relative; flex: none; }
 .n-opts-btn {
   background: var(--panel) !important;
@@ -687,25 +690,6 @@ canvas { image-rendering: pixelated; }
 .n-opts-menu button:hover { background: rgba(46,230,255,.12); }
 .n-opts-menu button.gold { color: var(--gold); }
 .n-opts-menu button.danger { color: var(--red); }
-.level-card-wrap {
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-  width: 100%;
-}
-.level-card-wrap .level-card { flex: 1; min-width: 0; }
-.lc-dl {
-  flex: none;
-  min-width: 52px;
-  padding: 6px 10px;
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 1px;
-  background: var(--cyan);
-  color: #062a14;
-  border: 3px solid var(--ink-dark);
-  box-shadow: inset -2px -2px 0 rgba(0,0,0,.25), var(--shadow);
-}
 .net-row.user .n-avatar { width: 40px; height: 40px; border: 2px solid var(--ink-dark); image-rendering: pixelated; background: var(--ink); }
 
 .hud-author-chip {
@@ -725,14 +709,13 @@ canvas { image-rendering: pixelated; }
   .home-stats { font-size: 10px; padding: 5px 10px; border-width: 2px; }
   .ui-space .hs-chip { font-size: 10px; padding: 5px 8px; border-width: 2px; }
   .ui-space .home-skin { width: 32px; height: 32px; }
-  .home-settings-btn { width: 88px; height: 88px; padding: 16px; }
+  .home-settings-btn { width: 64px; height: 64px; padding: 11px; }
 
   .topbar { padding: 8px 10px; gap: 10px; }
   .bar-title { font-size: 16px; letter-spacing: 2px; }
 
   .level-list { padding: 10px; gap: 8px; }
   .level-card { padding: 9px 12px; gap: 10px; }
-  .lc-dl { min-width: 44px; padding: 6px 8px; font-size: 11px; }
   .level-num { width: 36px; height: 36px; font-size: 17px; border-width: 2px; }
   .level-name { font-size: 14px; }
   .level-meta { font-size: 10px; margin-top: 2px; }
