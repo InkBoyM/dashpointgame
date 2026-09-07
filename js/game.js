@@ -398,7 +398,7 @@
     const BAD = {
       SCRIPT: 1, STYLE: 1, OBJECT: 1, EMBED: 1, LINK: 1, META: 1,
       FORM: 1, INPUT: 1, BUTTON: 1, TEXTAREA: 1, SELECT: 1, OPTION: 1,
-      VIDEO: 1, AUDIO: 1, SOURCE: 1, TRACK: 1, CANVAS: 1, APPLET: 1,
+      CANVAS: 1, APPLET: 1, TRACK: 1,
       BASE: 1, FRAME: 1, FRAMESET: 1, NOFRAMES: 1, NOSCRIPT: 1, TEMPLATE: 1, SLOT: 1,
     };
     const nodes = [root];
@@ -433,6 +433,62 @@
         // "<iframe/>" would swallow following siblings when used as innerHTML.
         clean.appendChild(doc.createTextNode(""));
         if (node.parentNode) node.parentNode.replaceChild(clean, node);
+        continue;
+      }
+      if (tag === "VIDEO" || tag === "AUDIO") {
+        // Media files: rebuild with https sources only. No scripts can run
+        // from these tags; playback is governed by browser autoplay policy.
+        const clean = doc.createElement(tag.toLowerCase());
+        let hasSrc = false;
+        const src = String(node.getAttribute("src") || "").trim();
+        if (/^https:\/\/[^\s"'<>]+$/i.test(src) && src.length <= 2000) {
+          clean.setAttribute("src", src);
+          hasSrc = true;
+        }
+        const parts = node.getElementsByTagName("source");
+        for (let s = 0; s < parts.length; s++) {
+          const psrc = String(parts[s].getAttribute("src") || "").trim();
+          if (!/^https:\/\/[^\s"'<>]+$/i.test(psrc) || psrc.length > 2000) continue;
+          const sc = doc.createElement("source");
+          sc.setAttribute("src", psrc);
+          const ptype = String(parts[s].getAttribute("type") || "").trim().slice(0, 64);
+          if (/^[\w\-.]+\/[\w\-.+]+$/.test(ptype)) sc.setAttribute("type", ptype);
+          sc.appendChild(doc.createTextNode(""));
+          clean.appendChild(sc);
+          hasSrc = true;
+        }
+        if (!hasSrc) {
+          if (node.parentNode) node.parentNode.removeChild(node);
+          continue;
+        }
+        clean.setAttribute("controls", "");
+        clean.setAttribute("preload", "metadata");
+        const flags = ["muted", "loop", "playsinline", "autoplay"];
+        for (let f = 0; f < flags.length; f++) {
+          if (node.hasAttribute(flags[f])) clean.setAttribute(flags[f], "");
+        }
+        const poster = String(node.getAttribute("poster") || "").trim();
+        if (/^https:\/\/[^\s"'<>]+$/i.test(poster) && poster.length <= 2000) clean.setAttribute("poster", poster);
+        clean.setAttribute("style", "width:100%;height:100%;background:#000;");
+        clean.appendChild(doc.createTextNode(""));
+        if (node.parentNode) node.parentNode.replaceChild(clean, node);
+        continue;
+      }
+      if (tag === "SOURCE") {
+        // Stray <source> outside a media tag is meaningless — drop it. (Loop
+        // runs innermost-first, so sources still inside their original
+        // <video>/<audio> are kept for the media rebuild below.)
+        let p = node.parentNode;
+        let inside = false;
+        while (p && p !== root) {
+          const pt = String((p.tagName || "").toUpperCase());
+          if (pt === "VIDEO" || pt === "AUDIO") {
+            inside = true;
+            break;
+          }
+          p = p.parentNode;
+        }
+        if (!inside && node.parentNode) node.parentNode.removeChild(node);
         continue;
       }
       if (BAD[tag]) {
