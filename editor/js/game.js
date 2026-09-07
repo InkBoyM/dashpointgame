@@ -389,17 +389,29 @@
     if (!html.trim()) return "";
     let doc = null;
     try {
-      doc = new DOMParser().parseFromString("<div>" + html + "</div>", "text/html");
+      // Parse as a document so full-page pastes work too: fragments land in
+      // body, full pages keep their body content, and <style> is rescued from
+      // head. Content renders inside a shadow root, so kept styles apply to
+      // the block only and can never leak onto the game page.
+      doc = new DOMParser().parseFromString(html, "text/html");
     } catch (e) {
       return "";
     }
-    const root = doc && doc.body ? doc.body.firstChild : null;
-    if (!root) return "";
+    if (!doc || !doc.body) return "";
+    const root = doc.createElement("div");
+    try {
+      const headStyles = doc.head ? doc.head.querySelectorAll("style") : [];
+      for (let i = 0; i < headStyles.length; i++) root.appendChild(headStyles[i]);
+      while (doc.body.firstChild) root.appendChild(doc.body.firstChild);
+    } catch (e) {
+      return "";
+    }
     const BAD = {
-      SCRIPT: 1, STYLE: 1, OBJECT: 1, EMBED: 1, LINK: 1, META: 1,
+      SCRIPT: 1, OBJECT: 1, EMBED: 1, LINK: 1, META: 1,
       FORM: 1, INPUT: 1, BUTTON: 1, TEXTAREA: 1, SELECT: 1, OPTION: 1,
       CANVAS: 1, APPLET: 1, TRACK: 1,
       BASE: 1, FRAME: 1, FRAMESET: 1, NOFRAMES: 1, NOSCRIPT: 1, TEMPLATE: 1, SLOT: 1,
+      TITLE: 1, NOEMBED: 1,
     };
     const nodes = [root];
     try {
@@ -601,8 +613,9 @@
   // Live DOM overlay for front-layer (layer 1) widgets. Call every frame with
   // the overlay container and camera: keeps one div per widget, positioned and
   // scaled to world units, and removes stale ones. Content is re-sanitized
-  // whenever it changes; only links inside capture clicks, all else passes
-  // through to the canvas/HUD below.
+  // whenever it changes and renders inside a shadow root, so author <style>
+  // applies to the block only. Only interactive content captures clicks, all
+  // else passes through to the canvas/HUD below.
   function syncWidgetDom(box, widgets, cam) {
     if (!box || !box.children) return;
     if (!cam) {
@@ -633,8 +646,17 @@
       }
       if (el.dataset.wkey !== key) {
         el.dataset.wkey = key;
-        el.innerHTML = sanitizeWidgetHtml(wd.html);
-        const links = el.querySelectorAll("a");
+        let host = el.shadowRoot;
+        if (!host) {
+          try {
+            host = el.attachShadow({ mode: "open" });
+          } catch (e) {
+            host = null;
+          }
+        }
+        if (!host) host = el;
+        host.innerHTML = sanitizeWidgetHtml(wd.html);
+        const links = host.querySelectorAll("a");
         for (let a = 0; a < links.length; a++) {
           links[a].target = "_blank";
           links[a].rel = "noopener noreferrer";
