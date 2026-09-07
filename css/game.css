@@ -516,14 +516,14 @@ canvas { image-rendering: pixelated; }
 .home-fab-row {
   display: flex;
   flex-direction: row;
-  gap: 22px;
+  gap: 20px;
   align-items: center;
   justify-content: center;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 .home-settings-btn {
   margin-top: 4px;
-  width: 112px; height: 112px;
+  width: 110px; height: 110px;
   border-radius: 20px;
   background: rgba(17,27,46,.85);
   border: 4px solid #22334f;
@@ -669,7 +669,7 @@ canvas { image-rendering: pixelated; }
   .home-stats { font-size: 10px; padding: 5px 10px; border-width: 2px; }
   .ui-space .hs-chip { font-size: 10px; padding: 5px 8px; border-width: 2px; }
   .ui-space .home-skin { width: 32px; height: 32px; }
-  .home-settings-btn { width: 92px; height: 92px; padding: 16px; }
+  .home-settings-btn { width: 88px; height: 88px; padding: 16px; }
 
   .topbar { padding: 8px 10px; gap: 10px; }
   .bar-title { font-size: 16px; letter-spacing: 2px; }

@@ -359,6 +359,7 @@ window.DPNet = (function () {
     const toSave = {
       deaths: fullSave.deaths | 0,
       jumps: fullSave.jumps | 0,
+      playtime: Math.max(Number(cloud.playtime) || 0, Number(fullSave.playtime) || 0),
       coins: fullSave.coins | 0,
       coinPaid: sanitizeObjectKeys(rawPaid),
       coinMigrated: !!fullSave.coinMigrated,
