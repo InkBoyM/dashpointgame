@@ -212,9 +212,16 @@
     paused: false,
     shake: 0,
     spectateUid: null,
+    qcOpen: false,
+    qcSel: 0,
     keys: new Set(),
     lastFrame: 0,
   };
+
+  // ---- Quick chat state ----
+  const QC_FIXED = ["Hi", "Hello", "Where are you", "Nice", "Tuff", "Bye", "Dashpoint is the best game ever made", "\uD83D\uDD25", "\uD83D\uDE00"];
+  let qbubbles = [];
+  let lastChatSeen = {};
 
   // ---- Ghost + Online leaderboard ----
   let ghostTrail = [];
@@ -495,6 +502,7 @@
   }
 
   function show(name) {
+    if (state.qcOpen) closeQuickChat();
     state.screen = name;
     document.querySelectorAll(".screen").forEach((s) => s.classList.remove("visible"));
     el("screen-" + name).classList.add("visible");
@@ -886,6 +894,7 @@
     state.winShown = false;
     state.paused = false;
     setSpectate(null);
+    clearChatBubbles();
     el("pauseCard").classList.remove("visible");
     // track attempts per level (lightweight)
     try {
@@ -957,6 +966,7 @@
     if (DP.Music) DP.Music.stop();
     flushPlaytime();
     setSpectate(null);
+    closeQuickChatFor();
     state.playing = false;
     state.engine = null;
     state.paused = false;
@@ -1154,6 +1164,171 @@
     lastSpectateWatchers = cur.slice();
   }
 
+  // ---- Quick chat ----
+  function qcMessages() {
+    const skin = SKINS.find((s) => s.id === save_.data.skin) || SKINS[0];
+    const skinTxt = skin && skin.name ? skin.name : "Cube";
+    return QC_FIXED.concat(["Using " + skinTxt]);
+  }
+  function openQuickChat() {
+    if (!MP.isActive()) { showNotice("Join a room to chat", true); return; }
+    if (state.qcOpen) return;
+    state.qcOpen = true;
+    renderQuickChat();
+    el("qcPopup").classList.add("open");
+  }
+  function closeQuickChat() {
+    state.qcOpen = false;
+    el("qcPopup").classList.remove("open");
+  }
+  function toggleQuickChat() {
+    if (state.qcOpen) closeQuickChat();
+    else openQuickChat();
+  }
+  function renderQuickChat() {
+    const grid = el("qcGrid");
+    if (!grid) return;
+    const msgs = qcMessages();
+    if (state.qcSel >= msgs.length) state.qcSel = msgs.length - 1;
+    if (state.qcSel < 0) state.qcSel = 0;
+    grid.innerHTML = "";
+    msgs.forEach((m, i) => {
+      const d = document.createElement("div");
+      d.className = "qc-msg" + (i === state.qcSel ? " sel" : "");
+      d.textContent = m;
+      d.addEventListener("click", () => { state.qcSel = i; sendQuickChat(); });
+      d.addEventListener("mouseenter", () => { if (state.qcSel !== i) { state.qcSel = i; renderQuickChat(); } });
+      grid.appendChild(d);
+    });
+  }
+  function moveQcSel(delta) {
+    if (!MP.isActive()) { showNotice("Join a room to chat", true); return; }
+    const msgs = qcMessages();
+    state.qcSel = (state.qcSel + delta + msgs.length) % msgs.length;
+    if (!state.qcOpen) { state.qcOpen = true; renderQuickChat(); el("qcPopup").classList.add("open"); }
+    else renderQuickChat();
+  }
+  function sendQuickChat() {
+    if (!MP.isActive()) { showNotice("Join a room to chat", true); return; }
+    const msgs = qcMessages();
+    if (state.qcSel >= msgs.length) state.qcSel = msgs.length - 1;
+    const text = msgs[state.qcSel];
+    closeQuickChat();
+    sendChatText(text);
+  }
+  function sendChatText(text) {
+    const ok = MP.sendChat(text);
+    if (!ok) { showNotice("Not in a room", true); return; }
+    const u = MP.getUser();
+    if (state.screen === "game" && state.playing && state.engine && !state.engine.dead) {
+      spawnBubble(text, state.engine.player.x, state.engine.player.y, state.currentFile);
+    } else {
+      addFeedMsg(text, u && u.name ? u.name : "You", true);
+    }
+  }
+  function spawnBubble(text, worldX, worldY, level) {
+    qbubbles.push({
+      el: null,
+      uid: "",
+      name: "",
+      text: text,
+      worldX: worldX,
+      worldY: worldY,
+      level: level,
+      born: Date.now(),
+      dur: 3400,
+    });
+    const host = el("chatBubbles");
+    if (host) {
+      const b = document.createElement("div");
+      b.className = "chat-bubble";
+      b.textContent = text;
+      host.appendChild(b);
+      qbubbles[qbubbles.length - 1].el = b;
+    }
+  }
+  function addFeedMsg(text, name, self) {
+    const feed = el("chatFeed");
+    if (!feed) return;
+    const d = document.createElement("div");
+    d.className = "feed-item" + (self ? " feed-self" : "");
+    const b = document.createElement("b");
+    b.textContent = self ? "You" : (name || "player");
+    const s = document.createElement("span");
+    s.textContent = text;
+    d.appendChild(b); d.appendChild(s);
+    feed.appendChild(d);
+    while (feed.children.length > 4) feed.removeChild(feed.firstChild);
+    setTimeout(() => { try { d.classList.add("fade"); } catch (e) {} }, 3200);
+    setTimeout(() => { try { feed.removeChild(d); } catch (e) {} }, 3800);
+  }
+  function pickChatDisplay(peer) {
+    const sameLevel = state.screen === "game" && state.playing && state.engine && peer.level === state.currentFile;
+    const onScreen = sameLevel && peer.cube && peer.cube.x != null;
+    if (onScreen) {
+      const sc = shakeCam();
+      const w = el("view").width, h = el("view").height;
+      const sx = (peer.cube.x - sc.x) * sc.zoom;
+      const sy = (peer.cube.y - sc.y) * sc.zoom;
+      if (sx > -80 && sx < w + 80 && sy > -80 && sy < h + 80) return true;
+    }
+    return false;
+  }
+  function spawnChat(peer) {
+    const c = peer.chat;
+    if (!c || !c.ts) return;
+    const prev = lastChatSeen[peer.uid] || 0;
+    if (c.ts <= prev) return;
+    lastChatSeen[peer.uid] = c.ts;
+    const age = Date.now() - c.ts;
+    if (age > 8000) return;
+    const near = pickChatDisplay(peer);
+    if (near && peer.cube) {
+      spawnBubble(c.text, peer.cube.x, peer.cube.y, peer.level);
+    } else {
+      addFeedMsg(c.text, peer.name, false);
+    }
+  }
+  function pollChat() {
+    if (!MP.isActive()) { lastChatSeen = {}; return; }
+    for (const p of MP.peers()) {
+      try { spawnChat(p); } catch (e) {}
+    }
+  }
+  function tickChatBubbles() {
+    const host = el("chatBubbles");
+    const sc = shakeCam();
+    const now = Date.now();
+    for (let i = qbubbles.length - 1; i >= 0; i--) {
+      const b = qbubbles[i];
+      const alive = now - b.born < b.dur;
+      if (!alive || !b.el || (host && b.el.parentNode !== host)) {
+        try { if (b.el && b.el.parentNode) b.el.parentNode.removeChild(b.el); } catch (e) {}
+        qbubbles.splice(i, 1);
+        continue;
+      }
+      const sameLevel = state.screen === "game" && b.level === state.currentFile;
+      if (sameLevel) {
+        b.el.style.display = "";
+        b.el.style.left = ((b.worldX - sc.x) * sc.zoom) + "px";
+        b.el.style.top = ((b.worldY - 18 - sc.y) * sc.zoom) + "px";
+        const remain = b.dur - (now - b.born);
+        b.el.style.opacity = remain < 450 ? String(Math.max(0, remain / 450)) : "1";
+      } else {
+        b.el.style.display = "none";
+      }
+    }
+  }
+  function clearChatBubbles() {
+    const host = el("chatBubbles");
+    if (host) host.innerHTML = "";
+    qbubbles = [];
+  }
+  function closeQuickChatFor() {
+    if (state.qcOpen) closeQuickChat();
+    clearChatBubbles();
+  }
+
   function frame(ts) {
     requestAnimationFrame(frame);
     const rawDt = Math.max(0.001, (ts - state.lastFrame) / 1000 || 0.016);
@@ -1252,6 +1427,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       showSpawn: false,
       remoteCubes: remoteCubes || [],
     });
+    pollChat();
+    tickChatBubbles();
   }
 
   function isTyping(ev) {
@@ -1969,7 +2146,24 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       else cycleSpectate(ev.code === "ArrowLeft" ? -1 : 1);
       return;
     }
-    if (!isTyping(ev)) state.keys.add(ev.code);
+    if (!isTyping(ev)) {
+      const kq = ev.code;
+      if (MP.isActive()) {
+        if (kq === "AltLeft" || kq === "AltRight") {
+          ev.preventDefault();
+          if (!ev.repeat) toggleQuickChat();
+          return;
+        }
+        if (ev.altKey && !ev.repeat && (kq === "ArrowDown" || kq === "ArrowRight")) { ev.preventDefault(); moveQcSel(1); return; }
+        if (ev.altKey && !ev.repeat && (kq === "ArrowUp" || kq === "ArrowLeft")) { ev.preventDefault(); moveQcSel(-1); return; }
+        if (ev.altKey && !ev.repeat && (kq === "Enter" || kq === "Space")) { ev.preventDefault(); sendQuickChat(); return; }
+        if (state.qcOpen && (kq === "ArrowDown" || kq === "ArrowRight")) { ev.preventDefault(); moveQcSel(1); return; }
+        if (state.qcOpen && (kq === "ArrowUp" || kq === "ArrowLeft")) { ev.preventDefault(); moveQcSel(-1); return; }
+        if (state.qcOpen && kq === "Enter") { ev.preventDefault(); sendQuickChat(); return; }
+        if (state.qcOpen && kq === "Escape") { ev.preventDefault(); closeQuickChat(); return; }
+      }
+      state.keys.add(ev.code);
+    }
     if (ev.code === "KeyA" && ev.altKey && el("modalSkins").classList.contains("visible")) {
       ev.preventDefault();
       unlockSecretA();
@@ -2105,9 +2299,11 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         if (state.screen === "home") syncHomeStats();
         checkDeletionNotices();
         checkSpectateNotices();
+        pollChat();
       },
       onKicked: (msg) => {
         MP.clearCube();
+        closeQuickChatFor();
         showNotice(msg, true);
         syncMpUI();
       },
@@ -2193,6 +2389,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     });
     el("btnProfLeave").addEventListener("click", async () => {
       MP.clearCube();
+      closeQuickChatFor();
       try { MP.setWatching(null); } catch (e) {}
       state.spectateUid = null;
       const hud = el("hudSpectate"); if (hud) hud.classList.add("hidden");

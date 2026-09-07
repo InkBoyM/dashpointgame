@@ -159,6 +159,8 @@ window.DashPointMP = (function () {
     lastSent = null;
     watchingUid = null;
     watchingName = "";
+    chatSentTs = 0;
+    lastSentChatText = "";
   }
 
   async function host() {
@@ -286,6 +288,23 @@ window.DashPointMP = (function () {
     if (active && meRef) meRef.child("cube").remove().catch(() => {});
   }
 
+  let chatSentTs = 0;
+  let lastSentChatText = "";
+  function sendChat(text) {
+    if (!active || !meRef) return false;
+    const clean = String(text || "").replace(/\s+/g, " ").trim().slice(0, 80);
+    if (!clean) return false;
+    chatSentTs = Date.now();
+    lastSentChatText = clean;
+    meRef.child("chat").set({ text: clean, ts: chatSentTs }).catch(() => {});
+    return true;
+  }
+
+  function myChat() {
+    if (!active || !chatSentTs) return null;
+    return { text: lastSentChatText || "", ts: chatSentTs };
+  }
+
   function others() {
     if (!active || !cachedPlayers) return [];
     const out = [];
@@ -356,6 +375,7 @@ window.DashPointMP = (function () {
               won: !!cb.won,
             }
           : null,
+        chat: (other.chat && Number(other.chat.ts)) ? { text: String(other.chat.text || ""), ts: Number(other.chat.ts) } : null,
       });
     }
     return out;
@@ -442,6 +462,8 @@ window.DashPointMP = (function () {
     leave: leave,
     sendCube: sendCube,
     clearCube: clearCube,
+    sendChat: sendChat,
+    myChat: myChat,
     peers: peers,
     peerOnline: peerOnline,
     peerName: peerName,
