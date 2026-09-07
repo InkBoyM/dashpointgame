@@ -301,7 +301,10 @@ img { image-rendering: pixelated; }
   pointer-events: none;
 }
 .dp-widget a { pointer-events: none; }
-#widgetLayer.live .dp-widget a { pointer-events: auto; }
+#widgetLayer.live .dp-widget a,
+#widgetLayer.live .dp-widget video,
+#widgetLayer.live .dp-widget audio,
+#widgetLayer.live .dp-widget iframe { pointer-events: auto; }
 
 .play-hud, .win-card, .modal {
   position: absolute;

@@ -927,9 +927,8 @@ html, body { touch-action: manipulation; -webkit-tap-highlight-color: transparen
   top: 0;
   transform-origin: top left;
   overflow: hidden;
-  pointer-events: none;
+  pointer-events: auto;
 }
-.dp-widget a { pointer-events: auto; }
 #chatBubbles {
   position: absolute;
   inset: 0;
