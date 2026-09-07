@@ -639,6 +639,21 @@ input[type="range"] {
 .n-opts-menu button:hover { background: rgba(46,230,255,.12); }
 .n-opts-menu button.danger { color: var(--red); }
 
+#widgetMenu { display: none; }
+#widgetMenu.open { display: flex; }
+
+#htmlCode {
+  width: 100%;
+  min-height: 150px;
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 6px;
+}
+
+#modalHtml .chips { margin-top: 6px; }
+
 .bind-row {
   display: grid;
   grid-template-columns: 90px 1fr auto;

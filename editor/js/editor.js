@@ -275,6 +275,8 @@
     selection: null,
     selectedPictureId: null,
     picDrag: null,
+    selectedWidgetId: null,
+    widgetDrag: null,
     clipboard: null,
     settings: loadSettings(),
     listening: null,
@@ -361,6 +363,8 @@
     state.level = DP.Level.fromJSON(JSON.parse(json));
     state.selectedPictureId = null;
     state.picDrag = null;
+    state.selectedWidgetId = null;
+    state.widgetDrag = null;
     syncInspector();
     markDirty(true);
   }
@@ -530,6 +534,29 @@
     return state.level.pictures.length !== before;
   }
 
+  function selectedWidget() {
+    const list = state.level.widgets || [];
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].id === state.selectedWidgetId) return list[i];
+    }
+    return null;
+  }
+
+  function widgetAt(x, y) {
+    const list = state.level.widgets || [];
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (DP.pictureContains(list[i], x, y)) return list[i];
+    }
+    return null;
+  }
+
+  function removeWidget(id) {
+    const before = (state.level.widgets || []).length;
+    state.level.widgets = (state.level.widgets || []).filter((w) => w.id !== id);
+    if (state.selectedWidgetId === id) state.selectedWidgetId = null;
+    return state.level.widgets.length !== before;
+  }
+
   function resizePicture(pic, handle, wx, wy, start) {
     const min = 16;
     let left = start.x;
@@ -568,6 +595,10 @@
       els.canvas.style.cursor = state.picDrag.kind === "resize" ? pictureCursor(state.picDrag.handle) : "move";
       return;
     }
+    if (state.widgetDrag) {
+      els.canvas.style.cursor = state.widgetDrag.kind === "resize" ? pictureCursor(state.widgetDrag.handle) : "move";
+      return;
+    }
     const w = screenToWorld(ev.clientX, ev.clientY);
     const sel = selectedPicture();
     if (sel) {
@@ -582,6 +613,22 @@
       }
     }
     if (pictureAt(w.x, w.y)) {
+      els.canvas.style.cursor = "move";
+      return;
+    }
+    const selWd = selectedWidget();
+    if (selWd) {
+      const whandle = DP.pictureHandleAt(selWd, w.x, w.y, state.cam.zoom);
+      if (whandle) {
+        els.canvas.style.cursor = pictureCursor(whandle);
+        return;
+      }
+      if (DP.pictureContains(selWd, w.x, w.y)) {
+        els.canvas.style.cursor = "move";
+        return;
+      }
+    }
+    if (widgetAt(w.x, w.y)) {
       els.canvas.style.cursor = "move";
       return;
     }
@@ -695,6 +742,154 @@
     if (list.length > take.length) setStatus("Added " + added + " — max " + DP.MAX_PICTURES + " images");
   }
 
+  let htmlModalMode = "add";
+  let htmlModalLayer = 0;
+
+  function openHtmlModal(mode, presetHtml, presetLayer) {
+    htmlModalMode = mode === "edit" ? "edit" : "add";
+    htmlModalLayer = presetLayer === 1 ? 1 : 0;
+    const title = document.getElementById("htmlModalTitle");
+    if (title) title.textContent = htmlModalMode === "edit" ? "Edit HTML" : "Add HTML";
+    const area = document.getElementById("htmlCode");
+    if (area) area.value = presetHtml || "";
+    document.querySelectorAll("#htmlLayerChips .chip").forEach((c) => {
+      c.classList.toggle("active", Number(c.dataset.layer) === htmlModalLayer);
+    });
+    const save = document.getElementById("btnHtmlSave");
+    if (save) save.textContent = htmlModalMode === "edit" ? "Save" : "Add";
+    openModal("modalHtml");
+    if (area) setTimeout(function () { try { area.focus(); } catch (e) {} }, 60);
+  }
+
+  function saveHtmlModal() {
+    const area = document.getElementById("htmlCode");
+    const raw = area ? area.value : "";
+    if (!String(raw || "").trim()) {
+      setStatus("Type some HTML first");
+      return;
+    }
+    if (htmlModalMode === "edit") {
+      const wd = selectedWidget();
+      if (!wd) {
+        closeModal("modalHtml");
+        return;
+      }
+      const clean = DP.sanitizeWidget({ id: wd.id, html: raw, x: wd.x, y: wd.y, w: wd.w, h: wd.h, layer: htmlModalLayer });
+      if (!clean) {
+        setStatus("That HTML was stripped to nothing");
+        return;
+      }
+      pushUndo();
+      wd.html = clean.html;
+      wd.layer = clean.layer;
+      markDirty(true);
+      syncInspector();
+      closeModal("modalHtml");
+      setStatus("HTML updated");
+      return;
+    }
+    if (!state.level.widgets) state.level.widgets = [];
+    if (state.level.widgets.length >= DP.MAX_WIDGETS) {
+      setStatus("Max " + DP.MAX_WIDGETS + " HTML blocks per level");
+      return;
+    }
+    const viewW = els.canvas.width / state.cam.zoom;
+    const viewH = els.canvas.height / state.cam.zoom;
+    const w = 256;
+    const h = 128;
+    const clean = DP.sanitizeWidget({
+      id: "ht" + Math.random().toString(36).slice(2, 9),
+      html: raw,
+      x: Math.round(state.cam.x + viewW / 2 - w / 2),
+      y: Math.round(state.cam.y + viewH / 2 - h / 2),
+      w: w,
+      h: h,
+      layer: htmlModalLayer,
+    });
+    if (!clean) {
+      setStatus("That HTML was stripped to nothing");
+      return;
+    }
+    pushUndo();
+    state.level.widgets.push(clean);
+    state.selectedWidgetId = clean.id;
+    state.selectedPictureId = null;
+    setTool("html");
+    markDirty(true);
+    syncInspector();
+    closeModal("modalHtml");
+    setStatus("HTML added — drag to move, handles to resize, right-click for layer");
+  }
+
+  function setWidgetLayer(id, layer) {
+    const wd = (state.level.widgets || []).find(function (w) { return w.id === id; });
+    if (!wd) return;
+    layer = layer === 1 ? 1 : 0;
+    if ((wd.layer | 0) === layer) return;
+    pushUndo();
+    wd.layer = layer;
+    markDirty(true);
+    syncInspector();
+    setStatus(layer === 1 ? "Widget moved in front" : "Widget moved behind tiles");
+  }
+
+  function openWidgetMenu(cx, cy, id) {
+    closeWidgetMenu();
+    const wd = (state.level.widgets || []).find(function (w) { return w.id === id; });
+    if (!wd) return;
+    const m = document.getElementById("widgetMenu");
+    if (!m) return;
+    m.innerHTML = "";
+    const layer = wd.layer | 0;
+    const mk = function (label, active, fn) {
+      const b = document.createElement("button");
+      b.textContent = (active ? "✓ " : "") + label;
+      b.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        closeWidgetMenu();
+        fn();
+      });
+      m.appendChild(b);
+      return b;
+    };
+    mk("Behind tiles", layer === 0, function () { setWidgetLayer(id, 0); });
+    mk("In front", layer === 1, function () { setWidgetLayer(id, 1); });
+    mk("Edit HTML…", false, function () { openHtmlModal("edit", rawWidgetHtml(id), (selectedWidget() || {}).layer | 0); });
+    const del = mk("Delete", false, function () {
+      pushUndo();
+      removeWidget(id);
+      markDirty(true);
+      syncInspector();
+      setStatus("Deleted HTML block");
+    });
+    del.classList.add("danger");
+    m.style.left = Math.max(8, Math.min(cx, window.innerWidth - 170)) + "px";
+    m.style.top = Math.max(8, Math.min(cy, window.innerHeight - 160)) + "px";
+    m.classList.add("open");
+    m.onclick = function (ev) { ev.stopPropagation(); };
+  }
+
+  function rawWidgetHtml(id) {
+    // Stored html is sanitized XML; convert back to editable source (strip xmlns noise).
+    const wd = (state.level.widgets || []).find(function (w) { return w.id === id; });
+    if (!wd) return "";
+    try {
+      const doc = new DOMParser().parseFromString(wd.html, "application/xml");
+      const ser = new XMLSerializer().serializeToString(doc);
+      return String(ser || wd.html).replace(/\s+xmlns="[^"]*"/g, "");
+    } catch (e) {
+      return wd.html;
+    }
+  }
+
+  function closeWidgetMenu() {
+    const m = document.getElementById("widgetMenu");
+    if (m) {
+      m.classList.remove("open");
+      m.innerHTML = "";
+    }
+  }
+
   function drawPictureChrome(ctx) {
     if (state.playing) return;
     const pic = selectedPicture();
@@ -713,6 +908,32 @@
     for (let i = 0; i < hs.length; i++) {
       const h = hs[i];
       ctx.fillStyle = "#2ee6ff";
+      ctx.fillRect(h.x - s / 2, h.y - s / 2, s, s);
+      ctx.strokeStyle = "#070b12";
+      ctx.lineWidth = 1 / zoom;
+      ctx.strokeRect(h.x - s / 2, h.y - s / 2, s, s);
+    }
+    ctx.restore();
+  }
+
+  function drawWidgetChrome(ctx) {
+    if (state.playing) return;
+    const wd = selectedWidget();
+    if (!wd) return;
+    const zoom = state.cam.zoom;
+    ctx.save();
+    ctx.scale(zoom, zoom);
+    ctx.translate(-state.cam.x, -state.cam.y);
+    ctx.strokeStyle = "rgba(176, 92, 255, 0.95)";
+    ctx.lineWidth = 1.5 / zoom;
+    ctx.setLineDash([5 / zoom, 3 / zoom]);
+    ctx.strokeRect(wd.x, wd.y, wd.w, wd.h);
+    ctx.setLineDash([]);
+    const hs = DP.pictureHandles(wd);
+    const s = 8 / zoom;
+    for (let i = 0; i < hs.length; i++) {
+      const h = hs[i];
+      ctx.fillStyle = "#b05cff";
       ctx.fillRect(h.x - s / 2, h.y - s / 2, s, s);
       ctx.strokeStyle = "#070b12";
       ctx.lineWidth = 1 / zoom;
@@ -785,6 +1006,7 @@
     });
     if (tool !== "select") state.selection = null;
     if (tool !== "image") state.picDrag = null;
+    if (tool !== "html") state.widgetDrag = null;
     setStatus(tool.charAt(0).toUpperCase() + tool.slice(1));
   }
 
@@ -1310,9 +1532,40 @@
         return;
       }
       state.selectedPictureId = hitPic.id;
+      state.selectedWidgetId = null;
       pushUndo();
       state.picDrag = { kind: "move", id: hitPic.id, ox: world.x - hitPic.x, oy: world.y - hitPic.y };
       setTool("image");
+      els.canvas.classList.add("painting");
+      return;
+    }
+    const selWd = selectedWidget();
+    if (selWd) {
+      const whandle = DP.pictureHandleAt(selWd, world.x, world.y, state.cam.zoom);
+      if (whandle) {
+        pushUndo();
+        state.widgetDrag = {
+          kind: "resize",
+          id: selWd.id,
+          handle: whandle,
+          start: { x: selWd.x, y: selWd.y, w: selWd.w, h: selWd.h },
+        };
+        els.canvas.classList.add("painting");
+        return;
+      }
+    }
+    const hitWd = widgetAt(world.x, world.y);
+    if (hitWd) {
+      closeWidgetMenu();
+      state.selectedPictureId = null;
+      state.selectedWidgetId = hitWd.id;
+      if (ev.button === 2) {
+        openWidgetMenu(ev.clientX, ev.clientY, hitWd.id);
+        return;
+      }
+      pushUndo();
+      state.widgetDrag = { kind: "move", id: hitWd.id, ox: world.x - hitWd.x, oy: world.y - hitWd.y };
+      setTool("html");
       els.canvas.classList.add("painting");
       return;
     }
@@ -1320,7 +1573,12 @@
       state.selectedPictureId = null;
       return;
     }
+    if (state.tool === "html") {
+      state.selectedWidgetId = null;
+      return;
+    }
     state.selectedPictureId = null;
+    state.selectedWidgetId = null;
     if (ev.button === 2 && !ev.ctrlKey) {
       if (ev.shiftKey) {
         pickAt(cell);
@@ -1394,6 +1652,21 @@
       }
       return;
     }
+    if (state.widgetDrag) {
+      const world = screenToWorld(ev.clientX, ev.clientY);
+      const wd = (state.level.widgets || []).find(function (p) { return p.id === state.widgetDrag.id; });
+      if (wd) {
+        if (state.widgetDrag.kind === "move") {
+          wd.x = world.x - state.widgetDrag.ox;
+          wd.y = world.y - state.widgetDrag.oy;
+        } else {
+          // resizePicture is generic rect math (x/y/w/h) — shared with images.
+          resizePicture(wd, state.widgetDrag.handle, world.x, world.y, state.widgetDrag.start);
+        }
+        markDirty(true);
+      }
+      return;
+    }
     if (state.selection && state.selection.dragging) {
       state.selection.c1 = cell.c;
       state.selection.r1 = cell.r;
@@ -1438,6 +1711,7 @@
     }
     state.stroke = null;
     state.picDrag = null;
+    state.widgetDrag = null;
     state.pan.on = false;
     els.canvas.classList.remove("painting", "selecting");
     syncInspector();
@@ -1488,6 +1762,8 @@
     document.getElementById("cText").textContent = v.counts.labels;
     const imgStat = document.getElementById("cImages");
     if (imgStat) imgStat.textContent = v.counts.pictures || 0;
+    const htmlStat = document.getElementById("cHtml");
+    if (htmlStat) htmlStat.textContent = v.counts.widgets || 0;
     document.getElementById("cSpawn").textContent = state.level.spawn.c + "," + state.level.spawn.r;
     const validEl = document.getElementById("cValid");
     if (v.ok) {
@@ -1533,6 +1809,8 @@
     state.selection = null;
     state.selectedPictureId = null;
     state.picDrag = null;
+    state.selectedWidgetId = null;
+    state.widgetDrag = null;
     syncInspector();
     focusOn(level.spawn.c, level.spawn.r, editorZoom());
     markDirty(true);
@@ -1588,6 +1866,8 @@
     clearNetworkEdit();
     state.selectedPictureId = null;
     state.picDrag = null;
+    state.selectedWidgetId = null;
+    state.widgetDrag = null;
     state.level = DP.Level.createDefault("New Level");
     state.undo = [];
     state.redo = [];
@@ -1608,6 +1888,8 @@
     state.level = window.DashPointGenerate.generate(DP);
     state.selectedPictureId = null;
     state.picDrag = null;
+    state.selectedWidgetId = null;
+    state.widgetDrag = null;
     state.undo = [];
     state.redo = [];
     state.selection = null;
@@ -1897,6 +2179,7 @@
           : null,
     });
     drawPictureChrome(ctx);
+    drawWidgetChrome(ctx);
 
     drawMinimap();
     els.statusZoom.textContent = Math.round(state.cam.zoom * 100) + "%";
@@ -2121,7 +2404,10 @@
         stopPlay();
       } else if (state.selectedPictureId) {
         state.selectedPictureId = null;
+      } else if (state.selectedWidgetId) {
+        state.selectedWidgetId = null;
       }
+      closeWidgetMenu();
       return;
     }
 
@@ -2207,6 +2493,7 @@
     if (ev.code === "KeyG") setTool("prefab");
     if (ev.code === "KeyT") setTool("text");
     if (ev.code === "KeyM") setTool("image");
+    if (ev.code === "KeyU") setTool("html");
     if (ev.code === "Digit1") setTile("brick");
     if (ev.code === "Digit2") setTile("spike");
     if (ev.code === "Digit4") setTile("ispike");
@@ -2225,6 +2512,10 @@
         pushUndo();
         removePicture(state.selectedPictureId);
         setStatus("Deleted image");
+      } else if (state.selectedWidgetId) {
+        pushUndo();
+        removeWidget(state.selectedWidgetId);
+        setStatus("Deleted HTML block");
       } else if (state.selection) deleteSelection();
       else if (textAt(state.hover.c, state.hover.r)) {
         pushUndo();
@@ -2345,7 +2636,7 @@
     els.canvas.addEventListener("pointermove", (ev) => {
       state.hover = eventCell(ev);
       moveStroke(ev);
-      if (!state.picDrag) updatePictureCursor(ev);
+      if (!state.picDrag && !state.widgetDrag) updatePictureCursor(ev);
     });
     els.canvas.addEventListener("pointerup", endStroke);
     els.canvas.addEventListener("pointercancel", endStroke);
@@ -2467,6 +2758,40 @@
         els.imageFile.value = "";
       });
     }
+    const addHtml = document.getElementById("btnAddHtml");
+    if (addHtml) {
+      addHtml.addEventListener("click", () => {
+        if ((state.level.widgets || []).length >= DP.MAX_WIDGETS) {
+          setStatus("Max " + DP.MAX_WIDGETS + " HTML blocks per level");
+          return;
+        }
+        openHtmlModal("add", "", 0);
+      });
+    }
+    const htmlSave = document.getElementById("btnHtmlSave");
+    if (htmlSave) htmlSave.addEventListener("click", saveHtmlModal);
+    const htmlChips = document.getElementById("htmlLayerChips");
+    if (htmlChips) {
+      htmlChips.addEventListener("click", (ev) => {
+        const chip = ev.target.closest("[data-layer]");
+        if (!chip) return;
+        htmlModalLayer = Number(chip.dataset.layer) === 1 ? 1 : 0;
+        htmlChips.querySelectorAll(".chip").forEach((c) => {
+          c.classList.toggle("active", c === chip);
+        });
+      });
+    }
+    els.canvas.addEventListener("dblclick", (ev) => {
+      if (state.playing) return;
+      const world = screenToWorld(ev.clientX, ev.clientY);
+      const hit = widgetAt(world.x, world.y);
+      if (hit) {
+        state.selectedPictureId = null;
+        state.selectedWidgetId = hit.id;
+        openHtmlModal("edit", rawWidgetHtml(hit.id), hit.layer | 0);
+      }
+    });
+    document.addEventListener("click", () => closeWidgetMenu());
     const savePrefabBtn = document.getElementById("btnSavePrefab");
     if (savePrefabBtn) savePrefabBtn.addEventListener("click", saveSelectionAsPrefab);
     document.getElementById("btnExport").addEventListener("click", exportLevel);

@@ -375,6 +375,137 @@
     return null;
   }
 
+  // ---- HTML widgets (static rich-text/deco blocks, rasterized into the canvas) ----
+  // layer 0 = behind tiles (drawn with pictures), layer 1 = in front of everything.
+  const MAX_WIDGETS = 8;
+  const WIDGET_MIN = 16;
+  const WIDGET_MAX_DIM = 4096;
+  const WIDGET_MAX_HTML = 20000;
+  const widgetImgs = {};
+
+  function sanitizeWidgetHtml(raw) {
+    let html = String(raw == null ? "" : raw).slice(0, WIDGET_MAX_HTML);
+    if (!html.trim()) return "";
+    let doc = null;
+    try {
+      doc = new DOMParser().parseFromString("<div>" + html + "</div>", "text/html");
+    } catch (e) {
+      return "";
+    }
+    const root = doc && doc.body ? doc.body.firstChild : null;
+    if (!root) return "";
+    const BAD = {
+      SCRIPT: 1, STYLE: 1, IFRAME: 1, OBJECT: 1, EMBED: 1, LINK: 1, META: 1,
+      FORM: 1, INPUT: 1, BUTTON: 1, TEXTAREA: 1, SELECT: 1, OPTION: 1,
+      VIDEO: 1, AUDIO: 1, SOURCE: 1, TRACK: 1, CANVAS: 1, APPLET: 1,
+      BASE: 1, FRAME: 1, FRAMESET: 1, NOFRAMES: 1, NOSCRIPT: 1, TEMPLATE: 1, SLOT: 1,
+    };
+    const nodes = [root];
+    try {
+      const walker = doc.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, null);
+      let n = null;
+      while ((n = walker.nextNode())) nodes.push(n);
+    } catch (e) {
+      return "";
+    }
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      const node = nodes[i];
+      const tag = String((node.tagName || "").toUpperCase());
+      if (BAD[tag]) {
+        if (node.parentNode) node.parentNode.removeChild(node);
+        continue;
+      }
+      const attrs = node.attributes ? Array.prototype.slice.call(node.attributes) : [];
+      for (let a = 0; a < attrs.length; a++) {
+        const an = String(attrs[a].name || "").toLowerCase();
+        const av = String(attrs[a].value || "");
+        if (an.indexOf("on") === 0) node.removeAttribute(attrs[a].name);
+        else if ((an === "href" || an === "src") && /^\s*javascript:/i.test(av)) node.removeAttribute(attrs[a].name);
+      }
+    }
+    let out = "";
+    try {
+      out = new XMLSerializer().serializeToString(root);
+    } catch (e) {
+      return "";
+    }
+    if (!out) return "";
+    return out.slice(0, WIDGET_MAX_HTML * 3);
+  }
+
+  function sanitizeWidget(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    const html = sanitizeWidgetHtml(raw.html);
+    if (!html) return null;
+    const w = clamp(Math.round(Number(raw.w) || 0), WIDGET_MIN, WIDGET_MAX_DIM);
+    const h = clamp(Math.round(Number(raw.h) || 0), WIDGET_MIN, WIDGET_MAX_DIM);
+    const x = Number(raw.x);
+    const y = Number(raw.y);
+    if (!isFinite(x) || !isFinite(y)) return null;
+    return {
+      id: String(raw.id || "ht" + Math.random().toString(36).slice(2, 9)),
+      html: html,
+      x: x,
+      y: y,
+      w: w,
+      h: h,
+      layer: Number(raw.layer) === 1 ? 1 : 0,
+    };
+  }
+
+  function widgetHash(s) {
+    let h2 = 5381;
+    for (let i = 0; i < s.length; i++) h2 = ((h2 << 5) + h2 + s.charCodeAt(i)) | 0;
+    return (h2 >>> 0).toString(36);
+  }
+
+  function widgetSvg(wd) {
+    const span = Math.max(wd.w, wd.h);
+    const s = span > 1024 ? 1 : 2;
+    const rw = Math.max(1, Math.round(wd.w * s));
+    const rh = Math.max(1, Math.round(wd.h * s));
+    return (
+      '<svg xmlns="http://www.w3.org/2000/svg" width="' + rw + '" height="' + rh + '" viewBox="0 0 ' + rw + " " + rh + '">' +
+      '<foreignObject x="0" y="0" width="' + rw + '" height="' + rh + '">' +
+      '<div xmlns="http://www.w3.org/1999/xhtml" style="margin:0;padding:0;width:' + wd.w + "px;height:" + wd.h + "px;overflow:hidden;transform:scale(" + s + ");transform-origin:top left;\">" +
+      wd.html +
+      "</div></foreignObject></svg>"
+    );
+  }
+
+  function widgetImage(wd) {
+    if (!wd || !wd.html) return null;
+    const key = wd.id + "|" + wd.w + "x" + wd.h + "|" + widgetHash(wd.html);
+    let rec = widgetImgs[wd.id];
+    if (!rec || rec.key !== key) {
+      rec = { key: key, img: new Image() };
+      rec.img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(widgetSvg(wd));
+      widgetImgs[wd.id] = rec;
+    }
+    return rec.img;
+  }
+
+  function drawWidgets(ctx, level, layer) {
+    const list = level.widgets || [];
+    if (!list.length) return;
+    const prevSmooth = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    for (let i = 0; i < list.length; i++) {
+      const wd = list[i];
+      if ((wd.layer | 0) !== layer) continue;
+      const img = widgetImage(wd);
+      if (img && img.naturalWidth) ctx.drawImage(img, wd.x, wd.y, wd.w, wd.h);
+      else {
+        ctx.fillStyle = "rgba(176, 92, 255, 0.18)";
+        ctx.fillRect(wd.x, wd.y, wd.w, wd.h);
+        ctx.strokeStyle = "rgba(176, 92, 255, 0.55)";
+        ctx.strokeRect(wd.x, wd.y, wd.w, wd.h);
+      }
+    }
+    ctx.imageSmoothingEnabled = prevSmooth;
+  }
+
   function drawPictures(ctx, level) {
     const list = level.pictures || [];
     if (!list.length) return;
@@ -457,6 +588,7 @@
       this.grid = opts.grid || emptyGrid(this.cols, this.rows);
       this.texts = Array.isArray(opts.texts) ? opts.texts.map(sanitizeText).filter(Boolean) : [];
       this.pictures = asList(opts.pictures).map(sanitizePicture).filter(Boolean).slice(0, MAX_PICTURES);
+      this.widgets = asList(opts.widgets).map(sanitizeWidget).filter(Boolean).slice(0, MAX_WIDGETS);
       this.triggers = sanitizeTriggers(opts.triggers);
       this.song = sanitizeSong(opts.song);
       this.meta = Object.assign(
@@ -505,7 +637,7 @@
     }
 
     counts() {
-      const out = { brick: 0, ibrick: 0, fbrick: 0, spike: 0, ispike: 0, fspike: 0, goal: 0, igoal: 0, orb: 0, iorb: 0, pad: 0, dash: 0, empty: 0, labels: 0, pictures: 0 };
+      const out = { brick: 0, ibrick: 0, fbrick: 0, spike: 0, ispike: 0, fspike: 0, goal: 0, igoal: 0, orb: 0, iorb: 0, pad: 0, dash: 0, empty: 0, labels: 0, pictures: 0, widgets: 0 };
       for (let r = 0; r < this.rows; r++) {
         for (let c = 0; c < this.cols; c++) {
           const t = this.grid[r][c];
@@ -515,6 +647,7 @@
       }
       out.labels = this.texts.length;
       out.pictures = this.pictures.length;
+      out.widgets = (this.widgets || []).length;
       out.goals = (out.goal || 0) + (out.igoal || 0);
       return out;
     }
@@ -585,6 +718,10 @@
         p.x += shiftC * TILE;
         p.y += shiftR * TILE;
       });
+      (this.widgets || []).forEach((wd) => {
+        wd.x += shiftC * TILE;
+        wd.y += shiftR * TILE;
+      });
       (this.triggers || []).forEach((t) => {
         t.tc += shiftC;
         t.tr += shiftR;
@@ -633,6 +770,15 @@
           w: p.w,
           h: p.h,
         })),
+        widgets: (this.widgets || []).slice(0, MAX_WIDGETS).map((wd) => ({
+          id: wd.id,
+          html: wd.html,
+          x: wd.x,
+          y: wd.y,
+          w: wd.w,
+          h: wd.h,
+          layer: wd.layer | 0,
+        })),
         gameplay: Object.assign({}, this.gameplay),
         triggers: JSON.parse(JSON.stringify(this.triggers)),
         song: this.song || "",
@@ -663,6 +809,7 @@
         meta: data.meta,
         texts: Array.isArray(data.texts) ? data.texts : [],
         pictures: asList(data.pictures),
+        widgets: asList(data.widgets),
         triggers: data.triggers,
         song: data.song,
       });
@@ -1305,6 +1452,7 @@
     ctx.translate(-cam.x, -cam.y);
 
     drawPictures(ctx, level);
+    drawWidgets(ctx, level, 0);
 
     ctx.fillStyle = "rgba(255, 42, 60, 0.16)";
     ctx.fillRect(-6, worldH, worldW + 12, 10);
@@ -1573,6 +1721,8 @@
       }
     }
 
+    drawWidgets(ctx, level, 1);
+
     ctx.restore();
   }
 
@@ -1608,12 +1758,14 @@
     hexToRgba,
     sanitizeText,
     sanitizePicture,
+    sanitizeWidget,
     labelBounds,
     labelHitsCell,
     pictureHandles,
     pictureContains,
     pictureHandleAt,
     MAX_PICTURES,
+    MAX_WIDGETS,
     SKINS,
     SONGS,
     Music,

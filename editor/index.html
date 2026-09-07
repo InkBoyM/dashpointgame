@@ -49,6 +49,7 @@
         <button class="tool" data-tool="prefab" title="Prefabs (G)"><span>Prefab</span><b class="k">G</b></button>
         <button class="tool" data-tool="text" title="Text (T)"><span>Text</span><b class="k">T</b></button>
         <button class="tool" data-tool="image" title="Images (M)"><span>Image</span><b class="k">M</b></button>
+        <button class="tool" data-tool="html" title="HTML blocks (U)"><span>Html</span><b class="k">U</b></button>
       </div>
 
       <div class="section-title">Tiles</div>
@@ -120,6 +121,10 @@
       <div class="section-title" style="margin-top:14px">Level images</div>
       <button class="text-btn gold" id="btnAddImage" style="width:100%">Add image</button>
       <p class="hint">PNG or JPG. Big files get compressed to base64. Click an image to move it; drag the 8 handles to resize. Delete removes the selected one. Up to 8 per level.</p>
+
+      <div class="section-title" style="margin-top:14px">Level HTML</div>
+      <button class="text-btn gold" id="btnAddHtml" style="width:100%">Add HTML</button>
+      <p class="hint">Embed styled text or boxes. Click to move it; drag the 8 handles to resize. Right-click it to pick Behind tiles / In front, edit, or delete. Double-click edits the code. Up to 8 per level.</p>
 
       <div class="section-title" style="margin-top:14px">Spike rotation</div>
       <div class="rot-preview" id="rotations"></div>
@@ -236,6 +241,7 @@
       <div class="stat">I-Goal <b id="cIGoal">0</b></div>
       <div class="stat">Text <b id="cText">0</b></div>
       <div class="stat">Images <b id="cImages">0</b></div>
+      <div class="stat">HTML <b id="cHtml">0</b></div>
       <div class="stat">Spawn <b id="cSpawn">0,0</b></div>
       <div class="stat">Validate <b id="cValid">—</b></div>
       <div class="stat">Tags <b id="cTags">—</b></div>
@@ -265,10 +271,10 @@
       <div class="help-grid">
         <b>B / E / F</b><span>Paint, erase, fill</span>
         <b>R / L / V</b><span>Rectangle, line, select</span>
-        <b>I / P / G / T / M</b><span>Eyedropper, spawn, prefab, text, images</span>
+        <b>I / P / G / T / M / U</b><span>Eyedropper, spawn, prefab, text, images, html</span>
         <b>1 2 3 4 5 6 7 8</b><span>Brick, spike, goal, invis spike, orb, pad, dash, invis block</span>
         <b>[ ] wheel</b><span>Rotate spike</span>
-        <b>Right click</b><span>Eyedropper (or erase with right-drag)</span>
+        <b>Right click</b><span>Eyedropper (or erase with right-drag); on HTML: layer menu</span>
         <b>Middle / Space</b><span>Pan camera</span>
         <b>Wheel</b><span>Zoom toward cursor</span>
         <b>Ctrl+Z / Y</b><span>Undo / redo</span>
@@ -277,7 +283,7 @@
         <b>K</b><span>Save selection as a prefab</span>
         <b>Shift+arrows</b><span>Nudge tile offset off-grid</span>
         <b>Q</b><span>Rotate selection 90°</span>
-        <b>Del</b><span>Delete selection, text, or selected image</span>
+        <b>Del</b><span>Delete selection, text, selected image, or HTML block</span>
         <b>Enter / Esc</b><span>Playtest / return to edit</span>
         <b>R in play</b><span>Restart from spawn</span>
         <b>Alt + click play</b><span>Play from hovered cell</span>
@@ -341,6 +347,26 @@
       </div>
     </div>
   </div>
+
+  <div class="modal-root" id="modalHtml">
+    <div class="modal">
+      <h2 id="htmlModalTitle">Add HTML</h2>
+      <label for="htmlCode">HTML code</label>
+      <textarea id="htmlCode" rows="9" spellcheck="false" placeholder="&lt;b style=&quot;color:#ffd23c&quot;&gt;Hello!&lt;/b&gt;"></textarea>
+      <label style="margin-top:10px">Layer</label>
+      <div class="chips" id="htmlLayerChips">
+        <button class="chip active" data-layer="0">Behind tiles</button>
+        <button class="chip" data-layer="1">In front</button>
+      </div>
+      <p class="hint">Static content only — no scripts, forms, or videos (stripped on save). Inline styles work. Right-click the block later to change layer, edit, or delete.</p>
+      <div class="row" style="margin-top:12px; justify-content:flex-end">
+        <button class="text-btn" data-close="modalHtml">Cancel</button>
+        <button class="text-btn gold" id="btnHtmlSave">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="n-opts-menu" id="widgetMenu"></div>
 
   <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-auth-compat.js"></script>
