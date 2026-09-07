@@ -286,6 +286,23 @@ img { image-rendering: pixelated; }
 
 #view.painting, #view.selecting { cursor: var(--cursor-select); }
 
+#widgetLayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.dp-widget {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: top left;
+  overflow: hidden;
+  pointer-events: none;
+}
+.dp-widget a { pointer-events: none; }
+#widgetLayer.live .dp-widget a { pointer-events: auto; }
+
 .play-hud, .win-card, .modal {
   position: absolute;
   pointer-events: none;

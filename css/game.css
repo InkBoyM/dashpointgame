@@ -915,6 +915,21 @@ canvas { image-rendering: pixelated; }
 html, body { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 
 /* ---------- QUICK CHAT ---------- */
+#widgetLayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.dp-widget {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: top left;
+  overflow: hidden;
+  pointer-events: none;
+}
+.dp-widget a { pointer-events: auto; }
 #chatBubbles {
   position: absolute;
   inset: 0;

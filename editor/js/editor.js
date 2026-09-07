@@ -852,8 +852,8 @@
       m.appendChild(b);
       return b;
     };
-    mk("Behind tiles", layer === 0, function () { setWidgetLayer(id, 0); });
-    mk("In front", layer === 1, function () { setWidgetLayer(id, 1); });
+    mk("Behind tiles (static)", layer === 0, function () { setWidgetLayer(id, 0); });
+    mk("In front (clickable)", layer === 1, function () { setWidgetLayer(id, 1); });
     mk("Edit HTML…", false, function () { openHtmlModal("edit", rawWidgetHtml(id), (selectedWidget() || {}).layer | 0); });
     const del = mk("Delete", false, function () {
       pushUndo();
@@ -2180,6 +2180,15 @@
     });
     drawPictureChrome(ctx);
     drawWidgetChrome(ctx);
+    try {
+      const widgetBox = document.getElementById("widgetLayer");
+      if (widgetBox) {
+        // Links are only clickable during playtest; while editing the canvas keeps the mouse.
+        widgetBox.classList.toggle("live", !!state.playing);
+        const wl = state.engine ? state.engine.level : state.level;
+        DP.syncWidgetDom(widgetBox, wl ? wl.widgets : null, state.cam);
+      }
+    } catch (e) {}
 
     drawMinimap();
     els.statusZoom.textContent = Math.round(state.cam.zoom * 100) + "%";

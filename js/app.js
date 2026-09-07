@@ -954,6 +954,7 @@
     flushPlaytime();
     setSpectate(null);
     closeQuickChatFor();
+    try { el("widgetLayer").innerHTML = ""; } catch (e) {}
     state.playing = false;
     state.engine = null;
     state.paused = false;
@@ -1414,6 +1415,9 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       showSpawn: false,
       remoteCubes: remoteCubes || [],
     });
+    try {
+      DP.syncWidgetDom(el("widgetLayer"), state.engine.level.widgets, shakeCam());
+    } catch (e) {}
     pollChat();
     tickChatBubbles();
   }

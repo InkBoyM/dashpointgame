@@ -375,8 +375,9 @@
     return null;
   }
 
-  // ---- HTML widgets (static rich-text/deco blocks, rasterized into the canvas) ----
-  // layer 0 = behind tiles (drawn with pictures), layer 1 = in front of everything.
+  // ---- HTML widgets (rich-text/deco blocks) ----
+  // layer 0 = behind tiles: rasterized into the canvas (static, truly behind).
+  // layer 1 = in front: live DOM overlay (clickable links), synced via syncWidgetDom.
   const MAX_WIDGETS = 8;
   const WIDGET_MIN = 16;
   const WIDGET_MAX_DIM = 4096;
@@ -504,6 +505,63 @@
       }
     }
     ctx.imageSmoothingEnabled = prevSmooth;
+  }
+
+  function widgetDomKey(wd) {
+    return wd.w + "x" + wd.h + "|" + widgetHash(wd.html);
+  }
+
+  // Live DOM overlay for front-layer (layer 1) widgets. Call every frame with
+  // the overlay container and camera: keeps one div per widget, positioned and
+  // scaled to world units, and removes stale ones. Content is re-sanitized
+  // whenever it changes; only links inside capture clicks, all else passes
+  // through to the canvas/HUD below.
+  function syncWidgetDom(box, widgets, cam) {
+    if (!box || !box.children) return;
+    if (!cam) {
+      box.innerHTML = "";
+      return;
+    }
+    const seen = {};
+    const list = widgets || [];
+    const zoom = cam.zoom || 1;
+    for (let i = 0; i < list.length; i++) {
+      const wd = list[i];
+      if (!wd || (wd.layer | 0) !== 1) continue;
+      seen[wd.id] = true;
+      let el = null;
+      const kids = box.children;
+      for (let k = 0; k < kids.length; k++) {
+        if (kids[k].dataset && kids[k].dataset.wid === wd.id) {
+          el = kids[k];
+          break;
+        }
+      }
+      const key = widgetDomKey(wd);
+      if (!el) {
+        el = document.createElement("div");
+        el.className = "dp-widget";
+        el.dataset.wid = wd.id;
+        box.appendChild(el);
+      }
+      if (el.dataset.wkey !== key) {
+        el.dataset.wkey = key;
+        el.innerHTML = sanitizeWidgetHtml(wd.html);
+        const links = el.querySelectorAll("a");
+        for (let a = 0; a < links.length; a++) {
+          links[a].target = "_blank";
+          links[a].rel = "noopener noreferrer";
+        }
+      }
+      el.style.width = wd.w + "px";
+      el.style.height = wd.h + "px";
+      el.style.transform =
+        "translate(" + ((wd.x - cam.x) * zoom) + "px," + ((wd.y - cam.y) * zoom) + "px) scale(" + zoom + ")";
+    }
+    for (let k = box.children.length - 1; k >= 0; k--) {
+      const stale = box.children[k];
+      if (!stale.dataset || !seen[stale.dataset.wid]) box.removeChild(stale);
+    }
   }
 
   function drawPictures(ctx, level) {
@@ -1721,7 +1779,8 @@
       }
     }
 
-    drawWidgets(ctx, level, 1);
+    // NOTE: front-layer (layer 1) widgets are NOT drawn here — they render as
+    // live DOM via DP.syncWidgetDom so links stay clickable.
 
     ctx.restore();
   }
@@ -1759,6 +1818,7 @@
     sanitizeText,
     sanitizePicture,
     sanitizeWidget,
+    syncWidgetDom,
     labelBounds,
     labelHitsCell,
     pictureHandles,
