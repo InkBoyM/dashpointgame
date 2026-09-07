@@ -146,7 +146,7 @@
   const CLIMB_FILE = "the_climb.dashpoint.json";
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, coins: 0, coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: 0, coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false };
   }
 
   function load() {
@@ -160,6 +160,7 @@
       s.attempts = s.attempts || {};
       s.spaceMenu = !!(s.spaceMenu || s.arcadeMenu);
       s.jumps = s.jumps | 0;
+      s.playtime = Number(s.playtime) || 0;
       s.coins = s.coins | 0;
       s.coinPaid = s.coinPaid && typeof s.coinPaid === "object" ? s.coinPaid : {};
       s.coinMigrated = !!s.coinMigrated;
@@ -210,6 +211,7 @@
     deaths: 0,
     paused: false,
     shake: 0,
+    spectateUid: null,
     keys: new Set(),
     lastFrame: 0,
   };
@@ -792,6 +794,7 @@
   function openModal(id) {
     el(id).classList.add("visible");
     if (id === "modalSkins") renderSkins();
+    if (id === "modalStats") renderStats();
     if (id === "modalShop") renderShop();
     if (id === "modalCodes") {
       syncCoinUI();
@@ -869,6 +872,7 @@
     state.deaths = 0;
     state.winShown = false;
     state.paused = false;
+    setSpectate(null);
     el("pauseCard").classList.remove("visible");
     // track attempts per level (lightweight)
     try {
@@ -921,6 +925,7 @@
   function pauseGame() {
     if (!state.engine || state.screen !== "game" || !state.playing) return;
     if (el("winCard").classList.contains("visible")) return;
+    flushPlaytime();
     state.paused = true;
     el("pauseCard").classList.add("visible");
   }
@@ -937,6 +942,8 @@
 
   function quitToLevels() {
     if (DP.Music) DP.Music.stop();
+    flushPlaytime();
+    setSpectate(null);
     state.playing = false;
     state.engine = null;
     state.paused = false;
@@ -958,6 +965,7 @@
   function onWin() {
     const entry = state.netEntry || state.levels[state.current];
     if (!entry) return;
+    flushPlaytime();
     const t = state.engine.time;
     const firstClear = save_.data.beaten[entry.file] === undefined;
     save_.data.beaten[entry.file] = true;
@@ -983,8 +991,18 @@
     }
   }
 
+  function spectateTarget() {
+    if (!state.spectateUid || !state.engine) return null;
+    for (const p of MP.peers()) {
+      if (p.uid === state.spectateUid && p.online && p.cube && p.level === state.currentFile) {
+        return { x: p.cube.x, y: p.cube.y, w: state.engine.player.w, h: state.engine.player.h };
+      }
+    }
+    return null;
+  }
   function followPlayer() {
-    const p = state.engine.player;
+    const tgt = spectateTarget();
+    const p = tgt || state.engine.player;
     const viewW = el("view").width / cam.zoom;
     const viewH = el("view").height / cam.zoom;
     cam.x += (p.x + p.w / 2 - viewW / 2 - cam.x) * 0.18;
@@ -1015,6 +1033,112 @@
     const dx = (Math.random() * 2 - 1) * m;
     const dy = (Math.random() * 2 - 1) * m;
     return { x: cam.x + dx, y: cam.y + dy, zoom: cam.zoom };
+  }
+
+  // ---- Playtime tracking ----
+  let playAccum = 0;
+  function trackPlaytime(dt) {
+    playAccum += dt;
+    if (playAccum >= 10) {
+      save_.data.playtime = (Number(save_.data.playtime) || 0) + playAccum;
+      playAccum = 0;
+      save();
+    }
+  }
+  function flushPlaytime() {
+    if (playAccum > 0) {
+      save_.data.playtime = (Number(save_.data.playtime) || 0) + playAccum;
+      playAccum = 0;
+      save();
+    }
+  }
+  function fmtPlaytime(sec) {
+    sec = Math.max(0, Math.floor(Number(sec) || 0));
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    const mm = (h > 0 && m < 10 ? "0" : "") + m, ss = (s < 10 ? "0" : "") + s;
+    return h > 0 ? h + ":" + mm + ":" + ss : m + ":" + ss;
+  }
+
+  // ---- Stats screen ----
+  function levelDisplayName(file) {
+    if (!file) return "—";
+    if (String(file).indexOf("net:") === 0) return "NET " + String(file).slice(4, 10);
+    for (const e of state.levels) {
+      if (e.file === file && e.level) return e.level.name || file;
+    }
+    return String(file).replace(".dashpoint.json", "").replace(/_/g, " ");
+  }
+  function renderStats() {
+    const d = save_.data;
+    const elT = (id, v) => { const n = el(id); if (n) n.textContent = v; };
+    elT("statDeaths", d.deaths | 0);
+    elT("statJumps", d.jumps | 0);
+    elT("statClears", Object.keys(d.beaten || {}).length);
+    elT("statAttempts", Object.keys(d.attempts || {}).length);
+    elT("statPlaytime", fmtPlaytime(d.playtime));
+    elT("statSkins", SKINS.filter((s) => isUnlocked(s.id)).length + "/" + SKINS.length);
+    const box = el("statBest");
+    if (box) {
+      box.innerHTML = "";
+      const keys = Object.keys(d.best || {});
+      if (!keys.length) box.innerHTML = '<p class="loading-note">No clears yet.</p>';
+      keys.sort((a, b) => (d.best[a] || 0) - (d.best[b] || 0)).slice(0, 20).forEach((k) => {
+        const row = document.createElement("div");
+        row.className = "stat-row";
+        const nm = document.createElement("span"); nm.textContent = levelDisplayName(k);
+        const tm = document.createElement("b"); tm.textContent = fmtTime(d.best[k]);
+        row.appendChild(nm); row.appendChild(tm);
+        box.appendChild(row);
+      });
+    }
+  }
+
+  // ---- Spectate / follow cam ----
+  function spectateCandidates() {
+    if (!MP.isActive()) return [];
+    return MP.peers().filter((p) => p.online && p.cube && p.level === state.currentFile && p.uid);
+  }
+  function spectateName() {
+    if (!state.spectateUid) return "";
+    for (const p of MP.peers()) if (p.uid === state.spectateUid) return p.name;
+    return "";
+  }
+  function setSpectate(uid) {
+    state.spectateUid = uid || null;
+    try {
+      if (uid) {
+        let nm = "";
+        for (const p of MP.peers()) if (p.uid === uid) nm = p.name;
+        MP.setWatching(uid, nm);
+      } else MP.setWatching(null);
+    } catch (e) {}
+    const hud = el("hudSpectate");
+    if (hud) {
+      if (uid) { hud.textContent = "WATCHING " + (spectateName() || "player").toUpperCase(); hud.classList.remove("hidden"); }
+      else { hud.classList.add("hidden"); }
+    }
+  }
+  function cycleSpectate(dir) {
+    if (state.screen !== "game" || !state.playing || !state.engine) return;
+    if (!MP.isActive()) { showNotice("Join a room to spectate", true); return; }
+    const cands = spectateCandidates();
+    const order = [null].concat(cands.map((p) => p.uid));
+    let idx = order.indexOf(state.spectateUid || null);
+    if (idx < 0) idx = 0;
+    idx = (idx + dir + order.length) % order.length;
+    const next = order[idx];
+    setSpectate(next);
+    if (next) showNotice("Spectating " + (spectateName() || "player"), false);
+  }
+  let lastSpectateWatchers = [];
+  function checkSpectateNotices() {
+    if (!MP.isActive()) { lastSpectateWatchers = []; return; }
+    let cur = [];
+    try { cur = MP.watchersOfMe() || []; } catch (e) {}
+    for (const n of cur) {
+      if (lastSpectateWatchers.indexOf(n) === -1) showNotice(n + " is spectating you", false);
+    }
+    lastSpectateWatchers = cur.slice();
   }
 
   function frame(ts) {
@@ -1071,6 +1195,7 @@
     followPlayer();
     try{ recordGhost(dt); }catch(e){}
     tickShake(dt);
+    trackPlaytime(dt);
     setStatusHud();
 
     if (MP.isActive() && state.engine) {
@@ -1169,7 +1294,42 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     const pidle = el("profMpIdleRow"); if (pidle) pidle.style.display = active ? "none" : "flex";
     const pact = el("profMpActiveRow"); if (pact) pact.style.display = active ? "flex" : "none";
     const pl = el("btnProfLeave"); if (pl) pl.textContent = MP.getSlot() === "host" ? "CLOSE ROOM" : "LEAVE";
+    const plist = el("profPlayerList");
+    if (plist) {
+      plist.innerHTML = "";
+      if (!active) plist.innerHTML = '<p class="loading-note" style="padding:8px">Not in a room.</p>';
+      else {
+        let players = [];
+        try { players = MP.roomPlayers() || []; } catch (e) {}
+        if (!players.length) plist.innerHTML = '<p class="loading-note" style="padding:8px">Waiting…</p>';
+        for (const q of players) {
+          const row = document.createElement("div");
+          row.className = "stat-row";
+          const dot = document.createElement("span");
+          dot.textContent = q.online ? "● " : "○ ";
+          dot.style.color = q.online ? "var(--good)" : "#9db4d8";
+          const nm = document.createElement("span");
+          nm.textContent = q.name + (q.me ? " (you)" : "") + (q.slot === "host" ? " [host]" : "");
+          nm.style.flex = "1";
+          row.appendChild(dot); row.appendChild(nm);
+          if (!q.me && q.online) {
+            const wb = document.createElement("button");
+            wb.className = "px-btn tiny";
+            wb.textContent = (state.spectateUid === q.uid) ? "WATCHING" : "WATCH";
+            wb.addEventListener("click", function () {
+              if (state.screen !== "game" || !state.playing) { showNotice("Start a level to spectate", true); return; }
+              if (state.spectateUid === q.uid) setSpectate(null);
+              else { setSpectate(q.uid); showNotice("Spectating " + q.name, false); }
+              renderPlayerListOnly();
+            });
+            row.appendChild(wb);
+          }
+          plist.appendChild(row);
+        }
+      }
+    }
   }
+  function renderPlayerListOnly() { try { syncMpUI(); } catch (e) {} }
 
   const NET = window.DPNet;
   const isTouch = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
@@ -1683,6 +1843,12 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
   /* ---------------- /DASHPOINT NETWORK ---------------- */
 
   function onKeyDown(ev) {
+    if (!isTyping(ev) && ev.shiftKey && !ev.repeat && (ev.code === "ArrowLeft" || ev.code === "ArrowRight" || ev.code === "ArrowUp" || ev.code === "ArrowDown")) {
+      ev.preventDefault();
+      if (ev.code === "ArrowDown") { setSpectate(null); }
+      else cycleSpectate(ev.code === "ArrowLeft" ? -1 : 1);
+      return;
+    }
     if (!isTyping(ev)) state.keys.add(ev.code);
     if (ev.code === "KeyA" && ev.altKey && el("modalSkins").classList.contains("visible")) {
       ev.preventDefault();
@@ -1801,6 +1967,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         syncMpUI();
         if (state.screen === "home") syncHomeStats();
         checkDeletionNotices();
+        checkSpectateNotices();
       },
       onKicked: (msg) => {
         MP.clearCube();
@@ -1889,11 +2056,15 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     });
     el("btnProfLeave").addEventListener("click", async () => {
       MP.clearCube();
+      try { MP.setWatching(null); } catch (e) {}
+      state.spectateUid = null;
+      const hud = el("hudSpectate"); if (hud) hud.classList.add("hidden");
       const wasHost = MP.getSlot() === "host";
       await MP.leave(true);
       showNotice(wasHost ? "Room closed" : "Left the room", false);
       syncMpUI();
     });
+    el("btnProfStats").addEventListener("click", () => openModal("modalStats"));
 
     el("btnProfSync").addEventListener("click", async () => {
       const cu = (typeof firebase !== 'undefined' && firebase.auth().currentUser) ? firebase.auth().currentUser : null;
@@ -1901,7 +2072,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       if (!u) { profileMsg("Not logged in"); return; }
       const st = el("profCloudStatus"); if (st) st.textContent = "Uploading…";
       try {
-        const saved = await NET.syncCloud({ deaths: save_.data.deaths, jumps: save_.data.jumps, coins: save_.data.coins, coinPaid: save_.data.coinPaid, coinMigrated: !!save_.data.coinMigrated, codes: save_.data.codes, skin: save_.data.skin, unlocked: save_.data.unlocked, beaten: save_.data.beaten, best: save_.data.best, secretA: !!save_.data.secretA, spaceMenu: !!save_.data.spaceMenu });
+        const saved = await NET.syncCloud({ deaths: save_.data.deaths, jumps: save_.data.jumps, playtime: Number(save_.data.playtime) || 0, coins: save_.data.coins, coinPaid: save_.data.coinPaid, coinMigrated: !!save_.data.coinMigrated, codes: save_.data.codes, skin: save_.data.skin, unlocked: save_.data.unlocked, beaten: save_.data.beaten, best: save_.data.best, secretA: !!save_.data.secretA, spaceMenu: !!save_.data.spaceMenu });
         if (st) st.textContent = "Cloud updated " + new Date(saved.updatedAt).toLocaleTimeString();
         profileMsg("Synced to cloud");
         syncHomeStats();
@@ -1916,6 +2087,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         const cloud = await NET.downloadCloud();
         save_.data.deaths = Math.max(save_.data.deaths|0, cloud.deaths|0);
         save_.data.jumps = Math.max(save_.data.jumps|0, cloud.jumps|0);
+        save_.data.playtime = Math.max(Number(save_.data.playtime) || 0, Number(cloud.playtime) || 0);
         save_.data.coins = Math.max(save_.data.coins|0, cloud.coins|0);
         if (cloud.coinMigrated) save_.data.coinMigrated = true;
         if (cloud.coinPaid) { save_.data.coinPaid = save_.data.coinPaid || {}; for (var ck in cloud.coinPaid) save_.data.coinPaid[ck] = true; }

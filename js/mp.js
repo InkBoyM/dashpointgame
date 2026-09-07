@@ -141,6 +141,8 @@ window.DashPointMP = (function () {
   }
 
   let lastSent = null;
+  let watchingUid = null;
+  let watchingName = "";
 
   function teardownLocal() {
     stopHeartbeat();
@@ -155,6 +157,8 @@ window.DashPointMP = (function () {
     pendingCube = null;
     cubeActive = false;
     lastSent = null;
+    watchingUid = null;
+    watchingName = "";
   }
 
   async function host() {
@@ -296,6 +300,41 @@ window.DashPointMP = (function () {
     return !!o && Date.now() - (Number(o.ts) || 0) < PEER_TIMEOUT;
   }
 
+  function setWatching(uid, name) {
+    watchingUid = uid || null;
+    watchingName = name || "";
+    if (!active || !meRef) return;
+    try {
+      if (watchingUid) meRef.child("watching").set({ uid: watchingUid, ts: Date.now() }).catch(() => {});
+      else meRef.child("watching").remove().catch(() => {});
+    } catch (e) {}
+  }
+
+  function getWatching() {
+    return watchingUid ? { uid: watchingUid, name: watchingName } : null;
+  }
+
+  function roomPlayers() {
+    const out = [];
+    if (user) out.push({ slot: slot || "host", uid: user.uid, name: user.name, online: true, me: true, watching: watchingUid ? { uid: watchingUid } : null });
+    if (!active || !cachedPlayers) return out;
+    for (const s of SLOTS) {
+      if (s === slot) continue;
+      const o = cachedPlayers[s];
+      if (o && o.uid) out.push({ slot: s, uid: String(o.uid), name: String(o.name || "player"), online: isOnline(o), me: false, watching: o.watching || null });
+    }
+    return out;
+  }
+
+  function watchersOfMe() {
+    if (!active || !user) return [];
+    const names = [];
+    for (const p of roomPlayers()) {
+      if (!p.me && p.online && p.watching && p.watching.uid === user.uid) names.push(p.name);
+    }
+    return names;
+  }
+
   function peers() {
     if (!active || !cachedPlayers) return [];
     const out = [];
@@ -303,6 +342,7 @@ window.DashPointMP = (function () {
       const cb = other.cube;
       const fresh = !!(cb && cb.ts && Date.now() - Number(cb.ts) < 4000);
       out.push({
+        uid: String(other.uid || ""),
         name: String(other.name || "player"),
         online: isOnline(other),
         level: cb ? String(cb.level || "") : "",
@@ -406,6 +446,10 @@ window.DashPointMP = (function () {
     peerOnline: peerOnline,
     peerName: peerName,
     playerCount: playerCount,
+    roomPlayers: roomPlayers,
+    watchersOfMe: watchersOfMe,
+    setWatching: setWatching,
+    getWatching: getWatching,
     register: register,
     login: login,
     loginGuest: loginGuest,

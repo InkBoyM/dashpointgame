@@ -60,6 +60,7 @@
       <div class="hud-chip">
         <span id="hudTime">0.00</span>
         <span id="hudDeaths">deaths 0</span>
+        <span id="hudSpectate" class="hud-author-chip hidden" style="color:var(--gold)"></span>
         <span id="hudAuthor" class="hud-author-chip hidden" title="Open creator's profile"></span>
       </div>
       <div class="hud-chip">
@@ -209,8 +210,29 @@
         <button class="px-btn small" id="btnProfCopy">COPY CODE</button>
         <button class="px-btn small danger" id="btnProfLeave">LEAVE</button>
       </div>
+      <div class="section-title" style="margin-top:10px">Players in room</div>
+      <div class="net-results" id="profPlayerList" style="max-height:160px"></div>
+      <hr class="sep" />
+      <div class="section-title">Stats</div>
+      <div class="row-gap"><button class="px-btn small gold" id="btnProfStats">VIEW STATS</button></div>
       <hr class="sep" />
       <div class="row-end"><button class="px-btn small" data-close="modalProfile">CLOSE</button></div>
+    </div>
+  </div>
+
+  <div class="modal-root" id="modalStats">
+    <div class="modal">
+      <h2>STATS</h2>
+      <div class="stat-row"><span>Deaths</span><b id="statDeaths">0</b></div>
+      <div class="stat-row"><span>Jumps</span><b id="statJumps">0</b></div>
+      <div class="stat-row"><span>Levels cleared</span><b id="statClears">0</b></div>
+      <div class="stat-row"><span>Levels attempted</span><b id="statAttempts">0</b></div>
+      <div class="stat-row"><span>Playtime</span><b id="statPlaytime">0:00</b></div>
+      <div class="stat-row"><span>Skins</span><b id="statSkins">0/0</b></div>
+      <hr class="sep" />
+      <div class="section-title">BEST TIMES</div>
+      <div class="net-results" id="statBest"></div>
+      <div class="row-end"><button class="px-btn small" data-close="modalStats">CLOSE</button></div>
     </div>
   </div>
 
