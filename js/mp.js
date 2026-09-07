@@ -14,8 +14,8 @@ window.DashPointMP = (function () {
   const PEER_TIMEOUT = 9000;
   const HEARTBEAT_MS = 3000;
   const FLUSH_MS = 50;
-  const CHAT_MAX = 80;
-  const CHAT_COOLDOWN = 400;
+  const MAX_PLAYERS = 4;
+  const SLOTS = ["host", "p2", "p3", "p4"];
 
   let db = null;
   let roomRef = null;
@@ -78,8 +78,8 @@ window.DashPointMP = (function () {
     watchers = [];
   }
 
-  function otherSlot() {
-    return slot === "host" ? "guest" : "host";
+  function otherSlots() {
+    return SLOTS.filter((s) => s !== slot);
   }
 
   function makeCode() {
@@ -141,7 +141,6 @@ window.DashPointMP = (function () {
   }
 
   let lastSent = null;
-  let lastChatAt = 0;
 
   function teardownLocal() {
     stopHeartbeat();
@@ -156,8 +155,6 @@ window.DashPointMP = (function () {
     pendingCube = null;
     cubeActive = false;
     lastSent = null;
-    lastChatAt = 0;
-    if (cbs.onChatClear) cbs.onChatClear();
   }
 
   async function host() {
@@ -194,18 +191,28 @@ window.DashPointMP = (function () {
     const ref = db.ref(ROOT + "/" + clean);
     const snap = await ref.once("value");
     if (!snap.exists()) throw new Error("No room with code " + clean + ".");
-    slot = "guest";
+    const taken = snap.child("players").val() || {};
+    const isAlive = (p) => !!(p && p.ts && Date.now() - Number(p.ts) < PEER_TIMEOUT);
+    const free = SLOTS.filter((s) => s !== "host" && !isAlive(taken[s]));
+    if (!free.length) {
+      roomRef = null;
+      slot = null;
+      code = "";
+      throw new Error("That room is full (" + MAX_PLAYERS + " players).");
+    }
+    slot = free[0];
     roomRef = ref;
-    meRef = roomRef.child("players/guest");
+    meRef = roomRef.child("players/" + slot);
     const claim = await meRef.transaction((cur) => {
-      if (cur && cur.ts && Date.now() - cur.ts < PEER_TIMEOUT) return;
+      if (isAlive(cur)) return;
       return { name: user.name, uid: user.uid, ts: Date.now() };
     });
     if (!claim.committed) {
       roomRef = null;
+      meRef = null;
       slot = null;
       code = "";
-      throw new Error("That room already has two players.");
+      throw new Error("That slot was just taken, try again.");
     }
     await meRef.onDisconnect().remove();
     active = true;
@@ -249,7 +256,7 @@ window.DashPointMP = (function () {
   function listen() {
     watch(roomRef, "value", (snap) => {
       if (!snap.exists() && active) {
-        const wasGuest = slot === "guest";
+        const wasGuest = slot !== "host";
         teardownLocal();
         emitState();
         if (cbs.onKicked) cbs.onKicked(wasGuest ? "The host closed the room." : "Room closed.");
@@ -259,36 +266,6 @@ window.DashPointMP = (function () {
       cachedPlayers = snap.val() || {};
       emitState();
     });
-    watch(roomRef.child("chat").limitToLast(40), "child_added", (snap) => {
-      const v = snap.val();
-      if (!v || v.text == null) return;
-      if (cbs.onChat) {
-        cbs.onChat({
-          id: snap.key,
-          name: String(v.name || "player").slice(0, 16),
-          uid: String(v.uid || ""),
-          text: String(v.text).slice(0, CHAT_MAX),
-          ts: Number(v.ts) || Date.now(),
-          me: !!(user && v.uid && v.uid === user.uid),
-        });
-      }
-    });
-  }
-
-  function sendChat(text) {
-    if (!active || !roomRef || !user) return false;
-    const clean = String(text || "").replace(/\s+/g, " ").trim().slice(0, CHAT_MAX);
-    if (!clean) return false;
-    const now = Date.now();
-    if (now - lastChatAt < CHAT_COOLDOWN) return false;
-    lastChatAt = now;
-    roomRef.child("chat").push({
-      name: user.name,
-      uid: user.uid,
-      text: clean,
-      ts: now,
-    }).catch(reportWriteError);
-    return true;
   }
 
   function sendCube(data) {
@@ -305,16 +282,29 @@ window.DashPointMP = (function () {
     if (active && meRef) meRef.child("cube").remove().catch(() => {});
   }
 
+  function others() {
+    if (!active || !cachedPlayers) return [];
+    const out = [];
+    for (const s of otherSlots()) {
+      const o = cachedPlayers[s];
+      if (o && o.uid) out.push(o);
+    }
+    return out;
+  }
+
+  function isOnline(o) {
+    return !!o && Date.now() - (Number(o.ts) || 0) < PEER_TIMEOUT;
+  }
+
   function peers() {
     if (!active || !cachedPlayers) return [];
-    const other = cachedPlayers[otherSlot()];
-    if (!other) return [];
-    const cb = other.cube;
-    const fresh = !!(cb && cb.ts && Date.now() - Number(cb.ts) < 4000);
-    return [
-      {
+    const out = [];
+    for (const other of others()) {
+      const cb = other.cube;
+      const fresh = !!(cb && cb.ts && Date.now() - Number(cb.ts) < 4000);
+      out.push({
         name: String(other.name || "player"),
-        online: Date.now() - (Number(other.ts) || 0) < PEER_TIMEOUT,
+        online: isOnline(other),
         level: cb ? String(cb.level || "") : "",
         cube: fresh
           ? {
@@ -326,20 +316,33 @@ window.DashPointMP = (function () {
               won: !!cb.won,
             }
           : null,
-      },
-    ];
+      });
+    }
+    return out;
   }
 
   function peerOnline() {
     if (!cachedPlayers) return false;
-    const other = cachedPlayers[otherSlot()];
-    return !!other && Date.now() - (Number(other.ts) || 0) < PEER_TIMEOUT;
+    return others().some(isOnline);
   }
 
   function peerName() {
     if (!cachedPlayers) return "";
-    const other = cachedPlayers[otherSlot()];
-    return other ? String(other.name || "player") : "";
+    return others()
+      .filter(isOnline)
+      .map((o) => String(o.name || "player"))
+      .join(", ");
+  }
+
+  function playerCount() {
+    if (!active) return 0;
+    if (!cachedPlayers) return 1;
+    let n = 0;
+    for (const s of SLOTS) {
+      const o = cachedPlayers[s];
+      if (o && o.uid && isOnline(o)) n += 1;
+    }
+    return Math.max(n, 1);
   }
 
   async function register(email, password) {
@@ -390,17 +393,19 @@ window.DashPointMP = (function () {
     getStatusLabel: () => {
       if (!active) return user ? "Logged in — not in a room" : "Offline";
       const label = (slot === "host" ? "Hosting " : "In room ") + code;
-      return label + (peerOnline() ? " · with " + peerName() : "");
+      const n = playerCount();
+      const withWho = peerOnline() ? " · with " + peerName() : "";
+      return label + " (" + n + "/" + MAX_PLAYERS + ")" + withWho;
     },
     host: host,
     join: join,
     leave: leave,
     sendCube: sendCube,
-    sendChat: sendChat,
     clearCube: clearCube,
     peers: peers,
     peerOnline: peerOnline,
     peerName: peerName,
+    playerCount: playerCount,
     register: register,
     login: login,
     loginGuest: loginGuest,
