@@ -142,6 +142,13 @@ window.DPNet = (function () {
     } catch (e) {}
   }
 
+  async function bumpDownloads(id) {
+    try {
+      const ref = db.ref("dashpoint/levelsIndex/" + id + "/downloads");
+      await ref.transaction((v) => (v || 0) + 1);
+    } catch (e) {}
+  }
+
   async function loadUsersIndex() {
     ensure();
     const snap = await db.ref("dashpoint/usersIndex").once("value");
@@ -217,6 +224,7 @@ window.DPNet = (function () {
     postLevel: postLevel,
     updateLevel: updateLevel,
     bumpPlays: bumpPlays,
+    bumpDownloads: bumpDownloads,
     loadUsersIndex: loadUsersIndex,
     syncStats: syncStats,
     listSaves: listSaves,

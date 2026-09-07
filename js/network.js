@@ -286,6 +286,13 @@ window.DPNet = (function () {
     } catch (e) {}
   }
 
+  async function bumpDownloads(id) {
+    try {
+      const cur = (await getJSON("/dashpoint/levelsIndex/" + id + "/downloads")) || 0;
+      await putJSON("/dashpoint/levelsIndex/" + id + "/downloads", cur + 1);
+    } catch (e) {}
+  }
+
   async function loadUsersIndex() {
     ensure();
     const val = await getJSON("/dashpoint/usersIndex");
@@ -620,6 +627,7 @@ window.DPNet = (function () {
     postLevel: postLevel,
     updateLevel: updateLevel,
     bumpPlays: bumpPlays,
+    bumpDownloads: bumpDownloads,
     loadUsersIndex: loadUsersIndex,
     getUserProfile: getUserProfile,
     syncStats: syncStats,

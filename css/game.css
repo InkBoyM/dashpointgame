@@ -650,6 +650,62 @@ canvas { image-rendering: pixelated; }
   background: var(--good); color: #062a14; border: 3px solid var(--ink-dark);
   box-shadow: inset -2px -2px 0 rgba(0,0,0,.25);
 }
+.net-row .n-play.n-dl,
+.lc-dl {
+  background: var(--cyan);
+  color: #062a14;
+}
+.n-opts { position: relative; flex: none; }
+.n-opts-btn {
+  background: var(--panel) !important;
+  color: var(--text) !important;
+}
+.n-opts-menu {
+  display: none;
+  position: fixed;
+  z-index: 80;
+  min-width: 128px;
+  flex-direction: column;
+  background: var(--panel-2);
+  border: 3px solid var(--ink-dark);
+  box-shadow: 4px 4px 0 rgba(0,0,0,.45);
+}
+.n-opts.open .n-opts-menu { display: flex; }
+.n-opts-menu button {
+  pointer-events: auto;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-align: left;
+  background: transparent;
+  color: var(--text);
+  border: 0;
+  border-bottom: 2px solid var(--ink-dark);
+}
+.n-opts-menu button:last-child { border-bottom: 0; }
+.n-opts-menu button:hover { background: rgba(46,230,255,.12); }
+.n-opts-menu button.gold { color: var(--gold); }
+.n-opts-menu button.danger { color: var(--red); }
+.level-card-wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+}
+.level-card-wrap .level-card { flex: 1; min-width: 0; }
+.lc-dl {
+  flex: none;
+  min-width: 52px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  background: var(--cyan);
+  color: #062a14;
+  border: 3px solid var(--ink-dark);
+  box-shadow: inset -2px -2px 0 rgba(0,0,0,.25), var(--shadow);
+}
 .net-row.user .n-avatar { width: 40px; height: 40px; border: 2px solid var(--ink-dark); image-rendering: pixelated; background: var(--ink); }
 
 .hud-author-chip {
@@ -676,6 +732,7 @@ canvas { image-rendering: pixelated; }
 
   .level-list { padding: 10px; gap: 8px; }
   .level-card { padding: 9px 12px; gap: 10px; }
+  .lc-dl { min-width: 44px; padding: 6px 8px; font-size: 11px; }
   .level-num { width: 36px; height: 36px; font-size: 17px; border-width: 2px; }
   .level-name { font-size: 14px; }
   .level-meta { font-size: 10px; margin-top: 2px; }

@@ -575,6 +575,8 @@
     order.forEach(function (pair, n) {
       const entry = pair.entry;
       const i = pair.i;
+      const wrap = document.createElement("div");
+      wrap.className = "level-card-wrap";
       const b = document.createElement("button");
       const done = save_.data.beaten[entry.file] !== undefined;
       const best = save_.data.best[entry.file];
@@ -591,7 +593,18 @@
         (done ? '<span class="level-done">\u2713 CLEARED</span>' : "") +
         (best ? '<span class="level-best">BEST ' + fmtTime(best) + "</span>" : "");
       b.addEventListener("click", () => startLevel(i));
-      box.appendChild(b);
+      const dl = document.createElement("button");
+      dl.className = "n-play n-dl lc-dl";
+      dl.textContent = "DL";
+      dl.title = "Download and edit in the editor";
+      dl.style.animationDelay = n * 0.04 + "s";
+      dl.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        downloadCampaignLevel(entry);
+      });
+      wrap.appendChild(b);
+      wrap.appendChild(dl);
+      box.appendChild(wrap);
     });
   }
 
@@ -1414,6 +1427,122 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     return s;
   }
 
+  function closeAllOpts(except) {
+    document.querySelectorAll(".n-opts.open").forEach(function (el) {
+      if (el !== except) el.classList.remove("open");
+    });
+  }
+
+  function makeOptsMenu(items) {
+    const wrap = document.createElement("div");
+    wrap.className = "n-opts";
+    const btn = document.createElement("button");
+    btn.className = "n-play n-opts-btn";
+    btn.textContent = "OPTIONS";
+    btn.title = "Options";
+    btn.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      const wasOpen = wrap.classList.contains("open");
+      closeAllOpts();
+      if (!wasOpen) {
+        wrap.classList.add("open");
+        const menu = wrap.querySelector(".n-opts-menu");
+        const r = btn.getBoundingClientRect();
+        menu.style.top = Math.min(r.bottom + 4, window.innerHeight - 8) + "px";
+        menu.style.right = Math.max(8, window.innerWidth - r.right) + "px";
+      }
+    });
+    const menu = document.createElement("div");
+    menu.className = "n-opts-menu";
+    items.forEach(function (it) {
+      const b = document.createElement("button");
+      b.textContent = it.label;
+      if (it.danger) b.classList.add("danger");
+      if (it.gold) b.classList.add("gold");
+      b.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        wrap.classList.remove("open");
+        it.onClick();
+      });
+      menu.appendChild(b);
+    });
+    wrap.appendChild(btn);
+    wrap.appendChild(menu);
+    wrap.addEventListener("click", function (ev) { ev.stopPropagation(); });
+    return wrap;
+  }
+
+  function downloadBlob(name, json) {
+    const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    const safe = String(name || "level").replace(/[^\w\-]+/g, "_").slice(0, 40);
+    a.href = URL.createObjectURL(blob);
+    a.download = safe + ".dashpoint.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1500);
+  }
+
+  function openEditorWithJson(json, name) {
+    if (isTouch) {
+      showNotice("Downloaded. Open the editor on PC to edit it.", false);
+      return;
+    }
+    try {
+      localStorage.setItem("dashpoint.editor.openCopy", JSON.stringify({
+        json: json,
+        name: name || (json && json.name) || "Untitled",
+      }));
+    } catch (e) {}
+    window.open("editor/index.html", "_blank");
+  }
+
+  async function downloadNetworkLevel(meta) {
+    if (!meta) return;
+    try {
+      showNotice("Downloading…", false);
+      let json = null;
+      try {
+        json = await NET.fetchLevel(meta.id);
+      } catch (e) {
+        const sv = NET.getSave && NET.getSave(meta.id);
+        if (sv) json = sv.json;
+        else throw e;
+      }
+      if (!json) throw new Error("Level not found.");
+      try { NET.saveLocal(meta.id, meta, json); } catch (e) {}
+      try { if (NET.bumpDownloads) NET.bumpDownloads(meta.id); } catch (e) {}
+      downloadBlob(meta.title || json.name, json);
+      openEditorWithJson(json, meta.title || json.name);
+    } catch (err) {
+      showNotice(NET.friendly ? NET.friendly(err) : String(err && err.message || err), true);
+    }
+  }
+
+  function downloadCampaignLevel(entry) {
+    if (!entry || !entry.level) return;
+    try {
+      const json = entry.level.toJSON();
+      downloadBlob(entry.level.name || entry.file, json);
+      openEditorWithJson(json, entry.level.name);
+    } catch (err) {
+      showNotice(String(err && err.message || err), true);
+    }
+  }
+
+  function makeDownloadBtn(onClick) {
+    const dl = document.createElement("button");
+    dl.className = "n-play n-dl";
+    dl.textContent = "DL";
+    dl.title = "Download and edit in the editor";
+    dl.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      onClick();
+    });
+    return dl;
+  }
+
   function levelRow(meta) {
     const row = document.createElement("div");
     row.className = "net-row";
@@ -1438,36 +1567,27 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     row.appendChild(diff);
     row.appendChild(info);
     row.appendChild(play);
+    row.appendChild(makeDownloadBtn(function () { downloadNetworkLevel(meta); }));
+    const optItems = [];
     try {
       if (isMyLevel(meta)) {
-        const edit = document.createElement("button");
-        edit.className = "n-play";
-        edit.style.background = "var(--gold)";
-        edit.style.color = "#2a1a06";
-        edit.textContent = "EDIT";
-        edit.title = "Edit and update this level";
-        edit.addEventListener("click", (ev) => {
-          ev.stopPropagation();
-          startEditLevel(meta);
+        optItems.push({
+          label: "EDIT",
+          gold: true,
+          onClick: function () { startEditLevel(meta); },
         });
-        row.appendChild(edit);
       }
-    } catch(e) {}
+    } catch (e) {}
     try {
       if (NET.canDeleteLevel && NET.canDeleteLevel(meta)) {
-        const del = document.createElement("button");
-        del.className = "n-play";
-        del.style.background = "var(--red)";
-        del.style.color = "#33060c";
-        del.textContent = "DELETE";
-        del.title = (NET.isAdmin && NET.isAdmin() && !isMyLevel(meta)) ? "Admin: delete this level" : "Delete your level";
-        del.addEventListener("click", (ev) => {
-          ev.stopPropagation();
-          startDeleteLevel(meta);
+        optItems.push({
+          label: "DELETE",
+          danger: true,
+          onClick: function () { startDeleteLevel(meta); },
         });
-        row.appendChild(del);
       }
-    } catch(e) {}
+    } catch (e) {}
+    if (optItems.length) row.appendChild(makeOptsMenu(optItems));
     return row;
   }
 
@@ -1694,20 +1814,20 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       play.textContent = "▶";
       play.title = "View level";
       play.addEventListener("click", (ev) => { ev.stopPropagation(); openLevelInfo(sv); });
-      const del = document.createElement("button");
-      del.className = "n-play";
-      del.style.background = "var(--red)";
-      del.style.color = "#33060c";
-      del.textContent = "✕";
-      del.title = "Delete saved copy";
-      del.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        NET.deleteSave(sv.id);
-        renderSavedList();
-        renderNetworkHome();
-      });
       row.appendChild(play);
-      row.appendChild(del);
+      row.appendChild(makeDownloadBtn(function () {
+        downloadBlob(sv.meta.title || (sv.json && sv.json.name) || "level", sv.json);
+        openEditorWithJson(sv.json, sv.meta.title);
+      }));
+      row.appendChild(makeOptsMenu([{
+        label: "DELETE",
+        danger: true,
+        onClick: function () {
+          NET.deleteSave(sv.id);
+          renderSavedList();
+          renderNetworkHome();
+        },
+      }]));
       box.appendChild(row);
     }
   }
@@ -1856,6 +1976,11 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       return;
     }
     if (ev.code === "Escape") {
+      if (document.querySelector(".n-opts.open")) {
+        ev.preventDefault();
+        closeAllOpts();
+        return;
+      }
       if (document.querySelector(".modal-root.visible")) {
         document.querySelectorAll(".modal-root.visible").forEach((m) => m.classList.remove("visible"));
         return;
@@ -1880,6 +2005,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
   }
 
   function boot() {
+    document.addEventListener("click", function () { closeAllOpts(); });
     bindNetworkUI();
     el("btnPlay").addEventListener("click", () => show("levels"));
     el("btnSkinsHome").addEventListener("click", () => openModal("modalSkins"));
@@ -1900,6 +2026,17 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnPauseRestart").addEventListener("click", () => { resumeGame(); restartLevel(); });
     el("btnPauseQuit").addEventListener("click", quitToLevels);
     el("btnLiPlay").addEventListener("click", liPlay);
+    el("btnLiDownload").addEventListener("click", function () {
+      const m = levelInfoMeta;
+      if (!m) return;
+      el("modalLevelInfo").classList.remove("visible");
+      if (m.json) {
+        downloadBlob(m.meta.title || m.json.name || "level", m.json);
+        openEditorWithJson(m.json, m.meta.title);
+      } else {
+        downloadNetworkLevel(m.meta);
+      }
+    });
     el("btnLiEdit").addEventListener("click", function(){ const m = levelInfoMeta; if (m) { el("modalLevelInfo").classList.remove("visible"); startEditLevel(m.meta); } });
     el("btnLiDelete").addEventListener("click", function(){ const m = levelInfoMeta; if (m) { el("modalLevelInfo").classList.remove("visible"); startDeleteLevel(m.meta); } });
     el("btnAdCancel").addEventListener("click", function(){ el("modalAdminDelete").classList.remove("visible"); pendingDeleteMeta = null; });

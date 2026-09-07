@@ -6,6 +6,7 @@
   const STORAGE_LIB = "dashpoint.editor.library";
   const STORAGE_SET = "dashpoint.settings";
   const STORAGE_NET_EDIT = "dashpoint.editor.networkEdit";
+  const STORAGE_OPEN_COPY = "dashpoint.editor.openCopy";
   const STORAGE_PREFABS = "dashpoint.editor.prefabs";
   let networkEdit = null;
 
@@ -1568,6 +1569,20 @@
     }
   }
 
+  function readOpenCopy() {
+    try {
+      const raw = localStorage.getItem(STORAGE_OPEN_COPY);
+      if (!raw) return null;
+      localStorage.removeItem(STORAGE_OPEN_COPY);
+      const packet = JSON.parse(raw);
+      if (!packet || !packet.json) return null;
+      return packet;
+    } catch (e) {
+      try { localStorage.removeItem(STORAGE_OPEN_COPY); } catch (e2) {}
+      return null;
+    }
+  }
+
   function newLevel(force) {
     if (!force && state.dirty && !confirm("Discard unsaved changes?")) return;
     clearNetworkEdit();
@@ -1633,8 +1648,10 @@
     }
     box.innerHTML = "";
     list.forEach((item, i) => {
+      const row = document.createElement("div");
+      row.className = "lib-item";
       const btn = document.createElement("button");
-      btn.className = "lib-item";
+      btn.className = "lib-item-main";
       btn.innerHTML =
         "<div><b>" +
         escapeHtml(item.name) +
@@ -1649,17 +1666,56 @@
         importText(JSON.stringify(item.data));
         closeModal("modalLibrary");
       });
+      const opts = document.createElement("div");
+      opts.className = "n-opts";
+      const optBtn = document.createElement("button");
+      optBtn.className = "mini n-opts-btn";
+      optBtn.textContent = "OPTIONS";
+      optBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const open = opts.classList.contains("open");
+        document.querySelectorAll(".n-opts.open").forEach((el) => el.classList.remove("open"));
+        if (!open) {
+          opts.classList.add("open");
+          const menu = opts.querySelector(".n-opts-menu");
+          const r = optBtn.getBoundingClientRect();
+          menu.style.top = Math.min(r.bottom + 4, window.innerHeight - 8) + "px";
+          menu.style.right = Math.max(8, window.innerWidth - r.right) + "px";
+        }
+      });
+      const menu = document.createElement("div");
+      menu.className = "n-opts-menu";
+      const exp = document.createElement("button");
+      exp.textContent = "EXPORT";
+      exp.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        opts.classList.remove("open");
+        const blob = new Blob([JSON.stringify(item.data, null, 2)], { type: "application/json" });
+        const a = document.createElement("a");
+        const safe = String(item.name || "level").replace(/[^\w\-]+/g, "_").slice(0, 40);
+        a.href = URL.createObjectURL(blob);
+        a.download = safe + ".dashpoint.json";
+        a.click();
+        URL.revokeObjectURL(a.href);
+      });
       const del = document.createElement("button");
-      del.className = "mini";
-      del.textContent = "×";
+      del.className = "danger";
+      del.textContent = "DELETE";
       del.addEventListener("click", (ev) => {
         ev.stopPropagation();
+        opts.classList.remove("open");
         list.splice(i, 1);
         localStorage.setItem(STORAGE_LIB, JSON.stringify(list));
         renderLibrary();
       });
-      btn.appendChild(del);
-      box.appendChild(btn);
+      menu.appendChild(exp);
+      menu.appendChild(del);
+      opts.appendChild(optBtn);
+      opts.appendChild(menu);
+      opts.addEventListener("click", (ev) => ev.stopPropagation());
+      row.appendChild(btn);
+      row.appendChild(opts);
+      box.appendChild(row);
     });
   }
 
@@ -2267,6 +2323,9 @@
   }
 
   function bindEvents() {
+    document.addEventListener("click", () => {
+      document.querySelectorAll(".n-opts.open").forEach((el) => el.classList.remove("open"));
+    });
     window.addEventListener("resize", () => {
       resizeCanvas();
       clampCam();
@@ -2526,6 +2585,7 @@
 
     let loaded = false;
     let loadedNet = false;
+    let loadedCopy = false;
     try {
       const packet = readNetworkEdit();
       if (packet) {
@@ -2538,6 +2598,20 @@
     } catch (e) {
       networkEdit = null;
       loaded = false;
+    }
+    if (!loaded) {
+      try {
+        const copy = readOpenCopy();
+        if (copy) {
+          state.level = DP.Level.fromJSON(copy.json);
+          if (copy.name) state.level.name = String(copy.name).slice(0, 48);
+          networkEdit = null;
+          loaded = true;
+          loadedCopy = true;
+        }
+      } catch (e) {
+        loaded = false;
+      }
     }
     if (!loaded) {
       try {
@@ -2557,10 +2631,15 @@
     syncTextUI();
     syncPostButton();
     focusOn(state.level.spawn.c, state.level.spawn.r, editorZoom());
-    markDirty(false);
+    if (loadedCopy) {
+      try { saveToLibrary(true); } catch (e) {}
+    }
+    markDirty(!!loadedCopy);
     setStatus(loadedNet
       ? "Editing Network level “" + (state.level.name || "Untitled") + "” — Update when you're done"
-      : (loaded ? "Restored autosave" : "New level — paint bricks, place a goal, hit Playtest"));
+      : (loadedCopy
+        ? "Downloaded copy of “" + (state.level.name || "Untitled") + "” — edit, then Export or Post as yours"
+        : (loaded ? "Restored autosave" : "New level — paint bricks, place a goal, hit Playtest")));
     window.DashPointEditor = {
       getLevel: () => state.level,
       getState: () => state,
