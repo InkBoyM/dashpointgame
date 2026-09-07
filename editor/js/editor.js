@@ -1779,6 +1779,7 @@
     setStat("cFSpike", v.counts.fspike);
     setStat("cIOrb", v.counts.iorb);
     setStat("cIGoal", v.counts.igoal);
+    setStat("cCoins", (v.counts.coin10 || 0) + (v.counts.coin50 || 0) + (v.counts.coin100 || 0) + (v.counts.coin500 || 0));
     syncThemeUI();
     document.getElementById("cText").textContent = v.counts.labels;
     const imgStat = document.getElementById("cImages");
@@ -2068,6 +2069,8 @@
 
   function restartPlay() {
     if (!state.playing || !state.engine) return;
+    state.engine.collected = new Set();
+    state.engine.pendingCoinGrant = 0;
     state.engine.reset();
     if (DP.Music) DP.Music.play(state.engine.level.song);
     els.winCard.classList.remove("visible");
@@ -2123,6 +2126,7 @@
       else if (tile.id === "iorb") c.fillStyle = "#6ee0a0";
       else if (tile.id === "pad") c.fillStyle = "#ff9d2e";
       else if (tile.id === "dash") c.fillStyle = "#2ee6ff";
+      else if (DP.isCoinId && DP.isCoinId(tile.id)) c.fillStyle = "#ffd23c";
       else c.fillStyle = "#ffd23c";
       c.fillRect(ox + col * TILE * s, oy + row * TILE * s, Math.max(1, TILE * s), Math.max(1, TILE * s));
     });
@@ -2152,6 +2156,19 @@
       });
       const wasDead = state.engine.dead;
       state.engine.update(dt);
+      if (state.engine.pendingCoinGrant) {
+        const n = state.engine.pendingCoinGrant | 0;
+        state.engine.pendingCoinGrant = 0;
+        if (n > 0) {
+          try {
+            const raw = localStorage.getItem("dashpoint.game");
+            const data = raw ? JSON.parse(raw) : { coins: 0 };
+            data.coins = (data.coins | 0) + n;
+            localStorage.setItem("dashpoint.game", JSON.stringify(data));
+          } catch (e) {}
+          setStatus("+" + n + " coins");
+        }
+      }
       if (state.engine.dead && !wasDead) {
         state.deaths += 1;
         els.hudState.textContent = "DEAD";

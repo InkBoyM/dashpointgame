@@ -915,6 +915,8 @@
 
   function restartLevel() {
     if (!state.engine) return;
+    state.engine.collected = new Set();
+    state.engine.pendingCoinGrant = 0;
     state.engine.reset();
     if (DP.Music) DP.Music.play(state.engine.level.song);
     el("winCard").classList.remove("visible");
@@ -1351,6 +1353,18 @@
         save_.data.jumps = (save_.data.jumps | 0) + n;
         save();
         checkUnlocks();
+      }
+    }
+    if (state.engine.pendingCoinGrant) {
+      const n = state.engine.pendingCoinGrant | 0;
+      state.engine.pendingCoinGrant = 0;
+      if (n > 0) {
+        const got = grantCoins(n);
+        if (got) {
+          save();
+          syncCoinUI();
+          showNotice("+" + got + " coins", false);
+        }
       }
     }
     if (state.engine.dead && !wasDead) {

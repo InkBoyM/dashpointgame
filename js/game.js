@@ -24,7 +24,13 @@
     pad: { id: "pad", solid: false, hazard: false, rotatable: false, label: "Bounce pad" },
     dash: { id: "dash", solid: false, hazard: false, rotatable: false, label: "Dash" },
     checkpoint: { id: "checkpoint", solid: false, hazard: false, rotatable: false, label: "Checkpoint" },
+    coin10: { id: "coin10", solid: false, hazard: false, rotatable: false, label: "Coin +10" },
+    coin50: { id: "coin50", solid: false, hazard: false, rotatable: false, label: "Coin +50" },
+    coin100: { id: "coin100", solid: false, hazard: false, rotatable: false, label: "Coin +100" },
+    coin500: { id: "coin500", solid: false, hazard: false, rotatable: false, label: "Coin +500" },
   };
+
+  const COIN_VALUES = { coin10: 10, coin50: 50, coin100: 100, coin500: 500 };
 
   function isSpikeId(id) {
     return id === "spike" || id === "ispike" || id === "fspike";
@@ -48,6 +54,14 @@
 
   function isInvisibleId(id) {
     return id === "ispike" || id === "ibrick" || id === "iorb" || id === "igoal";
+  }
+
+  function isCoinId(id) {
+    return !!COIN_VALUES[id];
+  }
+
+  function coinValue(id) {
+    return COIN_VALUES[id] || 0;
   }
 
   const SKINS = window.DashPointSkins || [];
@@ -81,6 +95,10 @@
     dash: "assets/tiles/DashIcon.png",
     checkpoint: "assets/tiles/checkpoint.png",
     checkpointTouched: "assets/tiles/checkpoint-touched.png",
+    coin10: "assets/tiles/coin10.png",
+    coin50: "assets/tiles/coin50.png",
+    coin100: "assets/tiles/coin100.png",
+    coin500: "assets/tiles/coin500.png",
     title: "assets/ui/title.png",
     play: "assets/ui/play.png",
     settings: "assets/ui/settings.png",
@@ -834,7 +852,7 @@
     }
 
     counts() {
-      const out = { brick: 0, ibrick: 0, fbrick: 0, spike: 0, ispike: 0, fspike: 0, goal: 0, igoal: 0, orb: 0, iorb: 0, pad: 0, dash: 0, empty: 0, labels: 0, pictures: 0, widgets: 0 };
+      const out = { brick: 0, ibrick: 0, fbrick: 0, spike: 0, ispike: 0, fspike: 0, goal: 0, igoal: 0, orb: 0, iorb: 0, pad: 0, dash: 0, coin10: 0, coin50: 0, coin100: 0, coin500: 0, empty: 0, labels: 0, pictures: 0, widgets: 0 };
       for (let r = 0; r < this.rows; r++) {
         for (let c = 0; c < this.cols; c++) {
           const t = this.grid[r][c];
@@ -1080,6 +1098,11 @@
     return { x: cellX(c, tile) + m, y: cellY(r, tile) + m, w: TILE - m * 2, h: TILE - m * 2 };
   }
 
+  function coinBox(c, r, tile) {
+    const m = TILE * 0.16;
+    return { x: cellX(c, tile) + m, y: cellY(r, tile) + m, w: TILE - m * 2, h: TILE - m * 2 };
+  }
+
   function spawnWorldPos(level) {
     const c = level.spawn.c;
     const r = level.spawn.r;
@@ -1094,8 +1117,10 @@
       this.source = level;
       this.skin = clamp((opts && opts.skin) | 0, 1, Math.max(1, SKINS.length));
       this.touched = new Set();
+      this.collected = new Set();
       this.checkpoint = null;
       this.pendingJumps = 0;
+      this.pendingCoinGrant = 0;
       this.reset();
     }
 
@@ -1361,6 +1386,25 @@
       }
     }
 
+    checkCoins() {
+      if (this.dead || this.won) return;
+      const box = this.playerBox();
+      const hits = this.nearbyTiles(box.x, box.y, box.w, box.h, 2);
+      const tryCollect = (id, key, cbox) => {
+        if (!isCoinId(id) || this.collected.has(key)) return;
+        if (!aabbOverlap(box, cbox)) return;
+        this.collected.add(key);
+        this.pendingCoinGrant = (this.pendingCoinGrant | 0) + coinValue(id);
+      };
+      for (const { tile, c, r } of hits) {
+        tryCollect(tile.id, c + "," + r, coinBox(c, r, tile));
+      }
+      for (const m of this.movers || []) {
+        if (m.done || !isCoinId(m.tile.id)) continue;
+        tryCollect(m.tile.id, "m:" + m.cx + "," + m.cy, coinBox(m.x / TILE, m.y / TILE));
+      }
+    }
+
     checkOrbs() {
       const p = this.player;
       const box = this.playerBox();
@@ -1544,6 +1588,7 @@
       this.checkPads();
       this.checkDashes();
       this.checkCheckpoints();
+      this.checkCoins();
       this.updateMovers(dt);
       this.checkTriggers();
     }
@@ -1553,6 +1598,10 @@
     size = size || TILE;
     opts = opts || {};
     if (isInvisibleId(tile.id) && opts.hideInvisible) return;
+    if (isCoinId(tile.id) && opts.collected) {
+      const key = opts.collectedKey || (opts.c != null ? opts.c + "," + opts.r : "");
+      if (key && opts.collected.has(key)) return;
+    }
     let img;
     if (tile.id === "checkpoint") {
       const touched = opts.touched && opts.c != null && opts.touched.has(opts.c + "," + opts.r);
@@ -1569,6 +1618,8 @@
       img = images.dash;
     } else if (isGoalId(tile.id)) {
       img = images.goal;
+    } else if (isCoinId(tile.id)) {
+      img = images[tile.id];
     }
     if (!img) return;
     const rot = isSpikeId(tile.id) ? tile.rot || 0 : 0;
@@ -1679,6 +1730,7 @@
             c: c,
             r: r,
             touched: extras.engine ? extras.engine.touched : null,
+            collected: extras.engine ? extras.engine.collected : null,
           });
         }
       }
@@ -1690,6 +1742,8 @@
         if (m.done) continue;
         drawTile(ctx, images, m.tile, m.x, m.y, TILE, {
           hideInvisible: !!extras.engine && !extras.hitboxes,
+          collected: extras.engine ? extras.engine.collected : null,
+          collectedKey: "m:" + m.cx + "," + m.cy,
         });
       }
     }
@@ -1808,6 +1862,10 @@
           } else if (tile.id === "dash") {
             const b = dashBox(c, r, tile);
             ctx.strokeStyle = "rgba(46,230,255,0.9)";
+            ctx.strokeRect(b.x, b.y, b.w, b.h);
+          } else if (isCoinId(tile.id)) {
+            const b = coinBox(c, r, tile);
+            ctx.strokeStyle = "rgba(255,210,60,0.9)";
             ctx.strokeRect(b.x, b.y, b.w, b.h);
           } else if (isBrickId(tile.id) && TILE_TYPES[tile.id] && TILE_TYPES[tile.id].solid) {
             ctx.strokeStyle = tile.id === "ibrick" ? "rgba(176,92,255,0.7)" : "rgba(80,180,255,0.35)";
@@ -1952,6 +2010,9 @@
     isOrbId,
     isFakeId,
     isInvisibleId,
+    isCoinId,
+    coinValue,
+    COIN_VALUES,
     TEXT_COLORS,
     DEFAULT_THEME,
     THEMES,
@@ -1986,6 +2047,7 @@
     orbBox,
     padBox,
     dashBox,
+    coinBox,
     solidBox,
     PLAYER_W,
     PLAYER_H,
