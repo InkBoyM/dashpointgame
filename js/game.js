@@ -162,7 +162,60 @@
     for (const skin of SKINS) {
       images.skins[skin.id] = await loadImage(skin.src);
     }
+    ["coin10", "coin50", "coin100", "coin500"].forEach(function (k) {
+      if (images[k]) images[k] = knockOutBlack(images[k]);
+    });
     return images;
+  }
+
+  function knockOutBlack(img) {
+    try {
+      const c = document.createElement("canvas");
+      c.width = img.naturalWidth || img.width;
+      c.height = img.naturalHeight || img.height;
+      if (!c.width || !c.height) return img;
+      const x = c.getContext("2d");
+      x.imageSmoothingEnabled = false;
+      x.drawImage(img, 0, 0);
+      const data = x.getImageData(0, 0, c.width, c.height);
+      const p = data.data;
+      for (let i = 0; i < p.length; i += 4) {
+        if (p[i] < 22 && p[i + 1] < 22 && p[i + 2] < 22) p[i + 3] = 0;
+      }
+      x.putImageData(data, 0, 0);
+      return c;
+    } catch (e) {
+      return img;
+    }
+  }
+
+  function drawCoinGraphic(ctx, images, tile, x, y, size, bob) {
+    const img = images && images[tile.id];
+    const dy = y + (bob || 0);
+    if (img) {
+      ctx.drawImage(img, x, dy, size, size);
+      return;
+    }
+    const cx = x + size / 2;
+    const cy = dy + size / 2;
+    ctx.save();
+    ctx.fillStyle = "rgba(255, 210, 60, 0.28)";
+    ctx.beginPath();
+    ctx.arc(cx, cy, size * 0.48, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ffd23c";
+    ctx.beginPath();
+    ctx.arc(cx, cy, size * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#8a5a00";
+    ctx.lineWidth = Math.max(1, size * 0.06);
+    ctx.stroke();
+    ctx.fillStyle = "#12203a";
+    ctx.font = "bold " + Math.max(8, size * 0.34) + "px Consolas, monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(coinValue(tile.id)), cx, cy + 0.5);
+    ctx.restore();
   }
 
   function emptyGrid(cols, rows) {
@@ -1598,9 +1651,14 @@
     size = size || TILE;
     opts = opts || {};
     if (isInvisibleId(tile.id) && opts.hideInvisible) return;
-    if (isCoinId(tile.id) && opts.collected) {
-      const key = opts.collectedKey || (opts.c != null ? opts.c + "," + opts.r : "");
-      if (key && opts.collected.has(key)) return;
+    if (isCoinId(tile.id)) {
+      if (opts.collected) {
+        const key = opts.collectedKey || (opts.c != null ? opts.c + "," + opts.r : "");
+        if (key && opts.collected.has(key)) return;
+      }
+      const bob = opts.bob ? Math.sin(Date.now() / 220 + (opts.c || 0) * 1.7 + (opts.r || 0) * 2.1) * 2.5 : 0;
+      drawCoinGraphic(ctx, images, tile, x, y, size, bob);
+      return;
     }
     let img;
     if (tile.id === "checkpoint") {
@@ -1618,8 +1676,6 @@
       img = images.dash;
     } else if (isGoalId(tile.id)) {
       img = images.goal;
-    } else if (isCoinId(tile.id)) {
-      img = images[tile.id];
     }
     if (!img) return;
     const rot = isSpikeId(tile.id) ? tile.rot || 0 : 0;
@@ -1731,6 +1787,7 @@
             r: r,
             touched: extras.engine ? extras.engine.touched : null,
             collected: extras.engine ? extras.engine.collected : null,
+            bob: !!extras.engine,
           });
         }
       }
@@ -1744,6 +1801,9 @@
           hideInvisible: !!extras.engine && !extras.hitboxes,
           collected: extras.engine ? extras.engine.collected : null,
           collectedKey: "m:" + m.cx + "," + m.cy,
+          c: m.cx,
+          r: m.cy,
+          bob: !!extras.engine,
         });
       }
     }
