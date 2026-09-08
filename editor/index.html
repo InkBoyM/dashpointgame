@@ -359,7 +359,10 @@
         <button class="chip active" data-layer="0">Behind tiles</button>
         <button class="chip" data-layer="1">In front</button>
       </div>
-      <p class="hint">Scripts and forms are stripped on save. For video: paste an &lt;iframe&gt; embed, or a raw file with &lt;video src="..."&gt; — and keep the In front layer. Full pages or snippets both work; page styles stay inside the block. Links and videos are clickable when the block is In front (in the game and in playtest). Behind-tiles blocks render as static pictures.</p>
+      <label class="row" style="margin-top:10px; gap:8px; text-transform:none; letter-spacing:0; font-size:12px; color:var(--text)">
+        <input type="checkbox" id="htmlApp" /> Interactive — buttons &amp; scripts (runs isolated, can't touch the game)
+      </label>
+      <p class="hint">Scripts and forms are stripped on save. For video: paste an &lt;iframe&gt; embed, or a raw file with &lt;video src="..."&gt; — and keep the In front layer. Full pages or snippets both work; page styles stay inside the block. Links and videos are clickable when the block is In front (in the game and in playtest). Tick Interactive for buttons and scripts (auto-ticked when detected) — code runs isolated and can't touch the game. Behind-tiles blocks render as static pictures.</p>
       <div class="row" style="margin-top:12px; justify-content:flex-end">
         <button class="text-btn" data-close="modalHtml">Cancel</button>
         <button class="text-btn gold" id="btnHtmlSave">Add</button>

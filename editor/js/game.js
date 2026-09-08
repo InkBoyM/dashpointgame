@@ -535,8 +535,19 @@
 
   function sanitizeWidget(raw) {
     if (!raw || typeof raw !== "object") return null;
-    const html = sanitizeWidgetHtml(raw.html);
-    if (!html) return null;
+    const app = raw.app === true || raw.app === 1 ? 1 : 0;
+    let html = "";
+    if (app) {
+      // Interactive widgets run inside a locked-down sandboxed frame
+      // (sandbox="allow-scripts" only: opaque origin, no parent access, no
+      // top navigation, no popups, no form posts, no dialogs), so the raw
+      // source is kept as-is — the sandbox is the boundary, not the filter.
+      html = String(raw.html == null ? "" : raw.html).slice(0, WIDGET_MAX_HTML);
+      if (!html.trim()) return null;
+    } else {
+      html = sanitizeWidgetHtml(raw.html);
+      if (!html) return null;
+    }
     const w = clamp(Math.round(Number(raw.w) || 0), WIDGET_MIN, WIDGET_MAX_DIM);
     const h = clamp(Math.round(Number(raw.h) || 0), WIDGET_MIN, WIDGET_MAX_DIM);
     const x = Number(raw.x);
@@ -550,6 +561,7 @@
       w: w,
       h: h,
       layer: Number(raw.layer) === 1 ? 1 : 0,
+      app: app,
     };
   }
 
@@ -607,7 +619,7 @@
   }
 
   function widgetDomKey(wd) {
-    return wd.w + "x" + wd.h + "|" + widgetHash(wd.html);
+    return wd.w + "x" + wd.h + "|" + (wd.app | 0) + "|" + widgetHash(wd.html);
   }
 
   // Live DOM overlay for front-layer (layer 1) widgets. Call every frame with
@@ -646,20 +658,38 @@
       }
       if (el.dataset.wkey !== key) {
         el.dataset.wkey = key;
-        let host = el.shadowRoot;
-        if (!host) {
-          try {
-            host = el.attachShadow({ mode: "open" });
-          } catch (e) {
-            host = null;
+        el.innerHTML = "";
+        if (el.shadowRoot) el.shadowRoot.innerHTML = "";
+        if (wd.app) {
+          // Interactive widget: full source (scripts included) inside a
+          // sandboxed frame. sandbox="allow-scripts" alone means an opaque
+          // origin with no parent access, no top navigation, no popups, no
+          // form posts and no dialogs — it can only show and play things.
+          const fr = document.createElement("iframe");
+          fr.className = "app-frame";
+          fr.setAttribute("sandbox", "allow-scripts");
+          fr.setAttribute("allow", "autoplay; fullscreen; picture-in-picture; encrypted-media");
+          fr.setAttribute("allowfullscreen", "");
+          fr.setAttribute("loading", "lazy");
+          fr.setAttribute("style", "width:100%;height:100%;border:0;");
+          fr.setAttribute("srcdoc", wd.html);
+          el.appendChild(fr);
+        } else {
+          let host = el.shadowRoot;
+          if (!host) {
+            try {
+              host = el.attachShadow({ mode: "open" });
+            } catch (e) {
+              host = null;
+            }
           }
-        }
-        if (!host) host = el;
-        host.innerHTML = sanitizeWidgetHtml(wd.html);
-        const links = host.querySelectorAll("a");
-        for (let a = 0; a < links.length; a++) {
-          links[a].target = "_blank";
-          links[a].rel = "noopener noreferrer";
+          if (!host) host = el;
+          host.innerHTML = sanitizeWidgetHtml(wd.html);
+          const links = host.querySelectorAll("a");
+          for (let a = 0; a < links.length; a++) {
+            links[a].target = "_blank";
+            links[a].rel = "noopener noreferrer";
+          }
         }
       }
       el.style.width = wd.w + "px";
@@ -945,6 +975,7 @@
           w: wd.w,
           h: wd.h,
           layer: wd.layer | 0,
+          app: wd.app | 0,
         })),
         gameplay: Object.assign({}, this.gameplay),
         triggers: JSON.parse(JSON.stringify(this.triggers)),

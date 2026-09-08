@@ -301,6 +301,7 @@ img { image-rendering: pixelated; }
   pointer-events: none;
 }
 .dp-widget a { pointer-events: none; }
+.dp-widget video, .dp-widget audio, .dp-widget iframe { pointer-events: none; }
 #widgetLayer.live .dp-widget a,
 #widgetLayer.live .dp-widget video,
 #widgetLayer.live .dp-widget audio,

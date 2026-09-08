@@ -745,7 +745,7 @@
   let htmlModalMode = "add";
   let htmlModalLayer = 0;
 
-  function openHtmlModal(mode, presetHtml, presetLayer) {
+  function openHtmlModal(mode, presetHtml, presetLayer, presetApp) {
     htmlModalMode = mode === "edit" ? "edit" : "add";
     htmlModalLayer = presetLayer === 1 ? 1 : 0;
     const title = document.getElementById("htmlModalTitle");
@@ -755,6 +755,8 @@
     document.querySelectorAll("#htmlLayerChips .chip").forEach((c) => {
       c.classList.toggle("active", Number(c.dataset.layer) === htmlModalLayer);
     });
+    const appBox = document.getElementById("htmlApp");
+    if (appBox) appBox.checked = !!presetApp;
     const save = document.getElementById("btnHtmlSave");
     if (save) save.textContent = htmlModalMode === "edit" ? "Save" : "Add";
     openModal("modalHtml");
@@ -770,8 +772,13 @@
     }
     // Video embeds only play in the live front layer (behind-tiles blocks are
     // static pictures) — switch automatically instead of saving a dead block.
+    // Scripts need the Interactive sandbox for the same reason.
     let switched = false;
-    if (/<\s*iframe[\s>/]/i.test(String(raw || "")) && htmlModalLayer === 0) {
+    const appBox = document.getElementById("htmlApp");
+    let appMode = !!(appBox && appBox.checked);
+    if (/<\s*script[\s>]/i.test(String(raw || "")) || /\son\w+\s*=/i.test(String(raw || ""))) appMode = true;
+    if (appBox) appBox.checked = appMode;
+    if ((/<\s*iframe[\s>/]/i.test(String(raw || "")) || appMode) && htmlModalLayer === 0) {
       htmlModalLayer = 1;
       switched = true;
       document.querySelectorAll("#htmlLayerChips .chip").forEach((c) => {
@@ -784,7 +791,7 @@
         closeModal("modalHtml");
         return;
       }
-      const clean = DP.sanitizeWidget({ id: wd.id, html: raw, x: wd.x, y: wd.y, w: wd.w, h: wd.h, layer: htmlModalLayer });
+      const clean = DP.sanitizeWidget({ id: wd.id, html: raw, x: wd.x, y: wd.y, w: wd.w, h: wd.h, layer: htmlModalLayer, app: appMode });
       if (!clean) {
         setStatus("That HTML was stripped to nothing");
         return;
@@ -792,10 +799,11 @@
       pushUndo();
       wd.html = clean.html;
       wd.layer = clean.layer;
+      wd.app = clean.app;
       markDirty(true);
       syncInspector();
       closeModal("modalHtml");
-      setStatus(switched ? "Video needs In front — layer switched. HTML updated" : "HTML updated");
+      setStatus(switched ? "Needs In front — layer switched. HTML updated" : "HTML updated");
       return;
     }
     if (!state.level.widgets) state.level.widgets = [];
@@ -815,6 +823,7 @@
       w: w,
       h: h,
       layer: htmlModalLayer,
+      app: appMode,
     });
     if (!clean) {
       setStatus("That HTML was stripped to nothing");
@@ -829,7 +838,7 @@
     syncInspector();
     closeModal("modalHtml");
     setStatus(switched
-      ? "Video needs In front — layer switched. Drag to move, handles to resize"
+      ? "Needs In front — layer switched. Drag to move, handles to resize"
       : "HTML added — drag to move, handles to resize, right-click for layer");
   }
 
@@ -866,7 +875,7 @@
     };
     mk("Behind tiles (static)", layer === 0, function () { setWidgetLayer(id, 0); });
     mk("In front (clickable)", layer === 1, function () { setWidgetLayer(id, 1); });
-    mk("Edit HTML…", false, function () { openHtmlModal("edit", rawWidgetHtml(id), (selectedWidget() || {}).layer | 0); });
+    mk("Edit HTML…", false, function () { const sw = selectedWidget(); openHtmlModal("edit", rawWidgetHtml(id), (sw || {}).layer | 0, !!((sw || {}).app)); });
     const del = mk("Delete", false, function () {
       pushUndo();
       removeWidget(id);
@@ -2786,7 +2795,7 @@
           setStatus("Max " + DP.MAX_WIDGETS + " HTML blocks per level");
           return;
         }
-        openHtmlModal("add", "", 0);
+        openHtmlModal("add", "", 0, false);
       });
     }
     const htmlSave = document.getElementById("btnHtmlSave");
@@ -2809,7 +2818,7 @@
       if (hit) {
         state.selectedPictureId = null;
         state.selectedWidgetId = hit.id;
-        openHtmlModal("edit", rawWidgetHtml(hit.id), hit.layer | 0);
+        openHtmlModal("edit", rawWidgetHtml(hit.id), hit.layer | 0, !!(hit.app));
       }
     });
     document.addEventListener("click", () => closeWidgetMenu());
