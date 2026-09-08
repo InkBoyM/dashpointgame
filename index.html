@@ -40,6 +40,7 @@
       </div>
       <div class="home-foot">
         <img class="home-skin" id="homeSkinPreview" src="assets/skins/skin-1.png" alt="" title="Equipped skin" />
+        <div class="home-account hidden" id="homeAccount"></div>
         <div class="home-stats" id="homeStats"></div>
       </div>
     </div>
@@ -217,8 +218,12 @@
         <h2>SHOP</h2>
         <div class="coin-chip" id="shopCoins"></div>
       </div>
-      <p class="hint">Earn coins by beating levels (first clear) or unlocking skins. Easy 10 · Normal 50 · Hard 100 · Harder 500 · Torture 1000.</p>
+      <p class="hint">Earn coins by beating levels (first clear) or unlocking skins. Buy tags to show next to your account name.</p>
+      <div class="section-title">SKINS</div>
       <div class="skin-grid" id="shopGrid"></div>
+      <div class="section-title">TAGS</div>
+      <p class="hint">Equipped tags show next to your name, like Bob123 Tag: {cool}.</p>
+      <div class="skin-grid" id="shopTagGrid"></div>
       <div class="row-end"><button class="px-btn small" data-close="modalShop">BACK</button></div>
     </div>
   </div>
@@ -273,7 +278,7 @@
         </div>
       </div>
       <div id="profLoggedIn" style="display:none">
-        <p class="hint">Signed in as <b id="profName" style="color:var(--good)"></b> <span id="profGuestTag" style="display:none;color:var(--gold)">(guest)</span></p>
+        <p class="hint">Signed in as <b id="profName" style="color:var(--good)"></b><span id="profTagWrap" class="acct-tag-wrap hidden"> Tag: <span id="profAcctTag"></span></span> <span id="profGuestTag" style="display:none;color:var(--gold)">(guest)</span></p>
         <div class="row-gap"><button class="px-btn small danger" id="btnProfLogout">LOG OUT</button></div>
       </div>
 

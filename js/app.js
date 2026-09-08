@@ -263,8 +263,63 @@
 
   const CLIMB_FILE = "the_climb.dashpoint.json";
 
+  const SHOP_TAGS = [
+    { id: "cool", label: "cool", cost: 100, color: "#2ee6ff" },
+    { id: "noob", label: "noob", cost: 250, color: "#9db4d8" },
+    { id: "pro", label: "pro", cost: 500, color: "#3ee07a" },
+    { id: "gamer", label: "gamer", cost: 750, color: "#ff9d2e" },
+    { id: "og", label: "og", cost: 5000, color: "#ffd23c" },
+    { id: "vip", label: "vip", cost: 25000, color: "#e8c4ff" },
+    { id: "dash", label: "dash", cost: 50000, color: "#2ee6ff" },
+    { id: "speed", label: "speed", cost: 100000, color: "#ff4d62" },
+    { id: "legend", label: "legend", cost: 500000, color: "#ffd23c" },
+    { id: "rich", label: "rich", cost: 1000000, color: "#ffd23c" },
+    { id: "king", label: "king", cost: 2500000, color: "#e8c4ff" },
+    { id: "god", label: "god", cost: 5000000, color: "#ff4d62" },
+    { id: "super-rich", label: "Super Rich", cost: 10000000, color: "#ffe27a" },
+    { id: "billionare", label: "Billionare", cost: 1000000000, color: "#2ee6ff" },
+    { id: "trillionare", label: "Trillionare", cost: 1000000000000, color: "#ffffff" },
+  ];
+
+  function findShopTag(id) {
+    for (let i = 0; i < SHOP_TAGS.length; i++) if (SHOP_TAGS[i].id === id) return SHOP_TAGS[i];
+    return null;
+  }
+
+  function ownsTag(id) {
+    return (save_.data.tags || []).indexOf(id) !== -1;
+  }
+
+  function equippedTag() {
+    return findShopTag(save_.data.tag);
+  }
+
+  function tagChipHtml(tag) {
+    if (!tag) return "";
+    return '<span class="acct-tag" style="color:' + tag.color + ";border-color:" + tag.color + '">{' + escapeHtml(tag.label) + "}</span>";
+  }
+
+  function syncAccountTagUI() {
+    const tag = equippedTag();
+    const wrap = el("profTagWrap");
+    const chip = el("profAcctTag");
+    if (wrap) wrap.classList.toggle("hidden", !tag);
+    if (chip) chip.innerHTML = tag ? tagChipHtml(tag) : "";
+    const home = el("homeAccount");
+    if (home) {
+      const u = (typeof MP !== "undefined" && MP.getUser) ? MP.getUser() : (window.DashPointMP && window.DashPointMP.getUser && window.DashPointMP.getUser());
+      if (!u) {
+        home.classList.add("hidden");
+        home.innerHTML = "";
+      } else {
+        home.classList.remove("hidden");
+        home.innerHTML = "<b>" + escapeHtml(u.name || "player") + "</b>" + (tag ? ' <span class="acct-tag-wrap">Tag: ' + tagChipHtml(tag) + "</span>" : "");
+      }
+    }
+  }
+
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: 0, coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: 0, coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, tags: [], tag: "" };
   }
 
   function load() {
@@ -279,10 +334,12 @@
       s.spaceMenu = !!(s.spaceMenu || s.arcadeMenu);
       s.jumps = s.jumps | 0;
       s.playtime = Number(s.playtime) || 0;
-      s.coins = s.coins | 0;
+      s.coins = coinAmount(s.coins);
       s.coinPaid = s.coinPaid && typeof s.coinPaid === "object" ? s.coinPaid : {};
       s.coinMigrated = !!s.coinMigrated;
       s.codes = s.codes && typeof s.codes === "object" ? s.codes : {};
+      s.tags = Array.isArray(s.tags) ? s.tags.filter(function (id) { return !!findShopTag(id); }) : [];
+      s.tag = findShopTag(s.tag) && s.tags.indexOf(s.tag) !== -1 ? s.tag : "";
       return s;
     } catch (e) {
       return defaultSave();
@@ -617,6 +674,7 @@
     const preview = el("homeSkinPreview");
     const equipped = SKINS.find((s) => s.id === save_.data.skin) || SKINS[0];
     if (preview && equipped) preview.src = equipped.src;
+    syncAccountTagUI();
   }
 
   function show(name) {
@@ -825,14 +883,12 @@
     box.innerHTML = "";
     const items = SKINS.filter(isShopSkin);
     if (!items.length) {
-      box.innerHTML = '<p class="loading-note">The shop is empty.</p>';
-      syncCoinUI();
-      return;
-    }
+      box.innerHTML = '<p class="loading-note">No skins in the shop.</p>';
+    } else {
     items.forEach(function (s) {
       const owned = isUnlocked(s.id);
-      const cost = (s.unlock && s.unlock.cost) | 0;
-      const can = (save_.data.coins | 0) >= cost;
+      const cost = coinAmount(s.unlock && s.unlock.cost);
+      const can = coinAmount(save_.data.coins) >= cost;
       const b = document.createElement("button");
       b.className = "skin-tile" + (owned && save_.data.skin === s.id ? " selected" : "") + (!owned && !can ? " cant" : "");
       const deathNeed = (s.unlock && s.unlock.deaths) | 0;
@@ -841,12 +897,12 @@
         : can
           ? "TAP TO BUY"
           : deathNeed
-            ? "NEED " + cost + " OR DIE " + deathNeed
-            : "NEED " + cost;
+            ? "NEED " + fmtCoins(cost) + " OR DIE " + deathNeed
+            : "NEED " + fmtCoins(cost);
       b.innerHTML =
         '<img src="' + s.src + '" alt="" />' +
         '<span class="skin-name">' + escapeHtml(s.name) + "</span>" +
-        '<span class="shop-cost">' + coinIcon() + cost + "</span>" +
+        '<span class="shop-cost">' + coinIcon() + fmtCoins(cost) + "</span>" +
         '<span class="skin-hint">' + escapeHtml(hint) + "</span>";
       b.addEventListener("click", function () {
         if (owned) {
@@ -861,17 +917,69 @@
       });
       box.appendChild(b);
     });
+    }
+    renderShopTags();
     syncCoinUI();
+  }
+
+  function renderShopTags() {
+    const box = el("shopTagGrid");
+    if (!box) return;
+    box.innerHTML = "";
+    SHOP_TAGS.forEach(function (tag) {
+      const owned = ownsTag(tag.id);
+      const equipped = save_.data.tag === tag.id;
+      const cost = coinAmount(tag.cost);
+      const can = coinAmount(save_.data.coins) >= cost;
+      const b = document.createElement("button");
+      b.className = "skin-tile" + (equipped ? " selected" : "") + (!owned && !can ? " cant" : "");
+      const hint = owned ? (equipped ? "EQUIPPED" : "TAP TO EQUIP") : can ? "TAP TO BUY" : "NEED " + fmtCoins(cost);
+      b.innerHTML =
+        '<span class="tag-preview" style="color:' + tag.color + '">{' + escapeHtml(tag.label) + "}</span>" +
+        '<span class="skin-name">' + escapeHtml(tag.label) + "</span>" +
+        '<span class="shop-cost">' + coinIcon() + fmtCoins(cost) + "</span>" +
+        '<span class="skin-hint">' + escapeHtml(hint) + "</span>";
+      b.addEventListener("click", function () {
+        if (owned) {
+          save_.data.tag = equipped ? "" : tag.id;
+          save();
+          renderShopTags();
+          syncAccountTagUI();
+          return;
+        }
+        buyShopTag(tag);
+      });
+      box.appendChild(b);
+    });
+  }
+
+  function buyShopTag(tag) {
+    if (!tag || ownsTag(tag.id)) return;
+    const cost = coinAmount(tag.cost);
+    if (coinAmount(save_.data.coins) < cost) {
+      showNotice("Not enough coins", true);
+      return;
+    }
+    save_.data.coins = coinAmount(save_.data.coins) - cost;
+    save_.data.tags = save_.data.tags || [];
+    save_.data.tags.push(tag.id);
+    save_.data.tag = tag.id;
+    save();
+    showNotice("Tag {" + tag.label + "} unlocked!", false);
+    renderShop();
+    syncHomeStats();
+    syncCoinUI();
+    syncAccountTagUI();
   }
 
   function buyShopSkin(s) {
     if (!isShopSkin(s) || isUnlocked(s.id)) return;
-    const cost = (s.unlock && s.unlock.cost) | 0;
-    if ((save_.data.coins | 0) < cost) {
+    const cost = coinAmount(s.unlock && s.unlock.cost);
+    if (coinAmount(save_.data.coins) < cost) {
       showNotice("Not enough coins", true);
       return;
     }
-    save_.data.coins = (save_.data.coins | 0) - cost;
+    save_.data.coins = coinAmount(save_.data.coins) - cost;
     save_.data.unlocked.push(s.id);
     save();
     queueAchievement(s);
@@ -1598,8 +1706,9 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     const plo = el("profLoggedOut"); if (plo) plo.style.display = u ? "none" : "";
     const pli = el("profLoggedIn"); if (pli) pli.style.display = u ? "" : "none";
     const pn = el("profName"); if (pn) pn.textContent = name;
-    const tag = el("profGuestTag"); if (tag) tag.style.display = guest ? "" : "none";
+    const tagEl = el("profGuestTag"); if (tagEl) tagEl.style.display = guest ? "" : "none";
     const pass = el("profPassSection"); if (pass) pass.style.display = u && !guest ? "" : "none";
+    syncAccountTagUI();
   }
 
   function syncMpUI() {
@@ -1630,7 +1739,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
           dot.textContent = q.online ? "● " : "○ ";
           dot.style.color = q.online ? "var(--good)" : "#9db4d8";
           const nm = document.createElement("span");
-          nm.textContent = q.name + (q.me ? " (you)" : "") + (q.slot === "host" ? " [host]" : "");
+          const myTag = q.me ? equippedTag() : null;
+          nm.innerHTML = escapeHtml(q.name + (q.me ? " (you)" : "") + (q.slot === "host" ? " [host]" : "")) + (myTag ? " " + tagChipHtml(myTag) : "");
           nm.style.flex = "1";
           row.appendChild(dot); row.appendChild(nm);
           if (!q.me && q.online) {
@@ -2532,7 +2642,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       if (!u) { profileMsg("Not logged in"); return; }
       const st = el("profCloudStatus"); if (st) st.textContent = "Uploading…";
       try {
-        const saved = await NET.syncCloud({ deaths: save_.data.deaths, jumps: save_.data.jumps, playtime: Number(save_.data.playtime) || 0, coins: save_.data.coins, coinPaid: save_.data.coinPaid, coinMigrated: !!save_.data.coinMigrated, codes: save_.data.codes, skin: save_.data.skin, unlocked: save_.data.unlocked, beaten: save_.data.beaten, best: save_.data.best, secretA: !!save_.data.secretA, spaceMenu: !!save_.data.spaceMenu });
+        const saved = await NET.syncCloud({ deaths: save_.data.deaths, jumps: save_.data.jumps, playtime: Number(save_.data.playtime) || 0, coins: save_.data.coins, coinPaid: save_.data.coinPaid, coinMigrated: !!save_.data.coinMigrated, codes: save_.data.codes, skin: save_.data.skin, unlocked: save_.data.unlocked, beaten: save_.data.beaten, best: save_.data.best, secretA: !!save_.data.secretA, spaceMenu: !!save_.data.spaceMenu, tags: save_.data.tags, tag: save_.data.tag });
         if (st) st.textContent = "Cloud updated " + new Date(saved.updatedAt).toLocaleTimeString();
         profileMsg("Synced to cloud");
         syncHomeStats();
@@ -2548,11 +2658,18 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         save_.data.deaths = Math.max(save_.data.deaths|0, cloud.deaths|0);
         save_.data.jumps = Math.max(save_.data.jumps|0, cloud.jumps|0);
         save_.data.playtime = Math.max(Number(save_.data.playtime) || 0, Number(cloud.playtime) || 0);
-        save_.data.coins = Math.max(save_.data.coins|0, cloud.coins|0);
+        save_.data.coins = Math.max(coinAmount(save_.data.coins), coinAmount(cloud.coins));
         if (cloud.coinMigrated) save_.data.coinMigrated = true;
         if (cloud.coinPaid) { save_.data.coinPaid = save_.data.coinPaid || {}; for (var ck in cloud.coinPaid) save_.data.coinPaid[ck] = true; }
         if (cloud.codes) { save_.data.codes = save_.data.codes || {}; for (var cd in cloud.codes) save_.data.codes[cd] = true; }
         if (Array.isArray(cloud.unlocked)) { const s2 = {}; save_.data.unlocked.forEach(function(id){s2[id]=true;}); cloud.unlocked.forEach(function(id){s2[id]=true;}); save_.data.unlocked = Object.keys(s2).map(function(k){return parseInt(k,10);}).sort(function(a,b){return a-b;}); }
+        if (Array.isArray(cloud.tags)) {
+          const ts = {};
+          (save_.data.tags || []).forEach(function (id) { ts[id] = true; });
+          cloud.tags.forEach(function (id) { if (findShopTag(id)) ts[id] = true; });
+          save_.data.tags = Object.keys(ts);
+        }
+        if (cloud.tag && !save_.data.tag && findShopTag(cloud.tag) && ownsTag(cloud.tag)) save_.data.tag = cloud.tag;
         if (cloud.beaten) { for (var k in cloud.beaten) save_.data.beaten[k]=true; }
         if (cloud.best) { for (var k2 in cloud.best) { if (save_.data.best[k2]==null || cloud.best[k2] < save_.data.best[k2]) save_.data.best[k2]=cloud.best[k2]; } }
         if (cloud.skin) save_.data.skin = cloud.skin;
@@ -2561,6 +2678,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         save(); syncHomeStats(); renderLevels();
         profileMsg("Downloaded from cloud");
         checkUnlocks();
+        syncAccountTagUI();
       } catch (e) { profileMsg(e.message || String(e)); }
     });
 

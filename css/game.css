@@ -171,6 +171,46 @@ canvas { image-rendering: pixelated; }
   box-shadow: 4px 4px 0 rgba(6, 12, 24, 0.35);
   padding: 7px 16px;
 }
+.home-account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: #0d3557;
+  background: rgba(255, 255, 255, 0.75);
+  border: 3px solid var(--ink-dark);
+  box-shadow: 4px 4px 0 rgba(6, 12, 24, 0.35);
+  padding: 7px 14px;
+}
+.home-account.hidden { display: none; }
+.home-account b { color: #12203a; }
+.acct-tag-wrap { white-space: nowrap; }
+.acct-tag {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border: 2px solid var(--gold);
+  background: var(--ink-dark);
+  color: var(--gold);
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  box-shadow: 2px 2px 0 rgba(0,0,0,0.35);
+}
+.ui-space .home-account {
+  color: #c8d8f0;
+  background: rgba(10, 18, 32, 0.82);
+}
+.ui-space .home-account b { color: var(--cyan); }
+.tag-preview {
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  padding: 8px 6px;
+}
 
 /* ---------- TOP BAR / LEVELS ---------- */
 .topbar {

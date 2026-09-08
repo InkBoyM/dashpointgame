@@ -367,12 +367,14 @@ window.DPNet = (function () {
       deaths: fullSave.deaths | 0,
       jumps: fullSave.jumps | 0,
       playtime: Math.max(Number(cloud.playtime) || 0, Number(fullSave.playtime) || 0),
-      coins: fullSave.coins | 0,
+      coins: Math.max(0, Math.floor(Number(fullSave.coins) || 0)),
       coinPaid: sanitizeObjectKeys(rawPaid),
       coinMigrated: !!fullSave.coinMigrated,
       codes: sanitizeObjectKeys(fullSave.codes || {}),
       skin: fullSave.skin | 0,
       unlocked: Array.isArray(fullSave.unlocked) ? fullSave.unlocked.slice() : [],
+      tags: Array.isArray(fullSave.tags) ? fullSave.tags.slice() : [],
+      tag: String(fullSave.tag || ""),
       beaten: sanitizeObjectKeys(rawBeaten),
       best: sanitizeObjectKeys(rawBest),
       secretA: !!fullSave.secretA,
@@ -405,7 +407,7 @@ window.DPNet = (function () {
     }
     if (cloud.deaths) toSave.deaths = Math.max(cloud.deaths|0, toSave.deaths|0);
     if (cloud.jumps) toSave.jumps = Math.max(cloud.jumps|0, toSave.jumps|0);
-    if (cloud.coins) toSave.coins = Math.max(cloud.coins|0, toSave.coins|0);
+    if (cloud.coins) toSave.coins = Math.max(Math.floor(Number(cloud.coins) || 0), toSave.coins);
     if (cloud.coinMigrated) toSave.coinMigrated = true;
     if (cloud.coinPaid) {
       const mergedPaid = sanitizeObjectKeys(desanitizeObjectKeys(cloud.coinPaid));
@@ -422,6 +424,13 @@ window.DPNet = (function () {
     if (cloud.skin && toSave.skin === 1 && cloud.skin !== 1) toSave.skin = cloud.skin;
     if (cloud.secretA) toSave.secretA = true;
     if (cloud.spaceMenu) toSave.spaceMenu = true;
+    if (Array.isArray(cloud.tags)) {
+      const set = {};
+      (toSave.tags || []).forEach(function (id) { set[id] = true; });
+      cloud.tags.forEach(function (id) { if (id) set[id] = true; });
+      toSave.tags = Object.keys(set);
+    }
+    if (cloud.tag && !toSave.tag) toSave.tag = String(cloud.tag);
     await putJSON(path, toSave);
     await syncStats({ deaths: toSave.deaths, beatenCount: Object.keys(toSave.beaten).length });
     return toSave;
