@@ -151,7 +151,7 @@
     { coins: 500, chance: 70 },
     { coins: 1000, chance: 50 },
     { coins: 5000, chance: 30 },
-    { coins: 1000, chance: 20 },
+    { coins: 10000, chance: 20 },
     { coins: 50000, chance: 20 },
     { coins: 1000000, chance: 10 },
     { coins: 5000000, chance: 5 },
