@@ -423,7 +423,7 @@ canvas { image-rendering: pixelated; }
 .px-btn img[src*="chest-"] { width: 26px; height: 26px; background: #fff3c2; border: 2px solid var(--ink-dark); }
 .chest-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 12px;
   margin: 8px 0 4px;
 }
@@ -449,6 +449,11 @@ canvas { image-rendering: pixelated; }
   color: #ffe27a;
   background: #2a220e;
   box-shadow: inset 2px 2px 0 rgba(255, 226, 122, 0.18), 6px 6px 0 rgba(0,0,0,0.45);
+}
+.chest-open.diamond {
+  color: var(--cyan);
+  background: #0e2430;
+  box-shadow: inset 2px 2px 0 rgba(46, 230, 255, 0.18), 6px 6px 0 rgba(0,0,0,0.45);
 }
 .chest-open img {
   width: 96px;

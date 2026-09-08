@@ -160,6 +160,21 @@
     { coins: 1000000000000, chance: 0.1 },
   ];
 
+  const DIAMOND_CHEST_LOOT = [
+    { coins: 1000, chance: 60 },
+    { coins: 5000, chance: 50 },
+    { coins: 10000, chance: 45 },
+    { coins: 100000, chance: 30 },
+    { coins: 500000, chance: 25 },
+    { coins: 1000000, chance: 20 },
+    { coins: 5000000, chance: 15 },
+    { coins: 10000000, chance: 10 },
+    { coins: 100000000, chance: 5 },
+    { coins: 1000000000, chance: 1 },
+    { coins: 5000000000, chance: 0.5 },
+    { coins: 10000000000, chance: 0.1 },
+  ];
+
   function fmtCoins(n) {
     return String(coinAmount(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   }
@@ -179,8 +194,11 @@
   let chestBusy = false;
   function unlockChest(kind) {
     if (chestBusy) return;
-    const gold = kind === "gold";
-    const btn = el(gold ? "btnUnlockGoldChest" : "btnUnlockChest");
+    const spec = {
+      gold: { loot: GOLD_CHEST_LOOT, btn: "btnUnlockGoldChest", label: "gold chest", opening: "Opening gold chest…" },
+      diamond: { loot: DIAMOND_CHEST_LOOT, btn: "btnUnlockDiamondChest", label: "diamond chest", opening: "Opening diamond chest…" },
+    }[kind] || { loot: CHEST_LOOT, btn: "btnUnlockChest", label: "chest", opening: "Opening…" };
+    const btn = el(spec.btn);
     const msg = el("chestMsg");
     chestBusy = true;
     if (btn) {
@@ -189,10 +207,10 @@
     }
     if (msg) {
       msg.style.color = "";
-      msg.textContent = gold ? "Opening gold chest…" : "Opening…";
+      msg.textContent = spec.opening;
     }
     setTimeout(function () {
-      const prize = rollChestLoot(gold ? GOLD_CHEST_LOOT : CHEST_LOOT);
+      const prize = rollChestLoot(spec.loot);
       const got = grantCoins(prize.coins);
       save();
       syncCoinUI();
@@ -205,7 +223,7 @@
         msg.style.color = prize.coins >= 1000000 ? "var(--cyan)" : "var(--gold)";
         msg.textContent = "+" + fmtCoins(got) + " coins!";
       }
-      showNotice("+" + fmtCoins(got) + " coins from a " + (gold ? "gold chest" : "chest"), false);
+      showNotice("+" + fmtCoins(got) + " coins from a " + spec.label, false);
       setTimeout(function () {
         if (btn) btn.classList.remove("prize");
         chestBusy = false;
@@ -2293,6 +2311,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnOpenChest").addEventListener("click", () => openModal("modalChest"));
     el("btnUnlockChest").addEventListener("click", function () { unlockChest("basic"); });
     el("btnUnlockGoldChest").addEventListener("click", function () { unlockChest("gold"); });
+    el("btnUnlockDiamondChest").addEventListener("click", function () { unlockChest("diamond"); });
     el("btnOpenCodes").addEventListener("click", () => openModal("modalCodes"));
     el("btnRedeemCode").addEventListener("click", redeemCode);
     el("codeInput").addEventListener("keydown", function (ev) {
