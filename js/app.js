@@ -128,6 +128,69 @@
     if (b) b.innerHTML = html;
     const c = el("codesCoins");
     if (c) c.innerHTML = html;
+    const d = el("chestCoins");
+    if (d) d.innerHTML = html;
+  }
+
+  const CHEST_LOOT = [
+    { coins: 100, chance: 60 },
+    { coins: 500, chance: 50 },
+    { coins: 1000, chance: 20 },
+    { coins: 5000, chance: 10 },
+    { coins: 10000, chance: 5 },
+    { coins: 1000000, chance: 1 },
+    { coins: 5000000, chance: 0.5 },
+  ];
+
+  function fmtCoins(n) {
+    return String(n | 0).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+
+  function rollChestLoot() {
+    let total = 0;
+    for (let i = 0; i < CHEST_LOOT.length; i++) total += CHEST_LOOT[i].chance;
+    let r = Math.random() * total;
+    for (let i = 0; i < CHEST_LOOT.length; i++) {
+      r -= CHEST_LOOT[i].chance;
+      if (r <= 0) return CHEST_LOOT[i];
+    }
+    return CHEST_LOOT[CHEST_LOOT.length - 1];
+  }
+
+  let chestBusy = false;
+  function unlockChest() {
+    if (chestBusy) return;
+    chestBusy = true;
+    const btn = el("btnUnlockChest");
+    const msg = el("chestMsg");
+    if (btn) {
+      btn.classList.remove("prize");
+      btn.classList.add("opening");
+    }
+    if (msg) {
+      msg.style.color = "";
+      msg.textContent = "Opening…";
+    }
+    setTimeout(function () {
+      const prize = rollChestLoot();
+      const got = grantCoins(prize.coins);
+      save();
+      syncCoinUI();
+      syncHomeStats();
+      if (btn) {
+        btn.classList.remove("opening");
+        btn.classList.add("prize");
+      }
+      if (msg) {
+        msg.style.color = prize.coins >= 1000000 ? "var(--cyan)" : "var(--gold)";
+        msg.textContent = "+" + fmtCoins(got) + " coins!";
+      }
+      showNotice("+" + fmtCoins(got) + " coins from a chest", false);
+      setTimeout(function () {
+        if (btn) btn.classList.remove("prize");
+        chestBusy = false;
+      }, 360);
+    }, 560);
   }
 
   const LEVEL_FILES = [
@@ -804,6 +867,14 @@
     if (id === "modalSkins") renderSkins();
     if (id === "modalStats") renderStats();
     if (id === "modalShop") renderShop();
+    if (id === "modalChest") {
+      const msg = el("chestMsg");
+      if (msg) {
+        msg.textContent = "";
+        msg.style.color = "";
+      }
+      syncCoinUI();
+    }
     if (id === "modalCodes") {
       syncCoinUI();
       const msg = el("codeMsg");
@@ -2199,6 +2270,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnPlay").addEventListener("click", () => show("levels"));
     el("btnSkinsHome").addEventListener("click", () => openModal("modalSkins"));
     el("btnOpenShop").addEventListener("click", () => openModal("modalShop"));
+    el("btnOpenChest").addEventListener("click", () => openModal("modalChest"));
+    el("btnUnlockChest").addEventListener("click", unlockChest);
     el("btnOpenCodes").addEventListener("click", () => openModal("modalCodes"));
     el("btnRedeemCode").addEventListener("click", redeemCode);
     el("codeInput").addEventListener("keydown", function (ev) {
