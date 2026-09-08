@@ -130,12 +130,13 @@
         <h2>CHEST</h2>
         <div class="coin-chip" id="chestCoins"></div>
       </div>
-      <p class="hint">Tap a chest for one random prize.</p>
+      <p class="hint">One free open each day / week / month / year. Pay coins to open again before then.</p>
       <div class="chest-row">
         <div class="chest-col">
           <button class="chest-open" id="btnUnlockChest" type="button" aria-label="Open chest">
             <img src="assets/ui/chest-open.png" alt="" />
             <span>CHEST</span>
+            <span class="chest-price" id="chestPriceBasic">FREE daily</span>
           </button>
           <div class="chest-odds">
             <div class="chest-odd"><span>100 coins</span><b>60%</b></div>
@@ -151,6 +152,7 @@
           <button class="chest-open gold" id="btnUnlockGoldChest" type="button" aria-label="Open gold chest">
             <img src="assets/ui/chest-gold.png" alt="" />
             <span>GOLD</span>
+            <span class="chest-price" id="chestPriceGold">FREE weekly</span>
           </button>
           <div class="chest-odds">
             <div class="chest-odd"><span>500 coins</span><b>70%</b></div>
@@ -169,6 +171,7 @@
           <button class="chest-open diamond" id="btnUnlockDiamondChest" type="button" aria-label="Open diamond chest">
             <img src="assets/ui/chest-diamond.png" alt="" />
             <span>DIAMOND</span>
+            <span class="chest-price" id="chestPriceDiamond">FREE monthly</span>
           </button>
           <div class="chest-odds">
             <div class="chest-odd"><span>1,000 coins</span><b>60%</b></div>
@@ -189,6 +192,7 @@
           <button class="chest-open king" id="btnUnlockKingChest" type="button" aria-label="Open The king's chest">
             <img src="assets/ui/chest-king.png" alt="" />
             <span>THE KING'S</span>
+            <span class="chest-price" id="chestPriceKing">FREE yearly</span>
           </button>
           <div class="chest-odds">
             <div class="chest-odd"><span>100,000 coins</span><b>50%</b></div>

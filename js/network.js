@@ -375,6 +375,12 @@ window.DPNet = (function () {
       unlocked: Array.isArray(fullSave.unlocked) ? fullSave.unlocked.slice() : [],
       tags: Array.isArray(fullSave.tags) ? fullSave.tags.slice() : [],
       tag: String(fullSave.tag || ""),
+      chestFree: {
+        basic: Math.max(0, Number(fullSave.chestFree && fullSave.chestFree.basic) || 0),
+        gold: Math.max(0, Number(fullSave.chestFree && fullSave.chestFree.gold) || 0),
+        diamond: Math.max(0, Number(fullSave.chestFree && fullSave.chestFree.diamond) || 0),
+        king: Math.max(0, Number(fullSave.chestFree && fullSave.chestFree.king) || 0),
+      },
       beaten: sanitizeObjectKeys(rawBeaten),
       best: sanitizeObjectKeys(rawBest),
       secretA: !!fullSave.secretA,
@@ -431,6 +437,14 @@ window.DPNet = (function () {
       toSave.tags = Object.keys(set);
     }
     if (cloud.tag && !toSave.tag) toSave.tag = String(cloud.tag);
+    if (cloud.chestFree && typeof cloud.chestFree === "object") {
+      toSave.chestFree = {
+        basic: Math.max(toSave.chestFree.basic, Number(cloud.chestFree.basic) || 0),
+        gold: Math.max(toSave.chestFree.gold, Number(cloud.chestFree.gold) || 0),
+        diamond: Math.max(toSave.chestFree.diamond, Number(cloud.chestFree.diamond) || 0),
+        king: Math.max(toSave.chestFree.king, Number(cloud.chestFree.king) || 0),
+      };
+    }
     await putJSON(path, toSave);
     await syncStats({ deaths: toSave.deaths, beatenCount: Object.keys(toSave.beaten).length });
     return toSave;

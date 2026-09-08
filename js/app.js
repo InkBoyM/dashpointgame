@@ -207,14 +207,85 @@
     return table[table.length - 1];
   }
 
+  function fmtWait(ms) {
+    if (ms <= 0) return "now";
+    const s = Math.ceil(ms / 1000);
+    if (s < 3600) return Math.max(1, Math.ceil(s / 60)) + "m";
+    if (s < 86400) return Math.max(1, Math.ceil(s / 3600)) + "h";
+    return Math.max(1, Math.ceil(s / 86400)) + "d";
+  }
+
+  function nextChestFreeAt(kind, last) {
+    last = Number(last) || 0;
+    if (!last) return 0;
+    const prev = new Date(last);
+    if (kind === "basic") {
+      const n = new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 1);
+      return n.getTime();
+    }
+    if (kind === "gold") {
+      const n = new Date(prev.getFullYear(), prev.getMonth(), prev.getDate());
+      const day = (n.getDay() + 6) % 7;
+      n.setDate(n.getDate() - day + 7);
+      return n.getTime();
+    }
+    if (kind === "diamond") return new Date(prev.getFullYear(), prev.getMonth() + 1, 1).getTime();
+    if (kind === "king") return new Date(prev.getFullYear() + 1, 0, 1).getTime();
+    return 0;
+  }
+
+  function chestFreeReady(kind) {
+    const last = save_.data.chestFree && save_.data.chestFree[kind];
+    const next = nextChestFreeAt(kind, last);
+    return !next || Date.now() >= next;
+  }
+
+  function chestKindSpec(kind) {
+    const map = {
+      basic: { loot: CHEST_LOOT, btn: "btnUnlockChest", priceEl: "chestPriceBasic", label: "chest", opening: "Opening…", cost: 100, freeLabel: "daily" },
+      gold: { loot: GOLD_CHEST_LOOT, btn: "btnUnlockGoldChest", priceEl: "chestPriceGold", label: "gold chest", opening: "Opening gold chest…", cost: 10000, freeLabel: "weekly" },
+      diamond: { loot: DIAMOND_CHEST_LOOT, btn: "btnUnlockDiamondChest", priceEl: "chestPriceDiamond", label: "diamond chest", opening: "Opening diamond chest…", cost: 100000, freeLabel: "monthly" },
+      king: { loot: KING_CHEST_LOOT, btn: "btnUnlockKingChest", priceEl: "chestPriceKing", label: "king's chest", opening: "Opening The king's chest…", cost: 1000000000, freeLabel: "yearly" },
+    };
+    return map[kind] || map.basic;
+  }
+
+  function syncChestPrices() {
+    ["basic", "gold", "diamond", "king"].forEach(function (kind) {
+      const spec = chestKindSpec(kind);
+      const node = el(spec.priceEl);
+      if (!node) return;
+      if (chestFreeReady(kind)) {
+        node.classList.remove("paid");
+        node.textContent = "FREE " + spec.freeLabel;
+        return;
+      }
+      const last = save_.data.chestFree && save_.data.chestFree[kind];
+      const wait = fmtWait(nextChestFreeAt(kind, last) - Date.now());
+      node.classList.add("paid");
+      node.textContent = fmtCoins(spec.cost) + " · free in " + wait;
+    });
+  }
+
   let chestBusy = false;
   function unlockChest(kind) {
     if (chestBusy) return;
-    const spec = {
-      gold: { loot: GOLD_CHEST_LOOT, btn: "btnUnlockGoldChest", label: "gold chest", opening: "Opening gold chest…" },
-      diamond: { loot: DIAMOND_CHEST_LOOT, btn: "btnUnlockDiamondChest", label: "diamond chest", opening: "Opening diamond chest…" },
-      king: { loot: KING_CHEST_LOOT, btn: "btnUnlockKingChest", label: "king's chest", opening: "Opening The king's chest…" },
-    }[kind] || { loot: CHEST_LOOT, btn: "btnUnlockChest", label: "chest", opening: "Opening…" };
+    const spec = chestKindSpec(kind);
+    const free = chestFreeReady(kind);
+    if (!free) {
+      if (coinAmount(save_.data.coins) < spec.cost) {
+        showNotice("Need " + fmtCoins(spec.cost) + " coins to open this chest", true);
+        const msg = el("chestMsg");
+        if (msg) {
+          msg.style.color = "var(--red)";
+          msg.textContent = "Need " + fmtCoins(spec.cost) + " coins, or wait for the free " + spec.freeLabel + " open.";
+        }
+        return;
+      }
+      save_.data.coins = coinAmount(save_.data.coins) - spec.cost;
+      save();
+      syncCoinUI();
+    }
     const btn = el(spec.btn);
     const msg = el("chestMsg");
     chestBusy = true;
@@ -229,16 +300,21 @@
     setTimeout(function () {
       const prize = rollChestLoot(spec.loot);
       const got = grantCoins(prize.coins);
+      if (free) {
+        save_.data.chestFree = save_.data.chestFree || {};
+        save_.data.chestFree[kind] = Date.now();
+      }
       save();
       syncCoinUI();
       syncHomeStats();
+      syncChestPrices();
       if (btn) {
         btn.classList.remove("opening");
         btn.classList.add("prize");
       }
       if (msg) {
         msg.style.color = prize.coins >= 1000000 ? "var(--cyan)" : "var(--gold)";
-        msg.textContent = "+" + fmtCoins(got) + " coins!";
+        msg.textContent = "+" + fmtCoins(got) + " coins!" + (free ? "" : " (−" + fmtCoins(spec.cost) + ")");
       }
       showNotice("+" + fmtCoins(got) + " coins from a " + spec.label, false);
       setTimeout(function () {
@@ -319,7 +395,7 @@
   }
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: 0, coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, tags: [], tag: "" };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: 0, coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, tags: [], tag: "", chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 } };
   }
 
   function load() {
@@ -340,6 +416,13 @@
       s.codes = s.codes && typeof s.codes === "object" ? s.codes : {};
       s.tags = Array.isArray(s.tags) ? s.tags.filter(function (id) { return !!findShopTag(id); }) : [];
       s.tag = findShopTag(s.tag) && s.tags.indexOf(s.tag) !== -1 ? s.tag : "";
+      const cf = s.chestFree && typeof s.chestFree === "object" ? s.chestFree : {};
+      s.chestFree = {
+        basic: Number(cf.basic) || 0,
+        gold: Number(cf.gold) || 0,
+        diamond: Number(cf.diamond) || 0,
+        king: Number(cf.king) || 0,
+      };
       return s;
     } catch (e) {
       return defaultSave();
@@ -1037,6 +1120,7 @@
         msg.style.color = "";
       }
       syncCoinUI();
+      syncChestPrices();
     }
     if (id === "modalCodes") {
       syncCoinUI();
@@ -2642,7 +2726,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       if (!u) { profileMsg("Not logged in"); return; }
       const st = el("profCloudStatus"); if (st) st.textContent = "Uploading…";
       try {
-        const saved = await NET.syncCloud({ deaths: save_.data.deaths, jumps: save_.data.jumps, playtime: Number(save_.data.playtime) || 0, coins: save_.data.coins, coinPaid: save_.data.coinPaid, coinMigrated: !!save_.data.coinMigrated, codes: save_.data.codes, skin: save_.data.skin, unlocked: save_.data.unlocked, beaten: save_.data.beaten, best: save_.data.best, secretA: !!save_.data.secretA, spaceMenu: !!save_.data.spaceMenu, tags: save_.data.tags, tag: save_.data.tag });
+        const saved = await NET.syncCloud({ deaths: save_.data.deaths, jumps: save_.data.jumps, playtime: Number(save_.data.playtime) || 0, coins: save_.data.coins, coinPaid: save_.data.coinPaid, coinMigrated: !!save_.data.coinMigrated, codes: save_.data.codes, skin: save_.data.skin, unlocked: save_.data.unlocked, beaten: save_.data.beaten, best: save_.data.best, secretA: !!save_.data.secretA, spaceMenu: !!save_.data.spaceMenu, tags: save_.data.tags, tag: save_.data.tag, chestFree: save_.data.chestFree });
         if (st) st.textContent = "Cloud updated " + new Date(saved.updatedAt).toLocaleTimeString();
         profileMsg("Synced to cloud");
         syncHomeStats();
@@ -2670,6 +2754,12 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
           save_.data.tags = Object.keys(ts);
         }
         if (cloud.tag && !save_.data.tag && findShopTag(cloud.tag) && ownsTag(cloud.tag)) save_.data.tag = cloud.tag;
+        if (cloud.chestFree && typeof cloud.chestFree === "object") {
+          save_.data.chestFree = save_.data.chestFree || {};
+          ["basic", "gold", "diamond", "king"].forEach(function (ck) {
+            save_.data.chestFree[ck] = Math.max(Number(save_.data.chestFree[ck]) || 0, Number(cloud.chestFree[ck]) || 0);
+          });
+        }
         if (cloud.beaten) { for (var k in cloud.beaten) save_.data.beaten[k]=true; }
         if (cloud.best) { for (var k2 in cloud.best) { if (save_.data.best[k2]==null || cloud.best[k2] < save_.data.best[k2]) save_.data.best[k2]=cloud.best[k2]; } }
         if (cloud.skin) save_.data.skin = cloud.skin;
