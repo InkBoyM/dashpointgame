@@ -93,13 +93,18 @@
     return false;
   }
 
+  function coinAmount(n) {
+    const v = Math.floor(Number(n) || 0);
+    return v > 0 ? v : 0;
+  }
+
   function grantCoins(n, key) {
-    n = n | 0;
+    n = coinAmount(n);
     if (n <= 0) return 0;
     save_.data.coinPaid = save_.data.coinPaid || {};
     if (key && save_.data.coinPaid[key]) return 0;
     if (key) save_.data.coinPaid[key] = true;
-    save_.data.coins = (save_.data.coins | 0) + n;
+    save_.data.coins = coinAmount(save_.data.coins) + n;
     return n;
   }
 
@@ -121,7 +126,7 @@
   }
 
   function syncCoinUI() {
-    const html = coinIcon() + "<b>" + (save_.data.coins | 0) + "</b>";
+    const html = coinIcon() + "<b>" + fmtCoins(save_.data.coins) + "</b>";
     const a = el("skinsCoins");
     if (a) a.innerHTML = html;
     const b = el("shopCoins");
@@ -142,37 +147,52 @@
     { coins: 5000000, chance: 0.5 },
   ];
 
+  const GOLD_CHEST_LOOT = [
+    { coins: 500, chance: 70 },
+    { coins: 1000, chance: 50 },
+    { coins: 5000, chance: 30 },
+    { coins: 1000, chance: 20 },
+    { coins: 50000, chance: 20 },
+    { coins: 1000000, chance: 10 },
+    { coins: 5000000, chance: 5 },
+    { coins: 10000000, chance: 1 },
+    { coins: 100000000, chance: 0.5 },
+    { coins: 1000000000000, chance: 0.1 },
+  ];
+
   function fmtCoins(n) {
-    return String(n | 0).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return String(coinAmount(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   }
 
-  function rollChestLoot() {
+  function rollChestLoot(table) {
+    table = table || CHEST_LOOT;
     let total = 0;
-    for (let i = 0; i < CHEST_LOOT.length; i++) total += CHEST_LOOT[i].chance;
+    for (let i = 0; i < table.length; i++) total += table[i].chance;
     let r = Math.random() * total;
-    for (let i = 0; i < CHEST_LOOT.length; i++) {
-      r -= CHEST_LOOT[i].chance;
-      if (r <= 0) return CHEST_LOOT[i];
+    for (let i = 0; i < table.length; i++) {
+      r -= table[i].chance;
+      if (r <= 0) return table[i];
     }
-    return CHEST_LOOT[CHEST_LOOT.length - 1];
+    return table[table.length - 1];
   }
 
   let chestBusy = false;
-  function unlockChest() {
+  function unlockChest(kind) {
     if (chestBusy) return;
-    chestBusy = true;
-    const btn = el("btnUnlockChest");
+    const gold = kind === "gold";
+    const btn = el(gold ? "btnUnlockGoldChest" : "btnUnlockChest");
     const msg = el("chestMsg");
+    chestBusy = true;
     if (btn) {
       btn.classList.remove("prize");
       btn.classList.add("opening");
     }
     if (msg) {
       msg.style.color = "";
-      msg.textContent = "Opening…";
+      msg.textContent = gold ? "Opening gold chest…" : "Opening…";
     }
     setTimeout(function () {
-      const prize = rollChestLoot();
+      const prize = rollChestLoot(gold ? GOLD_CHEST_LOOT : CHEST_LOOT);
       const got = grantCoins(prize.coins);
       save();
       syncCoinUI();
@@ -185,7 +205,7 @@
         msg.style.color = prize.coins >= 1000000 ? "var(--cyan)" : "var(--gold)";
         msg.textContent = "+" + fmtCoins(got) + " coins!";
       }
-      showNotice("+" + fmtCoins(got) + " coins from a chest", false);
+      showNotice("+" + fmtCoins(got) + " coins from a " + (gold ? "gold chest" : "chest"), false);
       setTimeout(function () {
         if (btn) btn.classList.remove("prize");
         chestBusy = false;
@@ -553,10 +573,10 @@
           '<span class="hs-chip">LEVELS <b>' + beaten + "/" + state.levels.length + "</b></span>" +
           '<span class="hs-chip">DEATHS <b>' + save_.data.deaths + "</b></span>" +
           '<span class="hs-chip">SKINS <b>' + got + "/" + total + "</b></span>" +
-          '<span class="hs-chip">COINS <b>' + (save_.data.coins | 0) + "</b></span>";
+          '<span class="hs-chip">COINS <b>' + fmtCoins(save_.data.coins) + "</b></span>";
       } else {
         stats.textContent =
-          "LEVELS " + beaten + "/" + state.levels.length + " CLEARED · DEATHS " + save_.data.deaths + " · SKINS " + got + "/" + total + " · COINS " + (save_.data.coins | 0);
+          "LEVELS " + beaten + "/" + state.levels.length + " CLEARED · DEATHS " + save_.data.deaths + " · SKINS " + got + "/" + total + " · COINS " + fmtCoins(save_.data.coins);
       }
     }
     const preview = el("homeSkinPreview");
@@ -2271,7 +2291,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnSkinsHome").addEventListener("click", () => openModal("modalSkins"));
     el("btnOpenShop").addEventListener("click", () => openModal("modalShop"));
     el("btnOpenChest").addEventListener("click", () => openModal("modalChest"));
-    el("btnUnlockChest").addEventListener("click", unlockChest);
+    el("btnUnlockChest").addEventListener("click", function () { unlockChest("basic"); });
+    el("btnUnlockGoldChest").addEventListener("click", function () { unlockChest("gold"); });
     el("btnOpenCodes").addEventListener("click", () => openModal("modalCodes"));
     el("btnRedeemCode").addEventListener("click", redeemCode);
     el("codeInput").addEventListener("keydown", function (ev) {
