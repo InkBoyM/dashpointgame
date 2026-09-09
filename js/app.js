@@ -53,6 +53,13 @@
     imbad: { coins: 1000 },
     "did you just say your name was burger? do you come with fries? ahahahahahahaha": { skin: 20 },
     iwanttoberichbutimbrokesoimadeacodethatwouldgivemeatrillioncoins: { coins: 1000000000000 },
+    lucky: { coins: 777 },
+    please: { coins: 5000 },
+    gimmecoins: { coins: 10000 },
+    dashpoint: { coins: 25000 },
+    imstillbroke: { coins: 100000 },
+    jackpot: { coins: 1000000 },
+    notatrillionbutclose: { coins: 100000000 },
   };
 
   function coinIcon(cls) {
