@@ -435,7 +435,7 @@
   }
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: 0, coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, tags: [], tag: "", chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 } };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: 0, coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", tags: [], tag: "", chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 } };
   }
 
   function load() {
@@ -463,6 +463,7 @@
         diamond: Number(cf.diamond) || 0,
         king: Number(cf.king) || 0,
       };
+      s.graphics = s.graphics === "good" || s.graphics === "simple" ? s.graphics : "normal";
       return s;
     } catch (e) {
       return defaultSave();
@@ -1175,6 +1176,7 @@
       el("setHitbox").checked = !!save_.data.hitboxes;
       el("setFps").checked = !!save_.data.debugFps;
       el("setAuto").checked = save_.data.autoRespawn !== false;
+      syncGfxUI();
       syncSpaceSettings();
     }
   }
@@ -1193,9 +1195,46 @@
     }
   }
 
+  function gfxMode() {
+    const g = save_.data && save_.data.graphics;
+    if (g === "good" || g === "simple") return g;
+    return "normal";
+  }
+
+  function applyGraphics() {
+    document.body.classList.toggle("gfx-good", gfxMode() === "good");
+    document.body.classList.toggle("gfx-simple", gfxMode() === "simple");
+    if (state.screen === "game") cam.zoom = playZoom();
+  }
+
+  function syncGfxUI() {
+    const mode = gfxMode();
+    document.querySelectorAll(".gfx-opt").forEach(function (b) {
+      b.classList.toggle("on", b.getAttribute("data-gfx") === mode);
+    });
+    const hint = el("gfxHint");
+    if (!hint) return;
+    if (mode === "good") hint.textContent = "Sharper sprites and outlines. See farther ahead.";
+    else if (mode === "simple") hint.textContent = "Faster. Solid colors and fewer effects.";
+    else hint.textContent = "Default look.";
+  }
+
   function playZoom() {
-    const z = Math.round(el("view").width / (14 * TILE));
-    return Math.max(3, Math.min(5, z));
+    const mode = gfxMode();
+    let tiles = 14;
+    let lo = 3;
+    let hi = 5;
+    if (mode === "good") {
+      tiles = 22;
+      lo = 2;
+      hi = 3.6;
+    } else if (mode === "simple") {
+      tiles = 12;
+      lo = 3.2;
+      hi = 5.5;
+    }
+    const z = el("view").width / (tiles * TILE);
+    return Math.max(lo, Math.min(hi, Math.round(z * 100) / 100));
   }
 
   function bindPressed(action) {
@@ -1793,9 +1832,11 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       hitboxes: !!save_.data.hitboxes,
       showSpawn: false,
       remoteCubes: remoteCubes || [],
+      graphics: gfxMode(),
     });
     try {
-      DP.syncWidgetDom(el("widgetLayer"), state.engine.level.widgets, shakeCam());
+      if (gfxMode() === "simple") DP.syncWidgetDom(el("widgetLayer"), [], null);
+      else DP.syncWidgetDom(el("widgetLayer"), state.engine.level.widgets, shakeCam());
     } catch (e) {}
     pollChat();
     tickChatBubbles();
@@ -2652,6 +2693,15 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       save_.data.autoRespawn = ev.target.checked;
       save();
     });
+    document.querySelectorAll(".gfx-opt").forEach(function (b) {
+      b.addEventListener("click", function () {
+        const next = b.getAttribute("data-gfx");
+        save_.data.graphics = next === "good" || next === "simple" ? next : "normal";
+        save();
+        applyGraphics();
+        syncGfxUI();
+      });
+    });
     el("setSpace").addEventListener("change", (ev) => {
       if (!hasSpaceUnlock()) {
         ev.target.checked = false;
@@ -2868,6 +2918,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     migrateCoins();
     checkUnlocks();
     applySpaceTheme();
+    applyGraphics();
     syncHomeStats();
     syncCoinUI();
     syncFpsVis();

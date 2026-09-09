@@ -583,6 +583,10 @@ canvas { image-rendering: pixelated; }
   padding: 8px 0;
 }
 .check-row input { width: 20px; height: 20px; accent-color: var(--good); }
+.gfx-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 2px 0 4px; }
+.gfx-opt.on { background: var(--good); color: #062a14; text-shadow: none; }
+body.gfx-good img, body.gfx-good canvas { image-rendering: auto; }
+body.gfx-simple img, body.gfx-simple canvas { image-rendering: pixelated; }
 .hint { color: #9db4d8; font-size: 12px; letter-spacing: 0.5px; line-height: 1.5; }
 
 .px-input {
