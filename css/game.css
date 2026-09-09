@@ -585,7 +585,6 @@ canvas { image-rendering: pixelated; }
 .check-row input { width: 20px; height: 20px; accent-color: var(--good); }
 .gfx-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 2px 0 4px; }
 .gfx-opt.on { background: var(--good); color: #062a14; text-shadow: none; }
-body.gfx-good img, body.gfx-good canvas { image-rendering: auto; }
 body.gfx-simple img, body.gfx-simple canvas { image-rendering: pixelated; }
 .hint { color: #9db4d8; font-size: 12px; letter-spacing: 0.5px; line-height: 1.5; }
 
@@ -1215,5 +1214,56 @@ input[type="range"] {
   height: 28px;
   margin: 0 0 10px;
   accent-color: var(--cyan);
+}
+
+body.gfx-good img,
+body.gfx-good canvas,
+body.gfx-good .fx-cube,
+body.gfx-good .px-btn img,
+body.gfx-good .px-btn img[src*="chest-"],
+body.gfx-good .home-logo,
+body.gfx-good .home-settings-btn img,
+body.gfx-good .ui-space .home-skin,
+body.gfx-good .skin-tile img,
+body.gfx-good .chest-open img,
+body.gfx-good .coin-chip img,
+body.gfx-good .coin-icon,
+body.gfx-good .leaderboard .lb-skin,
+body.gfx-good .achv img,
+body.gfx-good .net-tile img,
+body.gfx-good .net-row.user .n-avatar,
+body.gfx-good .n-diff-face,
+body.gfx-good .lc-face img,
+body.gfx-good .face-row button img,
+body.gfx-good .li-diff img,
+body.gfx-good .splash-logo {
+  image-rendering: auto;
+  -ms-interpolation-mode: bicubic;
+}
+body.gfx-good .chest-open img {
+  width: 128px;
+  height: 128px;
+  object-fit: contain;
+  background: #14101c;
+}
+body.gfx-good .px-btn img[src*="chest-"] {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  background: #14101c;
+}
+body.gfx-good .skin-tile img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+}
+body.gfx-good .home-buttons .px-btn img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+body.gfx-good .n-diff-face,
+body.gfx-good .li-diff img {
+  width: 72px;
 }
 

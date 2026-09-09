@@ -1214,7 +1214,7 @@
     });
     const hint = el("gfxHint");
     if (!hint) return;
-    if (mode === "good") hint.textContent = "Sharper sprites and outlines. See farther ahead.";
+    if (mode === "good") hint.textContent = "Sharper sprites, UI icons, and outlines. See farther ahead.";
     else if (mode === "simple") hint.textContent = "Faster. Solid colors and fewer effects.";
     else hint.textContent = "Default look.";
   }
