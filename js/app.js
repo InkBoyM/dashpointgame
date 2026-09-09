@@ -229,25 +229,25 @@
       n.setDate(n.getDate() - day + 7);
       return n.getTime();
     }
-    if (kind === "diamond") return new Date(prev.getFullYear(), prev.getMonth() + 1, 1).getTime();
-    if (kind === "king") return new Date(prev.getFullYear() + 1, 0, 1).getTime();
     return 0;
-  }
-
-  function chestFreeReady(kind) {
-    const last = save_.data.chestFree && save_.data.chestFree[kind];
-    const next = nextChestFreeAt(kind, last);
-    return !next || Date.now() >= next;
   }
 
   function chestKindSpec(kind) {
     const map = {
       basic: { loot: CHEST_LOOT, btn: "btnUnlockChest", priceEl: "chestPriceBasic", label: "chest", opening: "Opening…", cost: 100, freeLabel: "daily" },
       gold: { loot: GOLD_CHEST_LOOT, btn: "btnUnlockGoldChest", priceEl: "chestPriceGold", label: "gold chest", opening: "Opening gold chest…", cost: 10000, freeLabel: "weekly" },
-      diamond: { loot: DIAMOND_CHEST_LOOT, btn: "btnUnlockDiamondChest", priceEl: "chestPriceDiamond", label: "diamond chest", opening: "Opening diamond chest…", cost: 100000, freeLabel: "monthly" },
-      king: { loot: KING_CHEST_LOOT, btn: "btnUnlockKingChest", priceEl: "chestPriceKing", label: "king's chest", opening: "Opening The king's chest…", cost: 1000000000, freeLabel: "yearly" },
+      diamond: { loot: DIAMOND_CHEST_LOOT, btn: "btnUnlockDiamondChest", priceEl: "chestPriceDiamond", label: "diamond chest", opening: "Opening diamond chest…", cost: 100000, freeLabel: "" },
+      king: { loot: KING_CHEST_LOOT, btn: "btnUnlockKingChest", priceEl: "chestPriceKing", label: "king's chest", opening: "Opening The king's chest…", cost: 1000000000, freeLabel: "" },
     };
     return map[kind] || map.basic;
+  }
+
+  function chestFreeReady(kind) {
+    const spec = chestKindSpec(kind);
+    if (!spec.freeLabel) return false;
+    const last = save_.data.chestFree && save_.data.chestFree[kind];
+    const next = nextChestFreeAt(kind, last);
+    return !next || Date.now() >= next;
   }
 
   function syncChestPrices() {
@@ -260,9 +260,13 @@
         node.textContent = "FREE " + spec.freeLabel;
         return;
       }
+      node.classList.add("paid");
+      if (!spec.freeLabel) {
+        node.textContent = fmtCoins(spec.cost);
+        return;
+      }
       const last = save_.data.chestFree && save_.data.chestFree[kind];
       const wait = fmtWait(nextChestFreeAt(kind, last) - Date.now());
-      node.classList.add("paid");
       node.textContent = fmtCoins(spec.cost) + " · free in " + wait;
     });
   }
@@ -278,7 +282,9 @@
         const msg = el("chestMsg");
         if (msg) {
           msg.style.color = "var(--red)";
-          msg.textContent = "Need " + fmtCoins(spec.cost) + " coins, or wait for the free " + spec.freeLabel + " open.";
+          msg.textContent = spec.freeLabel
+            ? "Need " + fmtCoins(spec.cost) + " coins, or wait for the free " + spec.freeLabel + " open."
+            : "Need " + fmtCoins(spec.cost) + " coins to open this chest.";
         }
         return;
       }
