@@ -260,6 +260,7 @@ canvas { image-rendering: pixelated; }
   border-left-width: 8px;
   box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.09), var(--shadow);
   color: var(--text);
+  cursor: pointer;
   animation: cardIn 0.32s ease-out both;
 }
 @keyframes cardIn {
@@ -310,6 +311,11 @@ canvas { image-rendering: pixelated; }
   box-shadow: inset -2px -2px 0 rgba(0, 0, 0, 0.25);
 }
 .level-best { font-weight: 700; font-size: 13px; color: var(--gold); }
+.level-lb {
+  flex: none;
+  margin-left: 4px;
+  letter-spacing: 1px;
+}
 
 .loading-note { color: #9db4d8; letter-spacing: 1px; padding: 30px; text-align: center; }
 
@@ -381,6 +387,7 @@ canvas { image-rendering: pixelated; }
 .card p { margin: 0 0 16px; color: #b9cbe8; letter-spacing: 1px; }
 .card-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .leaderboard { margin: 12px 0; max-height: 160px; overflow: auto; text-align: left; border: 2px solid var(--ink-dark); background: var(--panel-2); padding: 6px; }
+.leaderboard-full { max-height: min(50vh, 360px); }
 .leaderboard .lb-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--panel); border: 2px solid var(--ink-dark); margin-bottom: 4px; font-size: 12px; }
 .leaderboard .lb-rank { width: 28px; text-align: center; font-weight: 900; color: var(--gold); }
 .leaderboard .lb-name { flex: 1; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -865,6 +872,7 @@ body.gfx-simple img, body.gfx-simple canvas { image-rendering: pixelated; }
   .level-name { font-size: 14px; }
   .level-meta { font-size: 10px; margin-top: 2px; }
   .level-done, .level-best { font-size: 10px; padding: 3px 6px; }
+  .level-lb { font-size: 10px; padding: 4px 7px; }
 
   .hud-chip { padding: 5px 8px; font-size: 11px; gap: 8px; }
   .px-btn.tiny { padding: 4px 7px; font-size: 10px; }

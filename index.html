@@ -239,7 +239,7 @@
         <div class="coin-chip" id="codesCoins"></div>
       </div>
       <p class="hint">Type a code and redeem it. Each code works once.</p>
-      <input class="px-input" id="codeInput" maxlength="160" placeholder="enter code" autocomplete="off" spellcheck="false" />
+      <input class="px-input" id="codeInput" maxlength="200" placeholder="enter code" autocomplete="off" spellcheck="false" />
       <p class="hint" id="codeMsg"></p>
       <div class="row-end">
         <button class="px-btn small good" id="btnRedeemCode">REDEEM</button>
@@ -415,6 +415,18 @@
       <div class="section-title">LEVELS BY THIS PLAYER</div>
       <div class="net-results" id="acctLevels"></div>
       <div class="row-end"><button class="px-btn small" data-close="modalAccount">CLOSE</button></div>
+    </div>
+  </div>
+
+  <div class="modal-root" id="modalMainLb">
+    <div class="modal">
+      <h2 id="mainLbTitle">TOP 10</h2>
+      <p class="hint">Online times for this official level. You do not need to clear it first.</p>
+      <div id="mainLbBox" class="leaderboard leaderboard-full"></div>
+      <div class="row-end">
+        <button class="px-btn small good" id="btnMainLbPlay">PLAY</button>
+        <button class="px-btn small" data-close="modalMainLb">BACK</button>
+      </div>
     </div>
   </div>
 

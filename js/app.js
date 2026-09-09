@@ -52,6 +52,7 @@
     noob: { skin: 19 },
     imbad: { coins: 1000 },
     "did you just say your name was burger? do you come with fries? ahahahahahahaha": { skin: 20 },
+    iwanttoberichbutimbrokesoimadeacodethatwouldgivemeatrillioncoins: { coins: 1000000000000 },
   };
 
   function coinIcon(cls) {
@@ -109,7 +110,7 @@
   }
 
   function migrateCoins() {
-    save_.data.coins = save_.data.coins | 0;
+    save_.data.coins = coinAmount(save_.data.coins);
     save_.data.coinPaid = save_.data.coinPaid || {};
     if (save_.data.coinMigrated) return;
     const beaten = save_.data.beaten || {};
@@ -617,46 +618,92 @@
     }
     return null;
   }
+  function paintLeaderboard(box, list, opts) {
+    opts = opts || {};
+    var u = opts.user || null;
+    var canRace = !!opts.canRace;
+    var html = '<div class="lb-title">' + (opts.title || "TOP 10") + "</div>";
+    for (var i = 0; i < list.length; i++) {
+      var row = list[i];
+      var isMe = u && row.uid === u.uid;
+      var skinSrc = (window.DashPointSkins && window.DashPointSkins[row.skin - 1] ? window.DashPointSkins[row.skin - 1].src : "assets/skins/skin-1.png");
+      var race = canRace && !isMe;
+      var attr = race ? (' data-uid="' + escapeHtml(row.uid) + '" data-name="' + escapeHtml(row.name) + '"') : "";
+      html += '<div class="lb-row' + (isMe ? " lb-me" : race ? " lb-race" : "") + '"' + attr + '><span class="lb-rank">#' + (i + 1) + '</span><img class="lb-skin" src="' + skinSrc + '" alt="" /><span class="lb-name">' + taggedNameHtml(row.name, row.tag || (isMe ? equippedTagId() : tagIdForUid(row.uid)), isMe ? " (you)" : "") + '</span><span class="lb-time">' + fmtTime(row.time) + "</span>" + (race ? '<span class="lb-race-hint">RACE ▶</span>' : "") + "</div>";
+    }
+    if (opts.extraRow) html += opts.extraRow;
+    box.innerHTML = html;
+    if (canRace) {
+      box.querySelectorAll(".lb-race").forEach(function (r) {
+        r.addEventListener("click", function () { raceGhost(r.dataset.uid, r.dataset.name); });
+      });
+    }
+  }
+
+  async function fetchLevelLeaderboard(box, entry, opts) {
+    opts = opts || {};
+    if (!box) return [];
+    box.innerHTML = '<p class="loading-note">Loading leaderboard…</p>';
+    var file = entry.file || entry.id || "unknown";
+    var name = entry.level ? entry.level.name : file;
+    if (!window.DPNet || !DPNet.getLeaderboard) {
+      box.innerHTML = '<p class="loading-note">Online leaderboard is unavailable.</p>';
+      return [];
+    }
+    try {
+      var list = await DPNet.getLeaderboard(file, 10);
+      if (!list.length) {
+        box.innerHTML = '<p class="loading-note">' + (opts.empty || "No times yet. Be the first!") + "</p>";
+        return [];
+      }
+      var u = opts.user !== undefined ? opts.user : (DPNet.getUser ? DPNet.getUser() : null);
+      paintLeaderboard(box, list, {
+        user: u,
+        canRace: !!opts.canRace,
+        title: "TOP 10 — " + escapeHtml(name) + (opts.titleExtra || ""),
+        extraRow: opts.extraRow || "",
+      });
+      return list;
+    } catch (e) {
+      box.innerHTML = '<p class="loading-note">Leaderboard failed: ' + escapeHtml(e.message || String(e)) + "</p>";
+      return [];
+    }
+  }
+
+  let mainLbPlayIndex = -1;
+  async function showMainLevelLeaderboard(entry, index) {
+    mainLbPlayIndex = index;
+    openModal("modalMainLb");
+    el("mainLbTitle").textContent = (entry.level && entry.level.name ? entry.level.name : "LEVEL").toUpperCase();
+    await fetchLevelLeaderboard(el("mainLbBox"), entry, { canRace: false });
+  }
+
   async function showLeaderboardAfterWin(entry, time){
     var box = el("leaderboardBox");
     if (!box) return;
-    box.innerHTML = '<p class="loading-note">Loading leaderboard…</p>';
     var file = entry.file || entry.id || "unknown";
     try {
       var u = (window.DPNet && DPNet.getUser) ? DPNet.getUser() : null;
-      if (!u) {
-        box.innerHTML = '<p class="loading-note" style="color:var(--gold)">Log in to submit & see online top 10<br>Your time: ' + fmtTime(time) + '</p>';
-        return;
-      }
-      // submit first
       var res = null;
-      try { res = await DPNet.submitLeaderboard(file, time, save_.data.skin, equippedTagId()); } catch(e){}
-      var list = [];
-      try { list = await DPNet.getLeaderboard(file, 10); } catch(e){}
-      if (!list.length) {
-        box.innerHTML = '<p class="loading-note">No leaderboard yet — you are #1!<br>Time: ' + fmtTime(time) + '</p>';
-        return;
+      if (u) {
+        try { res = await DPNet.submitLeaderboard(file, time, save_.data.skin, equippedTagId()); } catch(e){}
       }
-      var html = '<div class="lb-title">TOP 10 — ' + escapeHtml(entry.level ? entry.level.name : file) + (u ? ' · tap a player to race' : '') + '</div>';
-      for (var i=0;i<list.length;i++){
-        var row = list[i];
-        var isMe = u && row.uid === u.uid;
-        var skinSrc = (window.DashPointSkins && window.DashPointSkins[row.skin-1] ? window.DashPointSkins[row.skin-1].src : "assets/skins/skin-1.png");
-        var attr = isMe ? '' : (' data-uid="' + escapeHtml(row.uid) + '" data-name="' + escapeHtml(row.name) + '"');
-        html += '<div class="lb-row' + (isMe ? ' lb-me' : ' lb-race') + '"' + attr + '><span class="lb-rank">#' + (i+1) + '</span><img class="lb-skin" src="' + skinSrc + '" alt="" /><span class="lb-name">' + taggedNameHtml(row.name, row.tag || (isMe ? equippedTagId() : tagIdForUid(row.uid)), isMe ? " (you)" : "") + '</span><span class="lb-time">' + fmtTime(row.time) + '</span>' + (isMe ? '' : '<span class="lb-race-hint">RACE ▶</span>') + '</div>';
-      }
-      // if not in top10 but has rank beyond, show yours
+      var extra = "";
       if (res && res.rank && res.rank > 10) {
-        html += '<div class="lb-row lb-me"><span class="lb-rank">#' + res.rank + '</span><span class="lb-name">You</span><span class="lb-time">' + fmtTime(time) + '</span></div>';
-      } else if (u && !list.find(function(x){ return x.uid===u.uid; })) {
-        // show your time at bottom if not in list
-        html += '<div class="lb-row lb-me"><span class="lb-rank">—</span><span class="lb-name">You</span><span class="lb-time">' + fmtTime(time) + '</span></div>';
+        extra = '<div class="lb-row lb-me"><span class="lb-rank">#' + res.rank + '</span><span class="lb-name">You</span><span class="lb-time">' + fmtTime(time) + "</span></div>";
+      } else if (!u) {
+        extra = '<div class="lb-row lb-me"><span class="lb-rank">—</span><span class="lb-name">You (not submitted)</span><span class="lb-time">' + fmtTime(time) + "</span></div>";
       }
-      box.innerHTML = html;
-      // click to race a player's ghost
-      box.querySelectorAll('.lb-race').forEach(function(r){
-        r.addEventListener('click', function(){ raceGhost(r.dataset.uid, r.dataset.name); });
+      var list = await fetchLevelLeaderboard(box, entry, {
+        user: u,
+        canRace: true,
+        titleExtra: u ? " · tap a player to race" : "",
+        empty: (u ? "No leaderboard yet — you are #1!" : "No times yet.") + "<br>Your time: " + fmtTime(time),
+        extraRow: extra,
       });
+      if (u && list.length && !list.find(function (x) { return x.uid === u.uid; }) && !(res && res.rank > 10)) {
+        box.insertAdjacentHTML("beforeend", '<div class="lb-row lb-me"><span class="lb-rank">—</span><span class="lb-name">You</span><span class="lb-time">' + fmtTime(time) + "</span></div>");
+      }
     } catch(e){
       box.innerHTML = '<p class="loading-note">Leaderboard failed: ' + escapeHtml(e.message||String(e)) + '</p>';
     }
@@ -883,11 +930,13 @@
     order.forEach(function (pair, n) {
       const entry = pair.entry;
       const i = pair.i;
-      const b = document.createElement("button");
+      const b = document.createElement("div");
       const done = save_.data.beaten[entry.file] !== undefined;
       const best = save_.data.best[entry.file];
       const diff = diffTier(localDiff(entry.file));
       b.className = "level-card diff-" + diff + (done ? " cleared" : "");
+      b.setAttribute("role", "button");
+      b.tabIndex = 0;
       b.style.animationDelay = n * 0.04 + "s";
       b.innerHTML =
         '<span class="level-num">' + (n + 1) + "</span>" +
@@ -898,7 +947,23 @@
         "</span></span>" +
         (done ? '<span class="level-done">\u2713 CLEARED</span>' : "") +
         (best ? '<span class="level-best">BEST ' + fmtTime(best) + "</span>" : "");
-      b.addEventListener("click", () => startLevel(i));
+      const lbBtn = document.createElement("button");
+      lbBtn.type = "button";
+      lbBtn.className = "px-btn tiny level-lb";
+      lbBtn.textContent = "TOP 10";
+      lbBtn.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        showMainLevelLeaderboard(entry, i);
+      });
+      b.appendChild(lbBtn);
+      b.addEventListener("click", function () { startLevel(i); });
+      b.addEventListener("keydown", function (ev) {
+        if (ev.target !== b) return;
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          startLevel(i);
+        }
+      });
       box.appendChild(b);
     });
   }
@@ -1132,9 +1197,10 @@
     if (save_.data.codes[raw]) { say("Already used.", true); return; }
     save_.data.codes[raw] = true;
     if (reward.coins) {
-      save_.data.coins = (save_.data.coins | 0) + (reward.coins | 0);
-      say("+" + reward.coins + " coins!", false);
-      showNotice("+" + reward.coins + " coins", false);
+      const got = coinAmount(reward.coins);
+      save_.data.coins = coinAmount(save_.data.coins) + got;
+      say("+" + fmtCoins(got) + " coins!", false);
+      showNotice("+" + fmtCoins(got) + " coins", false);
     }
     if (reward.skin) {
       const skin = SKINS.find(function (s) { return s.id === reward.skin; });
@@ -2656,6 +2722,10 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnAdConfirm").addEventListener("click", adminDeleteLevel);
     el("btnWinRestart").addEventListener("click", restartLevel);
     el("btnWinMenu").addEventListener("click", quitToLevels);
+    el("btnMainLbPlay").addEventListener("click", function () {
+      closeModal("modalMainLb");
+      if (mainLbPlayIndex >= 0) startLevel(mainLbPlayIndex);
+    });
     el("btnWinNext").addEventListener("click", () => {
       if (state.netEntry) {
         quitToLevels();
