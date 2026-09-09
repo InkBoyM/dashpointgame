@@ -67,6 +67,7 @@
     r4nd0mk3y: { keys: 1 },
     openthechampionchest: { keys: 1 },
     triplekey: { keys: 3 },
+    thebestskinever: { skin: 29 },
   };
 
   function coinIcon(cls) {
