@@ -136,6 +136,8 @@
     if (c) c.innerHTML = html;
     const d = el("chestCoins");
     if (d) d.innerHTML = html;
+    const w = el("wheelCoins");
+    if (w) w.innerHTML = html;
   }
 
   const CHEST_LOOT = [
@@ -1217,6 +1219,90 @@
     if (el("modalSkins").classList.contains("visible")) renderSkins();
   }
 
+  let wheelBusy = false;
+  let wheelRot = 0;
+  let wheelTimer = null;
+
+  function wheelSay(text, bad) {
+    const msg = el("wheelMsg");
+    if (!msg) return;
+    msg.textContent = text || "";
+    msg.style.color = bad ? "var(--red)" : (text && /BLUE|2×|2x/i.test(text) ? "var(--cyan)" : "");
+  }
+
+  function parseWheelWager() {
+    const inp = el("wheelWager");
+    const raw = inp ? String(inp.value || "").replace(/,/g, "").trim() : "";
+    return coinAmount(raw);
+  }
+
+  function setWheelWager(n) {
+    const inp = el("wheelWager");
+    if (!inp) return;
+    const v = coinAmount(n);
+    inp.value = v > 0 ? String(v) : "";
+  }
+
+  function finishWheelSpin(blue, wager) {
+    wheelTimer = null;
+    if (blue) {
+      const got = coinAmount(wager) * 2;
+      save_.data.coins = coinAmount(save_.data.coins) + got;
+      save();
+      syncCoinUI();
+      syncHomeStats();
+      wheelSay("BLUE! +" + fmtCoins(got) + " coins", false);
+      showNotice("Wheel: BLUE! +" + fmtCoins(got), false);
+    } else {
+      wheelSay("RED! Lost " + fmtCoins(wager) + " coins", true);
+      showNotice("Wheel: RED! −" + fmtCoins(wager), true);
+    }
+    wheelBusy = false;
+    const btn = el("btnWheelSpin");
+    if (btn) btn.disabled = false;
+  }
+
+  function spinWheel() {
+    if (wheelBusy) return;
+    const wager = parseWheelWager();
+    if (wager <= 0) { wheelSay("Enter a wager first.", true); return; }
+    if (coinAmount(save_.data.coins) < wager) {
+      wheelSay("Not enough coins.", true);
+      showNotice("Not enough coins", true);
+      return;
+    }
+    wheelBusy = true;
+    const btn = el("btnWheelSpin");
+    if (btn) btn.disabled = true;
+    save_.data.coins = coinAmount(save_.data.coins) - wager;
+    save();
+    syncCoinUI();
+    syncHomeStats();
+    wheelSay("Spinning…", false);
+
+    const blue = Math.random() < 0.5;
+    const centers = blue ? [135, 315] : [45, 225];
+    const land = centers[(Math.random() * centers.length) | 0] + (Math.random() * 50 - 25);
+    const extraSpins = 6 + ((Math.random() * 3) | 0);
+    const img = el("wheelDisc");
+    const cur = wheelRot;
+    const curMod = ((cur % 360) + 360) % 360;
+    const wantMod = ((360 - land) % 360 + 360) % 360;
+    let delta = (wantMod - curMod + 360) % 360;
+    if (delta < 80) delta += 360;
+    delta += extraSpins * 360;
+    wheelRot = cur + delta;
+    if (img) {
+      img.style.transition = "none";
+      img.style.transform = "rotate(" + cur + "deg)";
+      void img.offsetWidth;
+      img.style.transition = "transform 4.2s cubic-bezier(0.12, 0.7, 0.08, 1)";
+      img.style.transform = "rotate(" + wheelRot + "deg)";
+    }
+    if (wheelTimer) clearTimeout(wheelTimer);
+    wheelTimer = setTimeout(function () { finishWheelSpin(blue, wager); }, 4300);
+  }
+
   function openModal(id) {
     el(id).classList.add("visible");
     if (id === "modalSkins") renderSkins();
@@ -1237,6 +1323,14 @@
       const inp = el("codeInput");
       if (msg) msg.textContent = "";
       if (inp) { inp.value = ""; setTimeout(function () { inp.focus(); }, 50); }
+    }
+    if (id === "modalWheel") {
+      syncCoinUI();
+      if (!wheelBusy) {
+        wheelSay("", false);
+        const inp = el("wheelWager");
+        if (inp && !inp.value) setTimeout(function () { inp.focus(); }, 50);
+      }
     }
     if (id === "modalSettings") {
       el("setHitbox").checked = !!save_.data.hitboxes;
@@ -2685,6 +2779,21 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnSkinsHome").addEventListener("click", () => openModal("modalSkins"));
     el("btnOpenShop").addEventListener("click", () => openModal("modalShop"));
     el("btnOpenChest").addEventListener("click", () => openModal("modalChest"));
+    el("btnOpenWheel").addEventListener("click", () => openModal("modalWheel"));
+    el("btnWheelSpin").addEventListener("click", spinWheel);
+    el("wheelWager").addEventListener("keydown", function (ev) {
+      if (ev.code === "Enter" || ev.key === "Enter") {
+        ev.preventDefault();
+        spinWheel();
+      }
+    });
+    document.querySelectorAll("[data-wheel-wager]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        const v = b.getAttribute("data-wheel-wager");
+        if (v === "max") setWheelWager(save_.data.coins);
+        else setWheelWager(v);
+      });
+    });
     el("btnUnlockChest").addEventListener("click", function () { unlockChest("basic"); });
     el("btnUnlockGoldChest").addEventListener("click", function () { unlockChest("gold"); });
     el("btnUnlockDiamondChest").addEventListener("click", function () { unlockChest("diamond"); });

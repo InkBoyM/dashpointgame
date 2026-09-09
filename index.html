@@ -117,9 +117,40 @@
         <div class="row-gap">
           <button class="px-btn small gold" id="btnOpenShop"><img src="assets/ui/coin.png" alt="" /><span>SHOP</span></button>
           <button class="px-btn small gold" id="btnOpenChest"><img src="assets/ui/chest-open.png" alt="" /><span>CHEST</span></button>
+          <button class="px-btn small" id="btnOpenWheel"><img src="assets/ui/wheel.png" alt="" /><span>WHEEL</span></button>
           <button class="px-btn small" id="btnOpenCodes">CODES</button>
         </div>
         <button class="px-btn small" data-close="modalSkins">DONE</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-root" id="modalWheel">
+    <div class="modal">
+      <div class="modal-head">
+        <h2>WHEEL</h2>
+        <div class="coin-chip" id="wheelCoins"></div>
+      </div>
+      <p class="hint">Wager coins, then spin. Blue pays 2×. Red takes the wager.</p>
+      <div class="wheel-stage" aria-hidden="true">
+        <div class="wheel-pointer"></div>
+        <div class="wheel-clip">
+          <img id="wheelDisc" src="assets/ui/wheel.png" alt="" />
+        </div>
+      </div>
+      <label>Wager</label>
+      <input class="px-input" id="wheelWager" inputmode="numeric" placeholder="how many coins" autocomplete="off" spellcheck="false" />
+      <div class="wheel-wager-row">
+        <button class="px-btn tiny" type="button" data-wheel-wager="10">10</button>
+        <button class="px-btn tiny" type="button" data-wheel-wager="100">100</button>
+        <button class="px-btn tiny" type="button" data-wheel-wager="1000">1K</button>
+        <button class="px-btn tiny" type="button" data-wheel-wager="10000">10K</button>
+        <button class="px-btn tiny gold" type="button" data-wheel-wager="max">MAX</button>
+      </div>
+      <p class="hint" id="wheelMsg"></p>
+      <div class="row-end">
+        <button class="px-btn small good" id="btnWheelSpin">SPIN</button>
+        <button class="px-btn small" data-close="modalWheel">BACK</button>
       </div>
     </div>
   </div>
