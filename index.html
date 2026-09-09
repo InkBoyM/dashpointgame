@@ -159,9 +159,12 @@
     <div class="modal">
       <div class="modal-head">
         <h2>CHEST</h2>
-        <div class="coin-chip" id="chestCoins"></div>
+        <div class="chest-balances">
+          <div class="coin-chip" id="chestCoins"></div>
+          <div class="coin-chip" id="chestKeys"></div>
+        </div>
       </div>
-      <p class="hint">Normal and gold chests have one free open each day / week. Diamond and The king's always cost coins.</p>
+      <p class="hint">Normal and gold chests have one free open each day / week. Diamond and The king's always cost coins. The Champion Chest opens only with Champion Keys from codes.</p>
       <div class="chest-row">
         <div class="chest-col">
           <button class="chest-open" id="btnUnlockChest" type="button" aria-label="Open chest">
@@ -241,6 +244,25 @@
             <div class="chest-odd jackpot"><span>5,000,000,000,000 coins</span><b>0.1%</b></div>
           </div>
         </div>
+        <div class="chest-col champion">
+          <button class="chest-open champion" id="btnUnlockChampionChest" type="button" aria-label="Open The Champion Chest">
+            <img src="assets/ui/chest-champion.png" alt="" />
+            <span>THE CHAMPION</span>
+            <span class="chest-price paid" id="chestPriceChampion">1 KEY</span>
+          </button>
+          <div class="chest-odds">
+            <div class="chest-odd"><span>1,000,000,000,000 coins</span><b>60%</b></div>
+            <div class="chest-odd"><span>5,000,000,000,000 coins</span><b>55%</b></div>
+            <div class="chest-odd"><span>10,000,000,000,000 coins</span><b>50%</b></div>
+            <div class="chest-odd"><span>100,000,000,000,000 coins</span><b>45%</b></div>
+            <div class="chest-odd"><span>1,000,000,000,000,000 coins</span><b>40%</b></div>
+            <div class="chest-odd"><span>1,000,000,000,000,000,000 coins</span><b>35%</b></div>
+            <div class="chest-odd"><span>10,000,000,000,000,000 coins</span><b>30%</b></div>
+            <div class="chest-odd"><span>50,000,000,000,000,000 coins</span><b>25%</b></div>
+            <div class="chest-odd jackpot"><span>1,000,000,000,000,000,000 coins</span><b>20%</b></div>
+            <div class="chest-odd jackpot"><span>1,000,000,000,000,000,000,000 coins</span><b>10%</b></div>
+          </div>
+        </div>
       </div>
       <p class="hint" id="chestMsg"></p>
       <div class="row-end"><button class="px-btn small" data-close="modalChest">BACK</button></div>
@@ -267,9 +289,12 @@
     <div class="modal">
       <div class="modal-head">
         <h2>CODES</h2>
-        <div class="coin-chip" id="codesCoins"></div>
+        <div class="chest-balances">
+          <div class="coin-chip" id="codesCoins"></div>
+          <div class="coin-chip" id="codesKeys"></div>
+        </div>
       </div>
-      <p class="hint">Type a code and redeem it. Each code works once.</p>
+      <p class="hint">Type a code and redeem it. Each code works once. Some codes grant Champion Keys.</p>
       <input class="px-input" id="codeInput" maxlength="200" placeholder="enter code" autocomplete="off" spellcheck="false" />
       <p class="hint" id="codeMsg"></p>
       <div class="row-end">

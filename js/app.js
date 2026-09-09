@@ -60,10 +60,21 @@
     imstillbroke: { coins: 100000 },
     jackpot: { coins: 1000000 },
     notatrillionbutclose: { coins: 100000000 },
+    championkey: { keys: 1 },
+    superkey: { keys: 1 },
+    goldensmile: { keys: 1 },
+    k7q2xm9p: { keys: 1 },
+    r4nd0mk3y: { keys: 1 },
+    openthechampionchest: { keys: 1 },
+    triplekey: { keys: 3 },
   };
 
   function coinIcon(cls) {
     return '<img class="' + (cls || "coin-icon") + '" src="assets/ui/coin.png" alt="" />';
+  }
+
+  function keyIcon(cls) {
+    return '<img class="' + (cls || "coin-icon key-icon") + '" src="assets/ui/champion-key.png" alt="" />';
   }
 
   function coinsForFile(file, meta) {
@@ -102,22 +113,67 @@
   }
 
   function coinAmount(n) {
+    if (typeof n === "bigint") return n > 0n ? n : 0n;
+    if (typeof n === "number") {
+      if (!isFinite(n) || n <= 0) return 0n;
+      if (n <= Number.MAX_SAFE_INTEGER) return BigInt(Math.floor(n));
+    }
+    let s = String(n == null ? "0" : n).trim().replace(/[,_\s]/g, "");
+    const sci = /^([0-9]+)(?:\.([0-9]+))?e\+?([0-9]+)$/i.exec(s);
+    if (sci) {
+      const digits = sci[1] + (sci[2] || "");
+      const zeros = (parseInt(sci[3], 10) || 0) - (sci[2] ? sci[2].length : 0);
+      s = zeros >= 0 ? digits + Array(zeros + 1).join("0") : digits;
+    }
+    if (!/^\d+$/.test(s)) return 0n;
+    try {
+      const v = BigInt(s);
+      return v > 0n ? v : 0n;
+    } catch (e) {
+      return 0n;
+    }
+  }
+
+  function coinsString(n) {
+    return coinAmount(n).toString();
+  }
+
+  function coinsMax(a, b) {
+    a = coinAmount(a);
+    b = coinAmount(b);
+    return (a > b ? a : b).toString();
+  }
+
+  function hasCoins(n) {
+    return coinAmount(save_.data.coins) >= coinAmount(n);
+  }
+
+  function addCoins(n) {
+    save_.data.coins = (coinAmount(save_.data.coins) + coinAmount(n)).toString();
+  }
+
+  function subCoins(n) {
+    const next = coinAmount(save_.data.coins) - coinAmount(n);
+    save_.data.coins = (next > 0n ? next : 0n).toString();
+  }
+
+  function keyAmount(n) {
     const v = Math.floor(Number(n) || 0);
     return v > 0 ? v : 0;
   }
 
   function grantCoins(n, key) {
     n = coinAmount(n);
-    if (n <= 0) return 0;
+    if (n <= 0n) return 0n;
     save_.data.coinPaid = save_.data.coinPaid || {};
-    if (key && save_.data.coinPaid[key]) return 0;
+    if (key && save_.data.coinPaid[key]) return 0n;
     if (key) save_.data.coinPaid[key] = true;
-    save_.data.coins = coinAmount(save_.data.coins) + n;
+    addCoins(n);
     return n;
   }
 
   function migrateCoins() {
-    save_.data.coins = coinAmount(save_.data.coins);
+    save_.data.coins = coinsString(save_.data.coins);
     save_.data.coinPaid = save_.data.coinPaid || {};
     if (save_.data.coinMigrated) return;
     const beaten = save_.data.beaten || {};
@@ -145,6 +201,11 @@
     if (d) d.innerHTML = html;
     const w = el("wheelCoins");
     if (w) w.innerHTML = html;
+    const keys = keyIcon() + "<b>" + keyAmount(save_.data.championKeys) + "</b>";
+    const ck = el("chestKeys");
+    if (ck) ck.innerHTML = keys;
+    const cd = el("codesKeys");
+    if (cd) cd.innerHTML = keys;
   }
 
   const CHEST_LOOT = [
@@ -201,8 +262,21 @@
     { coins: 5000000000000, chance: 0.1 },
   ];
 
+  const CHAMPION_CHEST_LOOT = [
+    { coins: "1000000000000", chance: 60 },
+    { coins: "5000000000000", chance: 55 },
+    { coins: "10000000000000", chance: 50 },
+    { coins: "100000000000000", chance: 45 },
+    { coins: "1000000000000000", chance: 40 },
+    { coins: "1000000000000000000", chance: 35 },
+    { coins: "10000000000000000", chance: 30 },
+    { coins: "50000000000000000", chance: 25 },
+    { coins: "1000000000000000000", chance: 20 },
+    { coins: "1000000000000000000000", chance: 10 },
+  ];
+
   function fmtCoins(n) {
-    return String(coinAmount(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return coinsString(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   }
 
   function rollChestLoot(table) {
@@ -248,6 +322,7 @@
       gold: { loot: GOLD_CHEST_LOOT, btn: "btnUnlockGoldChest", priceEl: "chestPriceGold", label: "gold chest", opening: "Opening gold chest…", cost: 10000, freeLabel: "weekly" },
       diamond: { loot: DIAMOND_CHEST_LOOT, btn: "btnUnlockDiamondChest", priceEl: "chestPriceDiamond", label: "diamond chest", opening: "Opening diamond chest…", cost: 100000, freeLabel: "" },
       king: { loot: KING_CHEST_LOOT, btn: "btnUnlockKingChest", priceEl: "chestPriceKing", label: "king's chest", opening: "Opening The king's chest…", cost: 1000000000, freeLabel: "" },
+      champion: { loot: CHAMPION_CHEST_LOOT, btn: "btnUnlockChampionChest", priceEl: "chestPriceChampion", label: "Champion Chest", opening: "Opening The Champion Chest…", cost: 0, freeLabel: "", keyCost: 1 },
     };
     return map[kind] || map.basic;
   }
@@ -261,10 +336,15 @@
   }
 
   function syncChestPrices() {
-    ["basic", "gold", "diamond", "king"].forEach(function (kind) {
+    ["basic", "gold", "diamond", "king", "champion"].forEach(function (kind) {
       const spec = chestKindSpec(kind);
       const node = el(spec.priceEl);
       if (!node) return;
+      if (spec.keyCost) {
+        node.classList.add("paid");
+        node.innerHTML = '<img class="chest-key-icon" src="assets/ui/champion-key.png" alt="" /> 1 KEY';
+        return;
+      }
       if (chestFreeReady(kind)) {
         node.classList.remove("paid");
         node.textContent = "FREE " + spec.freeLabel;
@@ -286,8 +366,21 @@
     if (chestBusy) return;
     const spec = chestKindSpec(kind);
     const free = chestFreeReady(kind);
-    if (!free) {
-      if (coinAmount(save_.data.coins) < spec.cost) {
+    if (spec.keyCost) {
+      if (keyAmount(save_.data.championKeys) < spec.keyCost) {
+        showNotice("Need a Champion Key to open this chest", true);
+        const msg = el("chestMsg");
+        if (msg) {
+          msg.style.color = "var(--red)";
+          msg.textContent = "Need a Champion Key. Redeem codes to get keys.";
+        }
+        return;
+      }
+      save_.data.championKeys = keyAmount(save_.data.championKeys) - spec.keyCost;
+      save();
+      syncCoinUI();
+    } else if (!free) {
+      if (!hasCoins(spec.cost)) {
         showNotice("Need " + fmtCoins(spec.cost) + " coins to open this chest", true);
         const msg = el("chestMsg");
         if (msg) {
@@ -298,7 +391,7 @@
         }
         return;
       }
-      save_.data.coins = coinAmount(save_.data.coins) - spec.cost;
+      subCoins(spec.cost);
       save();
       syncCoinUI();
     }
@@ -329,8 +422,11 @@
         btn.classList.add("prize");
       }
       if (msg) {
-        msg.style.color = prize.coins >= 1000000 ? "var(--cyan)" : "var(--gold)";
-        msg.textContent = "+" + fmtCoins(got) + " coins!" + (free ? "" : " (−" + fmtCoins(spec.cost) + ")");
+        msg.style.color = coinAmount(prize.coins) >= 1000000n ? "var(--cyan)" : "var(--gold)";
+        const spent = spec.keyCost
+          ? " (−" + spec.keyCost + " key)"
+          : (free ? "" : " (−" + fmtCoins(spec.cost) + ")");
+        msg.textContent = "+" + fmtCoins(got) + " coins!" + spent;
       }
       showNotice("+" + fmtCoins(got) + " coins from a " + spec.label, false);
       setTimeout(function () {
@@ -445,7 +541,7 @@
   }
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: 0, coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", tags: [], tag: "", chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 } };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", tags: [], tag: "", chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
   }
 
   function load() {
@@ -460,7 +556,8 @@
       s.spaceMenu = !!(s.spaceMenu || s.arcadeMenu);
       s.jumps = s.jumps | 0;
       s.playtime = Number(s.playtime) || 0;
-      s.coins = coinAmount(s.coins);
+      s.coins = coinsString(s.coins);
+      s.championKeys = keyAmount(s.championKeys);
       s.coinPaid = s.coinPaid && typeof s.coinPaid === "object" ? s.coinPaid : {};
       s.coinMigrated = !!s.coinMigrated;
       s.codes = s.codes && typeof s.codes === "object" ? s.codes : {};
@@ -482,6 +579,8 @@
 
   function save() {
     try {
+      save_.data.coins = coinsString(save_.data.coins);
+      save_.data.championKeys = keyAmount(save_.data.championKeys);
       localStorage.setItem(STORAGE, JSON.stringify(save_.data));
     } catch (e) {}
   }
@@ -1086,7 +1185,7 @@
     items.forEach(function (s) {
       const owned = isUnlocked(s.id);
       const cost = coinAmount(s.unlock && s.unlock.cost);
-      const can = coinAmount(save_.data.coins) >= cost;
+      const can = hasCoins(cost);
       const b = document.createElement("button");
       b.className = "skin-tile" + (owned && save_.data.skin === s.id ? " selected" : "") + (!owned && !can ? " cant" : "");
       const deathNeed = (s.unlock && s.unlock.deaths) | 0;
@@ -1128,7 +1227,7 @@
       const owned = ownsTag(tag.id);
       const equipped = save_.data.tag === tag.id;
       const cost = coinAmount(tag.cost);
-      const can = coinAmount(save_.data.coins) >= cost;
+      const can = hasCoins(cost);
       const b = document.createElement("button");
       b.className = "skin-tile" + (equipped ? " selected" : "") + (!owned && !can ? " cant" : "");
       const hint = owned ? (equipped ? "EQUIPPED" : "TAP TO EQUIP") : can ? "TAP TO BUY" : "NEED " + fmtCoins(cost);
@@ -1155,11 +1254,11 @@
   function buyShopTag(tag) {
     if (!tag || ownsTag(tag.id)) return;
     const cost = coinAmount(tag.cost);
-    if (coinAmount(save_.data.coins) < cost) {
+    if (!hasCoins(cost)) {
       showNotice("Not enough coins", true);
       return;
     }
-    save_.data.coins = coinAmount(save_.data.coins) - cost;
+    subCoins(cost);
     save_.data.tags = save_.data.tags || [];
     save_.data.tags.push(tag.id);
     save_.data.tag = tag.id;
@@ -1175,11 +1274,11 @@
   function buyShopSkin(s) {
     if (!isShopSkin(s) || isUnlocked(s.id)) return;
     const cost = coinAmount(s.unlock && s.unlock.cost);
-    if (coinAmount(save_.data.coins) < cost) {
+    if (!hasCoins(cost)) {
       showNotice("Not enough coins", true);
       return;
     }
-    save_.data.coins = coinAmount(save_.data.coins) - cost;
+    subCoins(cost);
     save_.data.unlocked.push(s.id);
     save();
     queueAchievement(s);
@@ -1207,9 +1306,16 @@
     save_.data.codes[raw] = true;
     if (reward.coins) {
       const got = coinAmount(reward.coins);
-      save_.data.coins = coinAmount(save_.data.coins) + got;
+      addCoins(got);
       say("+" + fmtCoins(got) + " coins!", false);
       showNotice("+" + fmtCoins(got) + " coins", false);
+    }
+    if (reward.keys) {
+      const keys = keyAmount(reward.keys);
+      save_.data.championKeys = keyAmount(save_.data.championKeys) + keys;
+      const keyText = "+" + keys + (keys === 1 ? " Champion Key!" : " Champion Keys!");
+      say(keyText, false);
+      showNotice(keyText, false);
     }
     if (reward.skin) {
       const skin = SKINS.find(function (s) { return s.id === reward.skin; });
@@ -1247,14 +1353,14 @@
     const inp = el("wheelWager");
     if (!inp) return;
     const v = coinAmount(n);
-    inp.value = v > 0 ? String(v) : "";
+    inp.value = v > 0n ? v.toString() : "";
   }
 
   function finishWheelSpin(blue, wager) {
     wheelTimer = null;
     if (blue) {
-      const got = coinAmount(wager) * 2;
-      save_.data.coins = coinAmount(save_.data.coins) + got;
+      const got = coinAmount(wager) * 2n;
+      addCoins(got);
       save();
       syncCoinUI();
       syncHomeStats();
@@ -1272,8 +1378,8 @@
   function spinWheel() {
     if (wheelBusy) return;
     const wager = parseWheelWager();
-    if (wager <= 0) { wheelSay("Enter a wager first.", true); return; }
-    if (coinAmount(save_.data.coins) < wager) {
+    if (wager <= 0n) { wheelSay("Enter a wager first.", true); return; }
+    if (!hasCoins(wager)) {
       wheelSay("Not enough coins.", true);
       showNotice("Not enough coins", true);
       return;
@@ -1281,7 +1387,7 @@
     wheelBusy = true;
     const btn = el("btnWheelSpin");
     if (btn) btn.disabled = true;
-    save_.data.coins = coinAmount(save_.data.coins) - wager;
+    subCoins(wager);
     save();
     syncCoinUI();
     syncHomeStats();
@@ -1553,7 +1659,7 @@
     let gained = 0;
     if (firstClear) gained = grantCoins(coinsForFile(entry.file, entry.meta), "level:" + entry.file);
     save();
-    el("winText").textContent = "Time " + fmtTime(t) + " · deaths " + state.deaths + (firstClear ? " · FIRST CLEAR!" : "") + (gained ? " · +" + gained + " coins" : "");
+    el("winText").textContent = "Time " + fmtTime(t) + " · deaths " + state.deaths + (firstClear ? " · FIRST CLEAR!" : "") + (gained ? " · +" + fmtCoins(gained) + " coins" : "");
     el("winCard").classList.add("visible");
     checkUnlocks();
 
@@ -2805,6 +2911,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnUnlockGoldChest").addEventListener("click", function () { unlockChest("gold"); });
     el("btnUnlockDiamondChest").addEventListener("click", function () { unlockChest("diamond"); });
     el("btnUnlockKingChest").addEventListener("click", function () { unlockChest("king"); });
+    el("btnUnlockChampionChest").addEventListener("click", function () { unlockChest("champion"); });
     el("btnOpenCodes").addEventListener("click", () => openModal("modalCodes"));
     el("btnRedeemCode").addEventListener("click", redeemCode);
     el("codeInput").addEventListener("keydown", function (ev) {
@@ -3021,7 +3128,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       if (!u) { profileMsg("Not logged in"); return; }
       const st = el("profCloudStatus"); if (st) st.textContent = "Uploading…";
       try {
-        const saved = await NET.syncCloud({ deaths: save_.data.deaths, jumps: save_.data.jumps, playtime: Number(save_.data.playtime) || 0, coins: save_.data.coins, coinPaid: save_.data.coinPaid, coinMigrated: !!save_.data.coinMigrated, codes: save_.data.codes, skin: save_.data.skin, unlocked: save_.data.unlocked, beaten: save_.data.beaten, best: save_.data.best, secretA: !!save_.data.secretA, spaceMenu: !!save_.data.spaceMenu, tags: save_.data.tags, tag: save_.data.tag, chestFree: save_.data.chestFree });
+        const saved = await NET.syncCloud({ deaths: save_.data.deaths, jumps: save_.data.jumps, playtime: Number(save_.data.playtime) || 0, coins: save_.data.coins, coinPaid: save_.data.coinPaid, coinMigrated: !!save_.data.coinMigrated, codes: save_.data.codes, skin: save_.data.skin, unlocked: save_.data.unlocked, beaten: save_.data.beaten, best: save_.data.best, secretA: !!save_.data.secretA, spaceMenu: !!save_.data.spaceMenu, tags: save_.data.tags, tag: save_.data.tag, chestFree: save_.data.chestFree, championKeys: save_.data.championKeys });
         if (st) st.textContent = "Cloud updated " + new Date(saved.updatedAt).toLocaleTimeString();
         profileMsg("Synced to cloud");
         syncHomeStats();
@@ -3037,7 +3144,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         save_.data.deaths = Math.max(save_.data.deaths|0, cloud.deaths|0);
         save_.data.jumps = Math.max(save_.data.jumps|0, cloud.jumps|0);
         save_.data.playtime = Math.max(Number(save_.data.playtime) || 0, Number(cloud.playtime) || 0);
-        save_.data.coins = Math.max(coinAmount(save_.data.coins), coinAmount(cloud.coins));
+        save_.data.coins = coinsMax(save_.data.coins, cloud.coins);
+        save_.data.championKeys = Math.max(keyAmount(save_.data.championKeys), keyAmount(cloud.championKeys));
         if (cloud.coinMigrated) save_.data.coinMigrated = true;
         if (cloud.coinPaid) { save_.data.coinPaid = save_.data.coinPaid || {}; for (var ck in cloud.coinPaid) save_.data.coinPaid[ck] = true; }
         if (cloud.codes) { save_.data.codes = save_.data.codes || {}; for (var cd in cloud.codes) save_.data.codes[cd] = true; }

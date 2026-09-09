@@ -432,6 +432,8 @@ canvas { image-rendering: pixelated; }
 .coin-chip { display: inline-flex; align-items: center; gap: 6px; font-weight: 900; letter-spacing: 1px; color: var(--gold); }
 .coin-chip img, .coin-icon { width: 22px; height: 22px; }
 .coin-chip b { color: var(--gold); }
+.chest-balances { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+.key-icon { width: auto; height: 22px; }
 .shop-cost { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 900; color: var(--gold); }
 .shop-cost img, .shop-cost .coin-icon { width: 14px; height: 14px; }
 .skin-tile.cant { opacity: 0.72; }
@@ -564,6 +566,22 @@ canvas { image-rendering: pixelated; }
   box-shadow: inset 2px 2px 0 rgba(232, 196, 255, 0.18), 6px 6px 0 rgba(0,0,0,0.45);
 }
 .chest-open.king > span:not(.chest-price) { letter-spacing: 1px; font-size: 13px; }
+.chest-open.champion {
+  color: #ffe27a;
+  background: #2a1c08;
+  box-shadow: inset 2px 2px 0 rgba(255, 226, 122, 0.22), 6px 6px 0 rgba(0,0,0,0.45);
+}
+.chest-open.champion > span:not(.chest-price) { letter-spacing: 1px; font-size: 13px; }
+.chest-open.champion img { background: #05080d; }
+.chest-col.champion { grid-column: 1 / -1; }
+.chest-col.champion .chest-odds { grid-template-columns: 1fr 1fr; }
+.chest-key-icon {
+  width: 12px;
+  height: 24px;
+  image-rendering: pixelated;
+  vertical-align: middle;
+  margin-right: 4px;
+}
 .chest-price {
   font-size: 10px;
   letter-spacing: 0.6px;
@@ -618,6 +636,8 @@ canvas { image-rendering: pixelated; }
 #chestMsg { min-height: 20px; margin: 8px 0 6px; font-weight: 800; }
 @media (max-width: 700px) {
   .chest-row { grid-template-columns: 1fr; }
+  .chest-col.champion { grid-column: auto; }
+  .chest-col.champion .chest-odds { grid-template-columns: 1fr; }
 }
 
 /* Skin tree — grouped + progress */

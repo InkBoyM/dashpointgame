@@ -42,6 +42,31 @@ window.DPNet = (function () {
     return res;
   }
 
+  function coinsValue(n) {
+    if (typeof n === "bigint") return n > 0n ? n : 0n;
+    if (typeof n === "number") {
+      if (!isFinite(n) || n <= 0) return 0n;
+      if (n <= Number.MAX_SAFE_INTEGER) return BigInt(Math.floor(n));
+    }
+    var s = String(n == null ? "0" : n).trim().replace(/[,_\s]/g, "");
+    var sci = /^([0-9]+)(?:\.([0-9]+))?e\+?([0-9]+)$/i.exec(s);
+    if (sci) {
+      var digits = sci[1] + (sci[2] || "");
+      var zeros = (parseInt(sci[3], 10) || 0) - (sci[2] ? sci[2].length : 0);
+      s = zeros >= 0 ? digits + Array(zeros + 1).join("0") : digits;
+    }
+    if (!/^\d+$/.test(s)) return 0n;
+    try {
+      var v = BigInt(s);
+      return v > 0n ? v : 0n;
+    } catch (e) { return 0n; }
+  }
+
+  function coinsMaxStr(a, b) {
+    var x = coinsValue(a), y = coinsValue(b);
+    return (x > y ? x : y).toString();
+  }
+
   let db = null;
   let auth = null;
   let user = null;
@@ -370,7 +395,7 @@ window.DPNet = (function () {
       deaths: fullSave.deaths | 0,
       jumps: fullSave.jumps | 0,
       playtime: Math.max(Number(cloud.playtime) || 0, Number(fullSave.playtime) || 0),
-      coins: Math.max(0, Math.floor(Number(fullSave.coins) || 0)),
+      coins: coinsMaxStr(fullSave.coins, cloud.coins),
       coinPaid: sanitizeObjectKeys(rawPaid),
       coinMigrated: !!fullSave.coinMigrated,
       codes: sanitizeObjectKeys(fullSave.codes || {}),
@@ -378,6 +403,7 @@ window.DPNet = (function () {
       unlocked: Array.isArray(fullSave.unlocked) ? fullSave.unlocked.slice() : [],
       tags: Array.isArray(fullSave.tags) ? fullSave.tags.slice() : [],
       tag: String(fullSave.tag || ""),
+      championKeys: Math.max(0, Math.floor(Number(fullSave.championKeys) || 0)),
       chestFree: {
         basic: Math.max(0, Number(fullSave.chestFree && fullSave.chestFree.basic) || 0),
         gold: Math.max(0, Number(fullSave.chestFree && fullSave.chestFree.gold) || 0),
@@ -416,7 +442,8 @@ window.DPNet = (function () {
     }
     if (cloud.deaths) toSave.deaths = Math.max(cloud.deaths|0, toSave.deaths|0);
     if (cloud.jumps) toSave.jumps = Math.max(cloud.jumps|0, toSave.jumps|0);
-    if (cloud.coins) toSave.coins = Math.max(Math.floor(Number(cloud.coins) || 0), toSave.coins);
+    if (cloud.coins) toSave.coins = coinsMaxStr(cloud.coins, toSave.coins);
+    if (cloud.championKeys) toSave.championKeys = Math.max(toSave.championKeys | 0, cloud.championKeys | 0);
     if (cloud.coinMigrated) toSave.coinMigrated = true;
     if (cloud.coinPaid) {
       const mergedPaid = sanitizeObjectKeys(desanitizeObjectKeys(cloud.coinPaid));
