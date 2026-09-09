@@ -31,6 +31,7 @@ window.DashPointMP = (function () {
   let pendingCube = null;
   let cubeActive = false;
   let cbs = {};
+  let myTag = "";
 
   function guestStoredName() {
     try {
@@ -98,6 +99,7 @@ window.DashPointMP = (function () {
     await meRef.update({
       name: user.name,
       uid: user.uid,
+      tag: String(myTag || ""),
       ts: Date.now(),
     }).catch(() => {});
   }
@@ -211,7 +213,7 @@ window.DashPointMP = (function () {
     meRef = roomRef.child("players/" + slot);
     const claim = await meRef.transaction((cur) => {
       if (isAlive(cur)) return;
-      return { name: user.name, uid: user.uid, ts: Date.now() };
+      return { name: user.name, uid: user.uid, tag: String(myTag || ""), ts: Date.now() };
     });
     if (!claim.committed) {
       roomRef = null;
@@ -335,12 +337,12 @@ window.DashPointMP = (function () {
 
   function roomPlayers() {
     const out = [];
-    if (user) out.push({ slot: slot || "host", uid: user.uid, name: user.name, online: true, me: true, watching: watchingUid ? { uid: watchingUid } : null });
+    if (user) out.push({ slot: slot || "host", uid: user.uid, name: user.name, tag: String(myTag || ""), online: true, me: true, watching: watchingUid ? { uid: watchingUid } : null });
     if (!active || !cachedPlayers) return out;
     for (const s of SLOTS) {
       if (s === slot) continue;
       const o = cachedPlayers[s];
-      if (o && o.uid) out.push({ slot: s, uid: String(o.uid), name: String(o.name || "player"), online: isOnline(o), me: false, watching: o.watching || null });
+      if (o && o.uid) out.push({ slot: s, uid: String(o.uid), name: String(o.name || "player"), tag: String(o.tag || ""), online: isOnline(o), me: false, watching: o.watching || null });
     }
     return out;
   }
@@ -363,6 +365,7 @@ window.DashPointMP = (function () {
       out.push({
         uid: String(other.uid || ""),
         name: String(other.name || "player"),
+        tag: String(other.tag || ""),
         online: isOnline(other),
         level: cb ? String(cb.level || "") : "",
         cube: fresh
@@ -429,6 +432,14 @@ window.DashPointMP = (function () {
     return clean;
   }
 
+  function setTag(id) {
+    const next = String(id || "");
+    if (myTag === next) return next;
+    myTag = next;
+    if (active) writeMe();
+    return next;
+  }
+
   async function logout() {
     ensureDb();
     await firebase.auth().signOut();
@@ -476,6 +487,7 @@ window.DashPointMP = (function () {
     login: login,
     loginGuest: loginGuest,
     setDisplayName: setDisplayName,
+    setTag: setTag,
     logout: logout,
   };
 })();

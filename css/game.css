@@ -199,6 +199,11 @@ canvas { image-rendering: pixelated; }
   font-size: 12px;
   letter-spacing: 0.5px;
   box-shadow: 2px 2px 0 rgba(0,0,0,0.35);
+  vertical-align: 1px;
+}
+.n-title .acct-tag, .n-sub .acct-tag, .lb-name .acct-tag, h2 .acct-tag {
+  font-size: 10px;
+  letter-spacing: 0.4px;
 }
 .ui-space .home-account {
   color: #c8d8f0;

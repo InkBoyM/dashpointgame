@@ -321,6 +321,9 @@ window.DPNet = (function () {
       name: u.name,
       lastSeen: Date.now(),
     };
+    if (stats && Object.prototype.hasOwnProperty.call(stats, "tag")) {
+      patch.tag = String(stats.tag || "").slice(0, 32);
+    }
     // Merge deaths/beatenCount via read-modify-patch to preserve cloudSave
     try {
       const cloud = (await getJSON(refPath)) || {};
@@ -446,7 +449,7 @@ window.DPNet = (function () {
       };
     }
     await putJSON(path, toSave);
-    await syncStats({ deaths: toSave.deaths, beatenCount: Object.keys(toSave.beaten).length });
+    await syncStats({ deaths: toSave.deaths, beatenCount: Object.keys(toSave.beaten).length, tag: String(fullSave.tag || toSave.tag || "") });
     return toSave;
   }
 
@@ -465,18 +468,22 @@ window.DPNet = (function () {
     return cloud;
   }
 
-  async function submitLeaderboard(levelFile, time, skin) {
+  async function submitLeaderboard(levelFile, time, skin, tag) {
     const u = getEffectiveUser() || getUser();
     if (!u) throw new Error("Not logged in");
     const lbPath = "/dashpoint/leaderboards/" + sanitizeFirebaseKey(levelFile);
+    const publicTag = String(tag || "").slice(0, 32);
     let existing = null;
     try { const all = await getJSON(lbPath); if (all && all[u.uid]) existing = all[u.uid]; } catch(e){}
     if (existing && existing.time != null && time >= existing.time) {
+      if (publicTag !== String(existing.tag || "") || u.name !== existing.name) {
+        try { await patchJSON(lbPath + "/" + u.uid, { name: u.name, tag: publicTag }); } catch (e) {}
+      }
       const list = await getLeaderboard(levelFile);
       let rank=-1; for(let i=0;i<list.length;i++) if(list[i].uid===u.uid) rank=i+1;
       return { rank: rank, list: list, improved:false };
     }
-    const entry = { time: time, name: u.name, skin: skin|0, updatedAt: Date.now() };
+    const entry = { time: time, name: u.name, skin: skin|0, tag: publicTag, updatedAt: Date.now() };
     await putJSON(lbPath + "/" + u.uid, entry);
     const list = await getLeaderboard(levelFile);
     let rank=-1; for(let i=0;i<list.length;i++) if(list[i].uid===u.uid) rank=i+1;
@@ -488,7 +495,7 @@ window.DPNet = (function () {
     try {
       const val = await getJSON("/dashpoint/leaderboards/" + sanitizeFirebaseKey(levelFile));
       if (!val) return [];
-      const list = Object.keys(val).map(function(uid){ var v=val[uid]; return { uid:uid, time:v.time, name:v.name, skin:v.skin, updatedAt:v.updatedAt }; });
+      const list = Object.keys(val).map(function(uid){ var v=val[uid]; return { uid:uid, time:v.time, name:v.name, skin:v.skin, tag: v.tag || "", updatedAt:v.updatedAt }; });
       list.sort(function(a,b){ return a.time - b.time; });
       return list.slice(0, limit);
     } catch(e){ return []; }

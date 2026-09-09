@@ -370,9 +370,42 @@
     return findShopTag(save_.data.tag);
   }
 
+  function equippedTagId() {
+    return findShopTag(save_.data.tag) ? save_.data.tag : "";
+  }
+
   function tagChipHtml(tag) {
     if (!tag) return "";
     return '<span class="acct-tag" style="color:' + tag.color + ";border-color:" + tag.color + '">{' + escapeHtml(tag.label) + "}</span>";
+  }
+
+  function taggedNameHtml(name, tagId, extra) {
+    const tag = findShopTag(tagId);
+    return escapeHtml(name || "player") + (extra || "") + (tag ? " " + tagChipHtml(tag) : "");
+  }
+
+  function tagIdForUid(uid) {
+    uid = String(uid || "");
+    if (!uid) return "";
+    const net = window.DPNet;
+    const mp = window.DashPointMP;
+    const me = (mp && mp.getUser && mp.getUser()) || (net && net.getUser && net.getUser());
+    if (me && me.uid === uid) return equippedTagId();
+    const u = (usersIndexCache || []).find(function (x) { return x.uid === uid; });
+    return u && findShopTag(u.tag) ? u.tag : "";
+  }
+
+  let lastPublishedTag = undefined;
+  function publishPublicTag() {
+    const id = equippedTagId();
+    try {
+      const mp = window.DashPointMP;
+      if (mp && mp.setTag) mp.setTag(id);
+    } catch (e) {}
+    const net = window.DPNet;
+    const loggedIn = !!(net && net.getUser && net.getUser());
+    if (!loggedIn || lastPublishedTag === id || !net.syncStats) return;
+    net.syncStats({ tag: id }).then(function () { lastPublishedTag = id; }).catch(function () {});
   }
 
   function syncAccountTagUI() {
@@ -392,6 +425,7 @@
         home.innerHTML = "<b>" + escapeHtml(u.name || "player") + "</b>" + (tag ? ' <span class="acct-tag-wrap">Tag: ' + tagChipHtml(tag) + "</span>" : "");
       }
     }
+    publishPublicTag();
   }
 
   function defaultSave() {
@@ -589,7 +623,7 @@
       }
       // submit first
       var res = null;
-      try { res = await DPNet.submitLeaderboard(file, time, save_.data.skin); } catch(e){}
+      try { res = await DPNet.submitLeaderboard(file, time, save_.data.skin, equippedTagId()); } catch(e){}
       var list = [];
       try { list = await DPNet.getLeaderboard(file, 10); } catch(e){}
       if (!list.length) {
@@ -602,7 +636,7 @@
         var isMe = u && row.uid === u.uid;
         var skinSrc = (window.DashPointSkins && window.DashPointSkins[row.skin-1] ? window.DashPointSkins[row.skin-1].src : "assets/skins/skin-1.png");
         var attr = isMe ? '' : (' data-uid="' + escapeHtml(row.uid) + '" data-name="' + escapeHtml(row.name) + '"');
-        html += '<div class="lb-row' + (isMe ? ' lb-me' : ' lb-race') + '"' + attr + '><span class="lb-rank">#' + (i+1) + '</span><img class="lb-skin" src="' + skinSrc + '" alt="" /><span class="lb-name">' + escapeHtml(row.name) + (isMe ? ' (you)' : '') + '</span><span class="lb-time">' + fmtTime(row.time) + '</span>' + (isMe ? '' : '<span class="lb-race-hint">RACE ▶</span>') + '</div>';
+        html += '<div class="lb-row' + (isMe ? ' lb-me' : ' lb-race') + '"' + attr + '><span class="lb-rank">#' + (i+1) + '</span><img class="lb-skin" src="' + skinSrc + '" alt="" /><span class="lb-name">' + taggedNameHtml(row.name, row.tag || (isMe ? equippedTagId() : tagIdForUid(row.uid)), isMe ? " (you)" : "") + '</span><span class="lb-time">' + fmtTime(row.time) + '</span>' + (isMe ? '' : '<span class="lb-race-hint">RACE ▶</span>') + '</div>';
       }
       // if not in top10 but has rank beyond, show yours
       if (res && res.rank && res.rank > 10) {
@@ -1026,6 +1060,7 @@
         if (owned) {
           save_.data.tag = equipped ? "" : tag.id;
           save();
+          lastPublishedTag = undefined;
           renderShopTags();
           syncAccountTagUI();
           return;
@@ -1048,6 +1083,7 @@
     save_.data.tags.push(tag.id);
     save_.data.tag = tag.id;
     save();
+    lastPublishedTag = undefined;
     showNotice("Tag {" + tag.label + "} unlocked!", false);
     renderShop();
     syncHomeStats();
@@ -1723,7 +1759,12 @@
       remoteCubes = [];
       for (const p of MP.peers()) {
         if (p.cube && p.level === state.currentFile) {
-          remoteCubes.push(Object.assign({ name: p.name }, p.cube));
+          const pTag = findShopTag(p.tag);
+          remoteCubes.push(Object.assign({
+            name: p.name,
+            tagLabel: pTag ? pTag.label : "",
+            tagColor: pTag ? pTag.color : "",
+          }, p.cube));
         }
       }
     }
@@ -1823,8 +1864,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
           dot.textContent = q.online ? "● " : "○ ";
           dot.style.color = q.online ? "var(--good)" : "#9db4d8";
           const nm = document.createElement("span");
-          const myTag = q.me ? equippedTag() : null;
-          nm.innerHTML = escapeHtml(q.name + (q.me ? " (you)" : "") + (q.slot === "host" ? " [host]" : "")) + (myTag ? " " + tagChipHtml(myTag) : "");
+          const tagId = q.tag || (q.me ? equippedTagId() : tagIdForUid(q.uid));
+          nm.innerHTML = taggedNameHtml(q.name + (q.me ? " (you)" : "") + (q.slot === "host" ? " [host]" : ""), tagId);
           nm.style.flex = "1";
           row.appendChild(dot); row.appendChild(nm);
           if (!q.me && q.online) {
@@ -2042,7 +2083,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     info.className = "n-main";
     info.innerHTML =
       '<div class="n-title">' + escapeHtml(meta.title || "Untitled") + "</div>" +
-      '<div class="n-sub">by <b class="n-author" style="cursor:pointer">' + escapeHtml(meta.authorName || "?") + "</b></div>" +
+      '<div class="n-sub">by <b class="n-author" style="cursor:pointer">' + taggedNameHtml(meta.authorName || "?", tagIdForUid(meta.authorUid)) + "</b></div>" +
       (meta.tags && meta.tags.length ? '<div class="n-sub"><span class="level-tag">' + escapeHtml(meta.tags.join(" · ")) + "</span></div>" : "") +
       '<div class="n-sub">' + escapeHtml((meta.desc || "").slice(0, 90)) + "</div>";
     const diff = document.createElement("div");
@@ -2216,7 +2257,18 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       hits.forEach(function(u){
         if (u._fromLevel && NET.getUserProfile) {
           NET.getUserProfile(u.uid).then(function(real){
-            if (real) { for (var k in real) u[k] = real[k]; delete u._fromLevel; if (usersIndexCache && !usersIndexCache.find(function(x){ return x.uid===u.uid; })) usersIndexCache.push(u); }
+            if (!real) return;
+            for (var k in real) u[k] = real[k];
+            delete u._fromLevel;
+            if (usersIndexCache && !usersIndexCache.find(function(x){ return x.uid===u.uid; })) usersIndexCache.push(u);
+            var nodes = box.querySelectorAll(".net-row.user");
+            for (var ri = 0; ri < nodes.length; ri++) {
+              if (nodes[ri].getAttribute("data-uid") === u.uid) {
+                var title = nodes[ri].querySelector(".n-title");
+                if (title) title.innerHTML = taggedNameHtml(u.name, u.tag);
+                break;
+              }
+            }
           }).catch(function(){});
         }
       });
@@ -2226,9 +2278,10 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         var made = levelIndexCache.filter(function(l){ return l.authorUid === u.uid; }).length;
         var row = document.createElement("button");
         row.className = "net-row user";
+        row.setAttribute("data-uid", u.uid);
         row.innerHTML =
           '<img class="n-avatar" src="assets/skins/skin-1.png" alt="" />' +
-          '<span class="n-main"><span class="n-title">' + escapeHtml(u.name) + "</span>" +
+          '<span class="n-main"><span class="n-title">' + taggedNameHtml(u.name, u.tag || tagIdForUid(u.uid)) + "</span>" +
           '<div class="n-sub">' + made + " level" + (made === 1 ? "" : "s") + " made</div></span>" +
           '<span class="n-play">VIEW</span>';
         (function(uid){ row.addEventListener("click", function(){ openAccount(uid); }); })(u.uid);
@@ -2272,7 +2325,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       return;
     }
     var theirs = (levelIndexCache || []).filter(function(l){ return l.authorUid === uid; });
-    el("acctTitle").textContent = String(u.name || "player").toUpperCase();
+    el("acctTitle").innerHTML = taggedNameHtml(String(u.name || "player").toUpperCase(), u.tag || tagIdForUid(u.uid));
     el("acctMade").textContent = theirs.length;
     el("acctBeaten").textContent = u.beatenCount || 0;
     el("acctDeaths").textContent = u.deaths || 0;
@@ -2299,7 +2352,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       row.innerHTML =
         '<span class="lc-face">' + diffFaceImg(netDiff(sv.meta)) + "</span>" +
         '<span class="n-main"><span class="n-title">' + escapeHtml(sv.meta.title || "Untitled") + "</span>" +
-        '<div class="n-sub">by ' + escapeHtml(sv.meta.authorName || "?") + " · offline ready</div></span>";
+        '<div class="n-sub">by ' + taggedNameHtml(sv.meta.authorName || "?", tagIdForUid(sv.meta.authorUid)) + " · offline ready</div></span>";
       row.addEventListener("click", () => openLevelInfo(sv));
       const play = document.createElement("button");
       play.className = "n-play";
@@ -2331,7 +2384,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     const meta = sv.meta;
     el("liName").textContent = meta.title || "Untitled";
     el("liDiff").innerHTML = diffFaceImg(netDiff(meta));
-    el("liAuthor").textContent = meta.authorName || "—";
+    el("liAuthor").innerHTML = taggedNameHtml(meta.authorName || "—", tagIdForUid(meta.authorUid));
     const best = save_.data.best[key];
     el("liBest").textContent = best !== undefined ? fmtTime(best) : "—";
     const a = save_.data.attempts[key] || { attempts: 0, deaths: 0 };
@@ -2390,7 +2443,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     const chip = el("hudAuthor");
     const m = state.currentMeta;
     if (m && m.authorName) {
-      chip.textContent = "by " + m.authorName;
+      chip.innerHTML = "by " + taggedNameHtml(m.authorName, tagIdForUid(m.authorUid));
       chip.classList.remove("hidden");
       chip.onclick = () => openAccount(m.authorUid);
     } else {
@@ -2606,6 +2659,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnResetProgress").addEventListener("click", () => {
       if (!confirm("Wipe all progress? Deaths, cleared levels and unlocked skins will be lost.")) return;
       save_.data = defaultSave();
+      lastPublishedTag = undefined;
       save();
       closeModal("modalSettings");
       applySpaceTheme();
@@ -2754,6 +2808,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
           save_.data.tags = Object.keys(ts);
         }
         if (cloud.tag && !save_.data.tag && findShopTag(cloud.tag) && ownsTag(cloud.tag)) save_.data.tag = cloud.tag;
+        lastPublishedTag = undefined;
         if (cloud.chestFree && typeof cloud.chestFree === "object") {
           save_.data.chestFree = save_.data.chestFree || {};
           ["basic", "gold", "diamond", "king"].forEach(function (ck) {

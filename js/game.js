@@ -1955,13 +1955,24 @@
         if (rc.name) {
           ctx.save();
           ctx.font = Math.max(8, 11 / zoom) + "px Consolas, monospace";
-          ctx.textAlign = "center";
+          ctx.textAlign = "left";
           ctx.lineJoin = "round";
           ctx.lineWidth = Math.max(2, 3 / zoom);
           ctx.strokeStyle = "rgba(7, 16, 24, 0.85)";
-          ctx.strokeText(rc.name, rdx + TILE / 2, rdy - 6);
+          const tagTxt = rc.tagLabel ? "{" + rc.tagLabel + "}" : "";
+          const nameW = ctx.measureText(rc.name).width;
+          const gap = tagTxt ? ctx.measureText(" ").width : 0;
+          const tagW = tagTxt ? ctx.measureText(tagTxt).width : 0;
+          const x0 = rdx + TILE / 2 - (nameW + gap + tagW) / 2;
+          const ny = rdy - 6;
+          ctx.strokeText(rc.name, x0, ny);
           ctx.fillStyle = rc.dead ? "#7f93b0" : "#ffd23c";
-          ctx.fillText(rc.name, rdx + TILE / 2, rdy - 6);
+          ctx.fillText(rc.name, x0, ny);
+          if (tagTxt) {
+            ctx.strokeText(tagTxt, x0 + nameW + gap, ny);
+            ctx.fillStyle = rc.dead ? "#7f93b0" : (rc.tagColor || "#ffd23c");
+            ctx.fillText(tagTxt, x0 + nameW + gap, ny);
+          }
           ctx.textAlign = "start";
           ctx.restore();
         }
