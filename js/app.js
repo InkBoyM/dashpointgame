@@ -1214,7 +1214,7 @@
     });
     const hint = el("gfxHint");
     if (!hint) return;
-    if (mode === "good") hint.textContent = "Sharper sprites, UI icons, and outlines. See farther ahead.";
+    if (mode === "good") hint.textContent = "Same crisp sprites as Normal, with a wider view.";
     else if (mode === "simple") hint.textContent = "Faster. Solid colors and fewer effects.";
     else hint.textContent = "Default look.";
   }
@@ -1225,9 +1225,8 @@
     let lo = 3;
     let hi = 5;
     if (mode === "good") {
-      tiles = 22;
-      lo = 2;
-      hi = 3.6;
+      const z = Math.round(el("view").width / (20 * TILE));
+      return Math.max(2, Math.min(3, z));
     } else if (mode === "simple") {
       tiles = 12;
       lo = 3.2;
@@ -2892,8 +2891,13 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       (ev) => {
         if (state.screen !== "game") return;
         ev.preventDefault();
-        const step = ev.deltaY > 0 ? -0.25 : 0.25;
-        cam.zoom = Math.max(1.5, Math.min(9, Math.round((cam.zoom + step) * 100) / 100));
+        if (gfxMode() === "good") {
+          const step = ev.deltaY > 0 ? -1 : 1;
+          cam.zoom = Math.max(2, Math.min(4, Math.round(cam.zoom + step)));
+        } else {
+          const step = ev.deltaY > 0 ? -0.25 : 0.25;
+          cam.zoom = Math.max(1.5, Math.min(9, Math.round((cam.zoom + step) * 100) / 100));
+        }
       },
       { passive: false }
     );

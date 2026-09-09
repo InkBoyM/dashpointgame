@@ -1689,27 +1689,6 @@
     ctx.restore();
   }
 
-  function strokeSpriteOutline(ctx, tile, x, y, size) {
-    ctx.save();
-    ctx.lineJoin = "round";
-    ctx.lineWidth = Math.max(1.5, size * 0.08);
-    ctx.strokeStyle = "rgba(8, 14, 28, 0.95)";
-    if (isSpikeId(tile.id)) {
-      spikePoly(ctx, x, y, size, tile.rot || 0);
-      ctx.stroke();
-    } else if (isOrbId(tile.id) || isCoinId(tile.id)) {
-      ctx.beginPath();
-      ctx.arc(x + size / 2, y + size / 2, size * 0.42, 0, Math.PI * 2);
-      ctx.stroke();
-    } else {
-      ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
-      ctx.lineWidth = Math.max(1, size * 0.035);
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.28)";
-      ctx.strokeRect(x + 2.5, y + 2.5, size - 5, size - 5);
-    }
-    ctx.restore();
-  }
-
   function drawTile(ctx, images, tile, x, y, size, opts) {
     size = size || TILE;
     opts = opts || {};
@@ -1725,7 +1704,6 @@
         return;
       }
       drawCoinGraphic(ctx, images, tile, x, y, size, bob);
-      if (opts.graphics === "good") strokeSpriteOutline(ctx, tile, x, y + bob, size);
       return;
     }
     if (opts.graphics === "simple") {
@@ -1761,7 +1739,6 @@
       ctx.drawImage(img, x, y, size, size);
     }
     ctx.restore();
-    if (opts.graphics === "good") strokeSpriteOutline(ctx, tile, x, y, size);
     if (!opts.hideInvisible && isInvisibleId(tile.id)) {
       ctx.save();
       ctx.strokeStyle = "rgba(176, 92, 255, 0.95)";
@@ -1830,8 +1807,7 @@
     const worldW = level.cols * TILE;
     const worldH = level.rows * TILE;
 
-    ctx.imageSmoothingEnabled = gfx === "good";
-    if (gfx === "good") ctx.imageSmoothingQuality = "high";
+    ctx.imageSmoothingEnabled = false;
     drawBackdrop(ctx, w, h, Date.now() / 1000, level.theme, gfx === "simple");
 
     ctx.save();
@@ -1841,7 +1817,7 @@
     if (gfx !== "simple") {
       drawPictures(ctx, level);
       drawWidgets(ctx, level, 0);
-      ctx.imageSmoothingEnabled = gfx === "good";
+      ctx.imageSmoothingEnabled = false;
     }
 
     ctx.fillStyle = "rgba(255, 42, 60, 0.16)";
@@ -2037,13 +2013,6 @@
           ctx.fillRect(rc.x, rc.y, PLAYER_W, PLAYER_H);
         }
         ctx.restore();
-        if (gfx === "good") {
-          ctx.save();
-          ctx.strokeStyle = "rgba(8, 14, 28, 0.95)";
-          ctx.lineWidth = 2;
-          ctx.strokeRect(rdx + 1, rdy + 1, TILE - 2, TILE - 2);
-          ctx.restore();
-        }
         if (rc.name && gfx !== "simple") {
           ctx.save();
           ctx.font = Math.max(8, 11 / zoom) + "px Consolas, monospace";
@@ -2087,16 +2056,6 @@
       } else {
         ctx.fillStyle = "#fff";
         ctx.fillRect(p.x, p.y, p.w, p.h);
-      }
-      if (gfx === "good") {
-        ctx.save();
-        ctx.strokeStyle = "rgba(8, 14, 28, 0.95)";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(dx + 1, dy + 1, TILE - 2, TILE - 2);
-        ctx.lineWidth = 1;
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.28)";
-        ctx.strokeRect(dx + 3, dy + 3, TILE - 6, TILE - 6);
-        ctx.restore();
       }
       if (extras.hitboxes) {
         ctx.strokeStyle = "#2ee6ff";
