@@ -1589,6 +1589,7 @@
     if (!state.engine) return;
     state.engine.collected = new Set();
     state.engine.pendingCoinGrant = 0;
+    if (state.engine.clearCheckpoint) state.engine.clearCheckpoint();
     state.engine.reset();
     if (DP.Music) DP.Music.play(state.engine.level.song);
     el("winCard").classList.remove("visible");
