@@ -1315,20 +1315,6 @@
       }
     }
     if (!raw) { say("Type a code first.", true); return; }
-    const give = /^\/give=(.*)$/.exec(raw);
-    if (give) {
-      const got = coinAmount(give[1]);
-      if (got <= 0n) { say("Usage: /give=<amount>.", true); return; }
-      addCoins(got);
-      say("+" + fmtCoins(got) + " coins!", false);
-      showNotice("+" + fmtCoins(got) + " coins", false);
-      if (inp) inp.value = "";
-      save();
-      syncHomeStats();
-      syncCoinUI();
-      if (el("modalSkins").classList.contains("visible")) renderSkins();
-      return;
-    }
     const reward = REDEEM_CODES[raw];
     if (!reward) { say("Invalid code.", true); return; }
     save_.data.codes = save_.data.codes || {};
