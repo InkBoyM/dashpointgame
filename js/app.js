@@ -543,8 +543,20 @@
     publishPublicTag();
   }
 
+  function clampGhostOpacity(n) {
+    n = Number(n);
+    if (!isFinite(n)) return 100;
+    if (n < 0) return 0;
+    if (n > 100) return 100;
+    return Math.round(n);
+  }
+
+  function ghostOpacityPct() {
+    return clampGhostOpacity(save_.data && save_.data.ghostOpacity);
+  }
+
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", tags: [], tag: "", chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
   }
 
   function load() {
@@ -574,6 +586,7 @@
         king: Number(cf.king) || 0,
       };
       s.graphics = s.graphics === "good" || s.graphics === "simple" ? s.graphics : "normal";
+      s.ghostOpacity = clampGhostOpacity(s.ghostOpacity);
       return s;
     } catch (e) {
       return defaultSave();
@@ -1452,6 +1465,7 @@
       el("setHitbox").checked = !!save_.data.hitboxes;
       el("setFps").checked = !!save_.data.debugFps;
       el("setAuto").checked = save_.data.autoRespawn !== false;
+      syncGhostOpUI();
       syncGfxUI();
       syncSpaceSettings();
     }
@@ -1475,6 +1489,14 @@
     const g = save_.data && save_.data.graphics;
     if (g === "good" || g === "simple") return g;
     return "normal";
+  }
+
+  function syncGhostOpUI() {
+    const pct = ghostOpacityPct();
+    const slider = el("setGhostOp");
+    const val = el("setGhostOpVal");
+    if (slider) slider.value = String(pct);
+    if (val) val.textContent = pct + "%";
   }
 
   function applyGraphics() {
@@ -2095,7 +2117,7 @@
       var gpos = getGhostPos(state.engine.time);
       if (gpos) {
         if (!remoteCubes) remoteCubes = [];
-        remoteCubes.push({ x: gpos.x, y: gpos.y, rot: gpos.rot, skin: gpos.skin, name: "Ghost", level: state.currentFile });
+        remoteCubes.push({ x: gpos.x, y: gpos.y, rot: gpos.rot, skin: gpos.skin, name: "Ghost", level: state.currentFile, ghost: true, alpha: ghostOpacityPct() / 100 });
       }
     }
 DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
@@ -2988,6 +3010,11 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("setAuto").addEventListener("change", (ev) => {
       save_.data.autoRespawn = ev.target.checked;
       save();
+    });
+    el("setGhostOp").addEventListener("input", (ev) => {
+      save_.data.ghostOpacity = clampGhostOpacity(ev.target.value);
+      save();
+      syncGhostOpUI();
     });
     document.querySelectorAll(".gfx-opt").forEach(function (b) {
       b.addEventListener("click", function () {

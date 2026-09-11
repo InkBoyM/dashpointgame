@@ -2003,7 +2003,8 @@
         const rdx = Math.round(rc.x + PLAYER_W / 2 - TILE / 2);
         const rdy = Math.round(rc.y + PLAYER_H - TILE);
         ctx.save();
-        if (rc.dead) ctx.globalAlpha = 0.45;
+        if (typeof rc.alpha === "number") ctx.globalAlpha = rc.alpha;
+        else if (rc.dead) ctx.globalAlpha = 0.45;
         if (rSkinImg) {
           ctx.translate(rdx + TILE / 2, rdy + TILE / 2);
           ctx.rotate(((rc.rot || 0) * Math.PI) / 180);
@@ -2015,6 +2016,7 @@
         ctx.restore();
         if (rc.name && gfx !== "simple") {
           ctx.save();
+          if (typeof rc.alpha === "number") ctx.globalAlpha = rc.alpha;
           ctx.font = Math.max(8, 11 / zoom) + "px Consolas, monospace";
           ctx.textAlign = "left";
           ctx.lineJoin = "round";
