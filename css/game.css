@@ -1015,7 +1015,17 @@ body.gfx-simple img, body.gfx-simple canvas { image-rendering: pixelated; }
 /* ---------- COMPACT LAYOUT FOR PHONES ---------- */
 @media (max-height: 560px), (max-width: 900px) {
   .home-logo { width: clamp(170px, 52vw, 300px); }
-  .home-center { gap: 12px; }
+  .home-center {
+    gap: 12px;
+    justify-content: flex-start;
+    overflow-y: auto;
+    min-height: 0;
+    padding: 10px 0 14px;
+  }
+  .home-foot { max-width: 96vw; }
+  .home-account { max-width: 94vw; font-size: 12px; padding: 5px 10px; }
+  .home-stats { max-width: 94vw; }
+  .ui-space .home-stats { gap: 6px; }
   .home-buttons { gap: 10px; width: min(250px, 70vw); }
   .home-buttons .px-btn { font-size: 14px; padding: 9px 14px; }
   .home-buttons .px-btn img { width: 19px; height: 19px; }
