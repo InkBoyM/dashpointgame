@@ -349,6 +349,12 @@ window.DPNet = (function () {
     if (stats && Object.prototype.hasOwnProperty.call(stats, "tag")) {
       patch.tag = String(stats.tag || "").slice(0, 32);
     }
+    if (stats && Object.prototype.hasOwnProperty.call(stats, "nameColor")) {
+      patch.nameColor = String(stats.nameColor || "").slice(0, 32);
+    }
+    if (stats && Object.prototype.hasOwnProperty.call(stats, "frame")) {
+      patch.frame = String(stats.frame || "").slice(0, 32);
+    }
     // Merge deaths/beatenCount via read-modify-patch to preserve cloudSave
     try {
       const cloud = (await getJSON(refPath)) || {};
@@ -403,6 +409,12 @@ window.DPNet = (function () {
       unlocked: Array.isArray(fullSave.unlocked) ? fullSave.unlocked.slice() : [],
       tags: Array.isArray(fullSave.tags) ? fullSave.tags.slice() : [],
       tag: String(fullSave.tag || ""),
+      nameColors: Array.isArray(fullSave.nameColors) ? fullSave.nameColors.slice() : [],
+      nameColor: String(fullSave.nameColor || ""),
+      frames: Array.isArray(fullSave.frames) ? fullSave.frames.slice() : [],
+      frame: String(fullSave.frame || ""),
+      trails: Array.isArray(fullSave.trails) ? fullSave.trails.slice() : [],
+      trail: String(fullSave.trail || ""),
       championKeys: Math.max(0, Math.floor(Number(fullSave.championKeys) || 0)),
       chestFree: {
         basic: Math.max(0, Number(fullSave.chestFree && fullSave.chestFree.basic) || 0),
@@ -467,6 +479,27 @@ window.DPNet = (function () {
       toSave.tags = Object.keys(set);
     }
     if (cloud.tag && !toSave.tag) toSave.tag = String(cloud.tag);
+    if (Array.isArray(cloud.nameColors)) {
+      const set = {};
+      (toSave.nameColors || []).forEach(function (id) { set[id] = true; });
+      cloud.nameColors.forEach(function (id) { if (id) set[id] = true; });
+      toSave.nameColors = Object.keys(set);
+    }
+    if (cloud.nameColor && !toSave.nameColor) toSave.nameColor = String(cloud.nameColor);
+    if (Array.isArray(cloud.frames)) {
+      const set = {};
+      (toSave.frames || []).forEach(function (id) { set[id] = true; });
+      cloud.frames.forEach(function (id) { if (id) set[id] = true; });
+      toSave.frames = Object.keys(set);
+    }
+    if (cloud.frame && !toSave.frame) toSave.frame = String(cloud.frame);
+    if (Array.isArray(cloud.trails)) {
+      const set = {};
+      (toSave.trails || []).forEach(function (id) { set[id] = true; });
+      cloud.trails.forEach(function (id) { if (id) set[id] = true; });
+      toSave.trails = Object.keys(set);
+    }
+    if (cloud.trail && !toSave.trail) toSave.trail = String(cloud.trail);
     if (cloud.chestFree && typeof cloud.chestFree === "object") {
       toSave.chestFree = {
         basic: Math.max(toSave.chestFree.basic, Number(cloud.chestFree.basic) || 0),
@@ -476,7 +509,7 @@ window.DPNet = (function () {
       };
     }
     await putJSON(path, toSave);
-    await syncStats({ deaths: toSave.deaths, beatenCount: Object.keys(toSave.beaten).length, tag: String(fullSave.tag || toSave.tag || "") });
+    await syncStats({ deaths: toSave.deaths, beatenCount: Object.keys(toSave.beaten).length, tag: String(fullSave.tag || toSave.tag || ""), nameColor: String(fullSave.nameColor || toSave.nameColor || ""), frame: String(fullSave.frame || toSave.frame || "") });
     return toSave;
   }
 
@@ -495,22 +528,24 @@ window.DPNet = (function () {
     return cloud;
   }
 
-  async function submitLeaderboard(levelFile, time, skin, tag) {
+  async function submitLeaderboard(levelFile, time, skin, tag, nameColor, frame) {
     const u = getEffectiveUser() || getUser();
     if (!u) throw new Error("Not logged in");
     const lbPath = "/dashpoint/leaderboards/" + sanitizeFirebaseKey(levelFile);
     const publicTag = String(tag || "").slice(0, 32);
+    const publicColor = String(nameColor || "").slice(0, 32);
+    const publicFrame = String(frame || "").slice(0, 32);
     let existing = null;
     try { const all = await getJSON(lbPath); if (all && all[u.uid]) existing = all[u.uid]; } catch(e){}
     if (existing && existing.time != null && time >= existing.time) {
-      if (publicTag !== String(existing.tag || "") || u.name !== existing.name) {
-        try { await patchJSON(lbPath + "/" + u.uid, { name: u.name, tag: publicTag }); } catch (e) {}
+      if (publicTag !== String(existing.tag || "") || publicColor !== String(existing.nameColor || "") || publicFrame !== String(existing.frame || "") || u.name !== existing.name) {
+        try { await patchJSON(lbPath + "/" + u.uid, { name: u.name, tag: publicTag, nameColor: publicColor, frame: publicFrame }); } catch (e) {}
       }
       const list = await getLeaderboard(levelFile);
       let rank=-1; for(let i=0;i<list.length;i++) if(list[i].uid===u.uid) rank=i+1;
       return { rank: rank, list: list, improved:false };
     }
-    const entry = { time: time, name: u.name, skin: skin|0, tag: publicTag, updatedAt: Date.now() };
+    const entry = { time: time, name: u.name, skin: skin|0, tag: publicTag, nameColor: publicColor, frame: publicFrame, updatedAt: Date.now() };
     await putJSON(lbPath + "/" + u.uid, entry);
     const list = await getLeaderboard(levelFile);
     let rank=-1; for(let i=0;i<list.length;i++) if(list[i].uid===u.uid) rank=i+1;
@@ -522,7 +557,7 @@ window.DPNet = (function () {
     try {
       const val = await getJSON("/dashpoint/leaderboards/" + sanitizeFirebaseKey(levelFile));
       if (!val) return [];
-      const list = Object.keys(val).map(function(uid){ var v=val[uid]; return { uid:uid, time:v.time, name:v.name, skin:v.skin, tag: v.tag || "", updatedAt:v.updatedAt }; });
+      const list = Object.keys(val).map(function(uid){ var v=val[uid]; return { uid:uid, time:v.time, name:v.name, skin:v.skin, tag: v.tag || "", nameColor: v.nameColor || "", frame: v.frame || "", updatedAt:v.updatedAt }; });
       list.sort(function(a,b){ return a.time - b.time; });
       return list.slice(0, limit);
     } catch(e){ return []; }

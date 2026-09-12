@@ -1113,6 +1113,13 @@
   const PLAYER_W = 24;
   const PLAYER_H = 24;
 
+  const TRAILS = {
+    sparkle: { rate: 40, life: [0.3, 0.6], size: [2, 4], vx: [-20, 20], vy: [-30, -70], colors: ["#ffffff", "#ffd23c", "#fff3c2"], grav: 60, drag: 1.5 },
+    bubbles: { rate: 22, life: [0.5, 1.0], size: [2, 5], vx: [-15, 15], vy: [-60, -110], colors: ["#2ee6ff", "#9beaff", "#ffffff"], grav: -40, drag: 1.2, ring: true },
+    fire: { rate: 55, life: [0.25, 0.5], size: [3, 6], vx: [-25, 25], vy: [-40, -100], colors: ["#ff5a1a", "#ff9d2e", "#ffd23c"], grav: -120, drag: 1.8 },
+    rainbow: { rate: 50, life: [0.35, 0.7], size: [2, 5], vx: [-30, 30], vy: [-20, -60], colors: ["#ffffff"], grav: 30, drag: 1.5, rainbow: true },
+  };
+
   function solidBox(c, r, tile) {
     return { x: cellX(c, tile), y: cellY(r, tile), w: TILE, h: TILE };
   }
@@ -1169,6 +1176,11 @@
     constructor(level, opts) {
       this.source = level;
       this.skin = clamp((opts && opts.skin) | 0, 1, Math.max(1, SKINS.length));
+      this.trail = (opts && opts.trail) || "";
+      if (!TRAILS[this.trail]) this.trail = "";
+      this.trailParts = [];
+      this.trailTick = 0;
+      this.trailHue = 0;
       this.touched = new Set();
       this.collected = new Set();
       this.checkpoint = null;
@@ -1217,6 +1229,8 @@
       this.dashFlash = 0;
       this.finished = false;
       this.movers = [];
+      this.trailParts = [];
+      this.trailTick = 0;
       const triggers = this.level.triggers || [];
       for (const tg of triggers) {
         let ty = tg.tr;
@@ -1644,6 +1658,55 @@
       this.checkCoins();
       this.updateMovers(dt);
       this.checkTriggers();
+      this.tickTrail(dt);
+    }
+
+    tickTrail(dt) {
+      const parts = this.trailParts;
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const q = parts[i];
+        q.life -= dt;
+        if (q.life <= 0) {
+          parts.splice(i, 1);
+          continue;
+        }
+        q.vy += (q.grav || 0) * dt;
+        const dr = Math.max(0, 1 - (q.drag || 0) * dt);
+        q.vx *= dr;
+        q.x += q.vx * dt;
+        q.y += q.vy * dt;
+      }
+      const spec = TRAILS[this.trail];
+      if (!spec) return;
+      const p = this.player;
+      const moving = Math.abs(p.vx) > 30 || Math.abs(p.vy) > 60 || !p.onGround;
+      if (!moving) return;
+      this.trailTick += dt;
+      const interval = 1 / (spec.rate || 30);
+      while (this.trailTick >= interval) {
+        this.trailTick -= interval;
+        if (parts.length >= 220) return;
+        const r = Math.random;
+        const life = spec.life[0] + r() * (spec.life[1] - spec.life[0]);
+        let color = spec.colors[(r() * spec.colors.length) | 0];
+        if (spec.rainbow) {
+          this.trailHue = (this.trailHue + 24) % 360;
+          color = "hsl(" + ((this.trailHue | 0) % 360) + ",100%,62%)";
+        }
+        parts.push({
+          x: p.x + p.w / 2 - Math.sign(p.vx || p.facing || 1) * 8 + (r() - 0.5) * p.w,
+          y: p.y + p.h - r() * 8,
+          vx: (spec.vx ? spec.vx[0] + r() * (spec.vx[1] - spec.vx[0]) : 0) - (p.vx || 0) * 0.15,
+          vy: spec.vy ? spec.vy[0] + r() * (spec.vy[1] - spec.vy[0]) : 0,
+          life: life,
+          max: life,
+          size: spec.size[0] + r() * (spec.size[1] - spec.size[0]),
+          color: color,
+          grav: spec.grav || 0,
+          drag: spec.drag || 0,
+          ring: !!spec.ring,
+        });
+      }
     }
   }
 
@@ -2029,7 +2092,7 @@
           const x0 = rdx + TILE / 2 - (nameW + gap + tagW) / 2;
           const ny = rdy - 6;
           ctx.strokeText(rc.name, x0, ny);
-          ctx.fillStyle = rc.dead ? "#7f93b0" : "#ffd23c";
+          ctx.fillStyle = rc.dead ? "#7f93b0" : (rc.nameColor || "#ffd23c");
           ctx.fillText(rc.name, x0, ny);
           if (tagTxt) {
             ctx.strokeText(tagTxt, x0 + nameW + gap, ny);
@@ -2049,6 +2112,25 @@
       const skinImg = images.skins && images.skins[skinId];
       const dx = Math.round(p.x + p.w / 2 - TILE / 2);
       const dy = Math.round(p.y + p.h - TILE);
+      if (gfx !== "simple" && engine.trailParts && engine.trailParts.length) {
+        for (const q of engine.trailParts) {
+          const a = Math.max(0, q.life / q.max);
+          const s = Math.max(1, q.size * (0.4 + 0.6 * a));
+          if (q.ring) {
+            ctx.globalAlpha = a * 0.85;
+            ctx.strokeStyle = q.color;
+            ctx.lineWidth = Math.max(1, 1.5 / zoom);
+            ctx.beginPath();
+            ctx.arc(q.x, q.y, s / 2, 0, Math.PI * 2);
+            ctx.stroke();
+          } else {
+            ctx.globalAlpha = a * 0.9;
+            ctx.fillStyle = q.color;
+            ctx.fillRect(q.x - s / 2, q.y - s / 2, s, s);
+          }
+        }
+        ctx.globalAlpha = 1;
+      }
       if (skinImg) {
         ctx.save();
         ctx.translate(dx + TILE / 2, dy + TILE / 2);
@@ -2185,6 +2267,7 @@
     solidBox,
     PLAYER_W,
     PLAYER_H,
+    TRAILS,
     matchesBind,
   };
 })(window);

@@ -217,6 +217,32 @@ canvas { image-rendering: pixelated; }
   letter-spacing: 0.5px;
   padding: 8px 6px;
 }
+.avatar-frame {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 6px;
+  line-height: 0;
+}
+.avatar-frame img { display: block; }
+.frame-bronze { border: 3px solid #b0783c; background: #3a2415; }
+.frame-silver { border: 3px solid #cfd8e6; background: #2a3444; box-shadow: 0 0 8px rgba(207, 216, 230, 0.5); }
+.frame-neon { border: 3px solid var(--cyan); box-shadow: 0 0 10px var(--cyan), inset 0 0 6px rgba(46, 230, 255, 0.4); }
+.frame-royal { border: 3px solid #b45cff; background: #1c1030; box-shadow: 0 0 10px rgba(180, 92, 255, 0.6); }
+.frame-inferno { border: 3px solid #ff5a1a; background: #2a0f06; box-shadow: 0 0 12px rgba(255, 90, 26, 0.7); }
+.frame-prism {
+  border: 3px solid transparent;
+  background: linear-gradient(#16233d, #16233d) padding-box,
+    linear-gradient(135deg, #ff5a5a, #ffd23c, #3ee07a, #2ee6ff, #b45cff) border-box;
+  box-shadow: 0 0 12px rgba(255, 210, 60, 0.35);
+}
+.trail-preview {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 6px;
+}
+.trail-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 
 /* ---------- TOP BAR / LEVELS ---------- */
 .topbar {

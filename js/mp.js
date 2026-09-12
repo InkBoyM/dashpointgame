@@ -32,6 +32,7 @@ window.DashPointMP = (function () {
   let cubeActive = false;
   let cbs = {};
   let myTag = "";
+  let myNameColor = "";
 
   function guestStoredName() {
     try {
@@ -100,6 +101,7 @@ window.DashPointMP = (function () {
       name: user.name,
       uid: user.uid,
       tag: String(myTag || ""),
+      nameColor: String(myNameColor || ""),
       ts: Date.now(),
     }).catch(() => {});
   }
@@ -337,12 +339,12 @@ window.DashPointMP = (function () {
 
   function roomPlayers() {
     const out = [];
-    if (user) out.push({ slot: slot || "host", uid: user.uid, name: user.name, tag: String(myTag || ""), online: true, me: true, watching: watchingUid ? { uid: watchingUid } : null });
+    if (user) out.push({ slot: slot || "host", uid: user.uid, name: user.name, tag: String(myTag || ""), nameColor: String(myNameColor || ""), online: true, me: true, watching: watchingUid ? { uid: watchingUid } : null });
     if (!active || !cachedPlayers) return out;
     for (const s of SLOTS) {
       if (s === slot) continue;
       const o = cachedPlayers[s];
-      if (o && o.uid) out.push({ slot: s, uid: String(o.uid), name: String(o.name || "player"), tag: String(o.tag || ""), online: isOnline(o), me: false, watching: o.watching || null });
+      if (o && o.uid) out.push({ slot: s, uid: String(o.uid), name: String(o.name || "player"), tag: String(o.tag || ""), nameColor: String(o.nameColor || ""), online: isOnline(o), me: false, watching: o.watching || null });
     }
     return out;
   }
@@ -366,6 +368,7 @@ window.DashPointMP = (function () {
         uid: String(other.uid || ""),
         name: String(other.name || "player"),
         tag: String(other.tag || ""),
+        nameColor: String(other.nameColor || ""),
         online: isOnline(other),
         level: cb ? String(cb.level || "") : "",
         cube: fresh
@@ -440,6 +443,14 @@ window.DashPointMP = (function () {
     return next;
   }
 
+  function setNameColor(id) {
+    const next = String(id || "");
+    if (myNameColor === next) return next;
+    myNameColor = next;
+    if (active) writeMe();
+    return next;
+  }
+
   async function logout() {
     ensureDb();
     await firebase.auth().signOut();
@@ -488,6 +499,7 @@ window.DashPointMP = (function () {
     loginGuest: loginGuest,
     setDisplayName: setDisplayName,
     setTag: setTag,
+    setNameColor: setNameColor,
     logout: logout,
   };
 })();

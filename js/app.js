@@ -472,11 +472,104 @@
     { id: "super-rich", label: "Super Rich", cost: 10000000, color: "#ffe27a" },
     { id: "billionare", label: "Billionare", cost: 1000000000, color: "#2ee6ff" },
     { id: "trillionare", label: "Trillionare", cost: 1000000000000, color: "#ffffff" },
+    { id: "nolife", label: "no life", cost: 2000000000000, color: "#ff6bff" },
   ];
 
   function findShopTag(id) {
     for (let i = 0; i < SHOP_TAGS.length; i++) if (SHOP_TAGS[i].id === id) return SHOP_TAGS[i];
     return null;
+  }
+
+  const SHOP_COLORS = [
+    { id: "cyan", label: "Cyan", color: "#2ee6ff", cost: 500 },
+    { id: "mint", label: "Mint", color: "#3ee07a", cost: 2000 },
+    { id: "tangerine", label: "Tangerine", color: "#ff9d2e", cost: 10000 },
+    { id: "bubblegum", label: "Bubblegum", color: "#ff6bff", cost: 50000 },
+    { id: "lavender", label: "Lavender", color: "#e8c4ff", cost: 200000 },
+    { id: "ruby", label: "Ruby", color: "#ff4d62", cost: 1000000 },
+    { id: "gold", label: "Gold", color: "#ffd23c", cost: 10000000 },
+    { id: "ghost", label: "Ghost White", color: "#ffffff", cost: 100000000 },
+  ];
+
+  function findShopColor(id) {
+    for (let i = 0; i < SHOP_COLORS.length; i++) if (SHOP_COLORS[i].id === id) return SHOP_COLORS[i];
+    return null;
+  }
+
+  function ownsNameColor(id) {
+    return (save_.data.nameColors || []).indexOf(id) !== -1;
+  }
+
+  function equippedNameColor() {
+    return findShopColor(save_.data.nameColor);
+  }
+
+  function equippedNameColorId() {
+    return findShopColor(save_.data.nameColor) ? save_.data.nameColor : "";
+  }
+
+  function nameColorForUid(uid) {
+    uid = String(uid || "");
+    if (!uid) return "";
+    const me = (MP.getUser && MP.getUser()) || (window.DashPointMP && window.DashPointMP.getUser && window.DashPointMP.getUser());
+    if (me && me.uid === uid) return equippedNameColorId();
+    const u = (usersIndexCache || []).find(function (x) { return x.uid === uid; });
+    return u && findShopColor(u.nameColor) ? u.nameColor : "";
+  }
+
+  const SHOP_FRAMES = [
+    { id: "bronze", label: "Bronze", cls: "frame-bronze", cost: 1000 },
+    { id: "silver", label: "Silver", cls: "frame-silver", cost: 10000 },
+    { id: "neon", label: "Neon", cls: "frame-neon", cost: 100000 },
+    { id: "royal", label: "Royal", cls: "frame-royal", cost: 1000000 },
+    { id: "inferno", label: "Inferno", cls: "frame-inferno", cost: 50000000 },
+    { id: "prism", label: "Prism", cls: "frame-prism", cost: 500000000 },
+  ];
+
+  function findShopFrame(id) {
+    for (let i = 0; i < SHOP_FRAMES.length; i++) if (SHOP_FRAMES[i].id === id) return SHOP_FRAMES[i];
+    return null;
+  }
+
+  function ownsFrame(id) {
+    return (save_.data.frames || []).indexOf(id) !== -1;
+  }
+
+  function equippedFrame() {
+    return findShopFrame(save_.data.frame);
+  }
+
+  function equippedFrameId() {
+    return findShopFrame(save_.data.frame) ? save_.data.frame : "";
+  }
+
+  function frameForUid(uid) {
+    uid = String(uid || "");
+    if (!uid) return "";
+    const me = (MP.getUser && MP.getUser()) || (window.DashPointMP && window.DashPointMP.getUser && window.DashPointMP.getUser());
+    if (me && me.uid === uid) return equippedFrameId();
+    const u = (usersIndexCache || []).find(function (x) { return x.uid === uid; });
+    return u && findShopFrame(u.frame) ? u.frame : "";
+  }
+
+  const SHOP_TRAILS = [
+    { id: "sparkle", label: "Sparkle", cost: 5000, dots: ["#ffffff", "#ffd23c", "#fff3c2"] },
+    { id: "bubbles", label: "Bubbles", cost: 25000, dots: ["#2ee6ff", "#9beaff", "#ffffff"] },
+    { id: "fire", label: "Fire", cost: 250000, dots: ["#ff5a1a", "#ff9d2e", "#ffd23c"] },
+    { id: "rainbow", label: "Rainbow", cost: 2000000, dots: ["#ff5a5a", "#ffd23c", "#3ee07a", "#2ee6ff", "#b45cff"] },
+  ];
+
+  function findShopTrail(id) {
+    for (let i = 0; i < SHOP_TRAILS.length; i++) if (SHOP_TRAILS[i].id === id) return SHOP_TRAILS[i];
+    return null;
+  }
+
+  function ownsTrail(id) {
+    return (save_.data.trails || []).indexOf(id) !== -1;
+  }
+
+  function equippedTrailId() {
+    return findShopTrail(save_.data.trail) ? save_.data.trail : "";
   }
 
   function ownsTag(id) {
@@ -496,9 +589,20 @@
     return '<span class="acct-tag" style="color:' + tag.color + ";border-color:" + tag.color + '">{' + escapeHtml(tag.label) + "}</span>";
   }
 
-  function taggedNameHtml(name, tagId, extra) {
+  function frameAvatarHtml(skinId, frameId, imgCls) {
+    const fr = findShopFrame(frameId);
+    const n = (skinId | 0) - 1;
+    const src = (window.DashPointSkins && window.DashPointSkins[n] ? window.DashPointSkins[n].src : "assets/skins/skin-1.png");
+    const img = '<img class="' + (imgCls || "lb-skin") + '" src="' + src + '" alt="" />';
+    return fr ? '<span class="avatar-frame ' + fr.cls + '">' + img + "</span>" : img;
+  }
+
+  function taggedNameHtml(name, tagId, extra, colorId) {
     const tag = findShopTag(tagId);
-    return escapeHtml(name || "player") + (extra || "") + (tag ? " " + tagChipHtml(tag) : "");
+    const color = findShopColor(colorId);
+    const shown = escapeHtml(name || "player") + (extra || "");
+    const colored = color ? '<span style="color:' + color.color + '">' + shown + "</span>" : shown;
+    return colored + (tag ? " " + tagChipHtml(tag) : "");
   }
 
   function tagIdForUid(uid) {
@@ -518,15 +622,20 @@
     try {
       const mp = window.DashPointMP;
       if (mp && mp.setTag) mp.setTag(id);
+      if (mp && mp.setNameColor) mp.setNameColor(equippedNameColorId());
     } catch (e) {}
     const net = window.DPNet;
     const loggedIn = !!(net && net.getUser && net.getUser());
-    if (!loggedIn || lastPublishedTag === id || !net.syncStats) return;
-    net.syncStats({ tag: id }).then(function () { lastPublishedTag = id; }).catch(function () {});
+    if (!loggedIn || !net.syncStats) return;
+    const payload = { tag: id, nameColor: equippedNameColorId(), frame: equippedFrameId() };
+    const key = id + "|" + payload.nameColor + "|" + payload.frame;
+    if (lastPublishedTag === key) return;
+    net.syncStats(payload).then(function () { lastPublishedTag = key; }).catch(function () {});
   }
 
   function syncAccountTagUI() {
     const tag = equippedTag();
+    const color = equippedNameColor();
     const wrap = el("profTagWrap");
     const chip = el("profAcctTag");
     if (wrap) wrap.classList.toggle("hidden", !tag);
@@ -539,7 +648,7 @@
         home.innerHTML = "";
       } else {
         home.classList.remove("hidden");
-        home.innerHTML = "<b>" + escapeHtml(u.name || "player") + "</b>" + (tag ? ' <span class="acct-tag-wrap">Tag: ' + tagChipHtml(tag) + "</span>" : "");
+        home.innerHTML = "<b>" + (color ? '<span style="color:' + color.color + '">' + escapeHtml(u.name || "player") + "</span>" : escapeHtml(u.name || "player")) + "</b>" + (tag ? ' <span class="acct-tag-wrap">Tag: ' + tagChipHtml(tag) + "</span>" : "");
       }
     }
     publishPublicTag();
@@ -558,7 +667,7 @@
   }
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "", trails: [], trail: "", chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
   }
 
   function load() {
@@ -579,6 +688,13 @@
       s.coinMigrated = !!s.coinMigrated;
       s.codes = s.codes && typeof s.codes === "object" ? s.codes : {};
       s.tags = Array.isArray(s.tags) ? s.tags.filter(function (id) { return !!findShopTag(id); }) : [];
+      s.tag = findShopTag(s.tag) ? s.tag : "";
+      s.nameColors = Array.isArray(s.nameColors) ? s.nameColors.filter(function (id) { return !!findShopColor(id); }) : [];
+      s.nameColor = findShopColor(s.nameColor) ? s.nameColor : "";
+      s.frames = Array.isArray(s.frames) ? s.frames.filter(function (id) { return !!findShopFrame(id); }) : [];
+      s.frame = findShopFrame(s.frame) ? s.frame : "";
+      s.trails = Array.isArray(s.trails) ? s.trails.filter(function (id) { return !!findShopTrail(id); }) : [];
+      s.trail = findShopTrail(s.trail) ? s.trail : "";
       s.tag = findShopTag(s.tag) && s.tags.indexOf(s.tag) !== -1 ? s.tag : "";
       const cf = s.chestFree && typeof s.chestFree === "object" ? s.chestFree : {};
       s.chestFree = {
@@ -755,7 +871,7 @@
       var skinSrc = (window.DashPointSkins && window.DashPointSkins[row.skin - 1] ? window.DashPointSkins[row.skin - 1].src : "assets/skins/skin-1.png");
       var race = canRace && !isMe;
       var attr = race ? (' data-uid="' + escapeHtml(row.uid) + '" data-name="' + escapeHtml(row.name) + '"') : "";
-      html += '<div class="lb-row' + (isMe ? " lb-me" : race ? " lb-race" : "") + '"' + attr + '><span class="lb-rank">#' + (i + 1) + '</span><img class="lb-skin" src="' + skinSrc + '" alt="" /><span class="lb-name">' + taggedNameHtml(row.name, row.tag || (isMe ? equippedTagId() : tagIdForUid(row.uid)), isMe ? " (you)" : "") + '</span><span class="lb-time">' + fmtTime(row.time) + "</span>" + (race ? '<span class="lb-race-hint">RACE ▶</span>' : "") + "</div>";
+      html += '<div class="lb-row' + (isMe ? " lb-me" : race ? " lb-race" : "") + '"' + attr + '><span class="lb-rank">#' + (i + 1) + '</span>' + frameAvatarHtml(row.skin, isMe ? equippedFrameId() : (row.frame || frameForUid(row.uid))) + '<span class="lb-name">' + taggedNameHtml(row.name, row.tag || (isMe ? equippedTagId() : tagIdForUid(row.uid)), isMe ? " (you)" : "", row.nameColor || (isMe ? equippedNameColorId() : nameColorForUid(row.uid))) + '</span><span class="lb-time">' + fmtTime(row.time) + "</span>" + (race ? '<span class="lb-race-hint">RACE ▶</span>' : "") + "</div>";
     }
     if (opts.extraRow) html += opts.extraRow;
     box.innerHTML = html;
@@ -812,7 +928,7 @@
       var u = (window.DPNet && DPNet.getUser) ? DPNet.getUser() : null;
       var res = null;
       if (u) {
-        try { res = await DPNet.submitLeaderboard(file, time, save_.data.skin, equippedTagId()); } catch(e){}
+        try { res = await DPNet.submitLeaderboard(file, time, save_.data.skin, equippedTagId(), equippedNameColorId(), equippedFrameId()); } catch(e){}
       }
       var extra = "";
       if (res && res.rank && res.rank > 10) {
@@ -970,7 +1086,11 @@
     }
     const preview = el("homeSkinPreview");
     const equipped = SKINS.find((s) => s.id === save_.data.skin) || SKINS[0];
-    if (preview && equipped) preview.src = equipped.src;
+    if (preview && equipped) {
+      preview.src = equipped.src;
+      const fr = equippedFrame();
+      preview.className = "home-skin" + (fr ? " avatar-frame " + fr.cls : "");
+    }
     syncAccountTagUI();
   }
 
@@ -1234,6 +1354,165 @@
     });
     }
     renderShopTags();
+    renderShopColors();
+    renderShopFrames();
+    renderShopTrails();
+    syncCoinUI();
+  }
+
+  function renderShopColors() {
+    const box = el("shopColorGrid");
+    if (!box) return;
+    box.innerHTML = "";
+    SHOP_COLORS.forEach(function (c) {
+      const owned = ownsNameColor(c.id);
+      const equipped = save_.data.nameColor === c.id;
+      const cost = coinAmount(c.cost);
+      const can = hasCoins(cost);
+      const b = document.createElement("button");
+      b.className = "skin-tile" + (equipped ? " selected" : "") + (!owned && !can ? " cant" : "");
+      const hint = owned ? (equipped ? "EQUIPPED" : "TAP TO EQUIP") : can ? "TAP TO BUY" : "NEED " + fmtCoins(cost);
+      b.innerHTML =
+        '<span class="tag-preview" style="color:' + c.color + '">ABC</span>' +
+        '<span class="skin-name">' + escapeHtml(c.label) + "</span>" +
+        '<span class="shop-cost">' + coinIcon() + fmtCoins(cost) + "</span>" +
+        '<span class="skin-hint">' + escapeHtml(hint) + "</span>";
+      b.addEventListener("click", function () {
+        if (owned) {
+          save_.data.nameColor = equipped ? "" : c.id;
+          save();
+          lastPublishedTag = undefined;
+          renderShopColors();
+          syncAccountTagUI();
+          syncHomeStats();
+          return;
+        }
+        buyShopColor(c);
+      });
+      box.appendChild(b);
+    });
+  }
+
+  function buyShopColor(c) {
+    if (!c || ownsNameColor(c.id)) return;
+    const cost = coinAmount(c.cost);
+    if (!hasCoins(cost)) {
+      showNotice("Not enough coins", true);
+      return;
+    }
+    subCoins(cost);
+    save_.data.nameColors = save_.data.nameColors || [];
+    save_.data.nameColors.push(c.id);
+    save_.data.nameColor = c.id;
+    save();
+    lastPublishedTag = undefined;
+    showNotice("Name color unlocked!", false);
+    renderShop();
+    syncHomeStats();
+    syncCoinUI();
+    syncAccountTagUI();
+  }
+
+  function renderShopFrames() {
+    const box = el("shopFrameGrid");
+    if (!box) return;
+    box.innerHTML = "";
+    const equippedSkin = SKINS.find(function (s) { return s.id === save_.data.skin; }) || SKINS[0];
+    SHOP_FRAMES.forEach(function (f) {
+      const owned = ownsFrame(f.id);
+      const equipped = save_.data.frame === f.id;
+      const cost = coinAmount(f.cost);
+      const can = hasCoins(cost);
+      const b = document.createElement("button");
+      b.className = "skin-tile" + (equipped ? " selected" : "") + (!owned && !can ? " cant" : "");
+      const hint = owned ? (equipped ? "EQUIPPED" : "TAP TO EQUIP") : can ? "TAP TO BUY" : "NEED " + fmtCoins(cost);
+      b.innerHTML =
+        '<span class="avatar-frame ' + f.cls + '"><img class="lb-skin" src="' + (equippedSkin ? equippedSkin.src : "assets/skins/skin-1.png") + '" alt="" /></span>' +
+        '<span class="skin-name">' + escapeHtml(f.label) + "</span>" +
+        '<span class="shop-cost">' + coinIcon() + fmtCoins(cost) + "</span>" +
+        '<span class="skin-hint">' + escapeHtml(hint) + "</span>";
+      b.addEventListener("click", function () {
+        if (owned) {
+          save_.data.frame = equipped ? "" : f.id;
+          save();
+          lastPublishedTag = undefined;
+          renderShopFrames();
+          syncHomeStats();
+          return;
+        }
+        buyShopFrame(f);
+      });
+      box.appendChild(b);
+    });
+  }
+
+  function buyShopFrame(f) {
+    if (!f || ownsFrame(f.id)) return;
+    const cost = coinAmount(f.cost);
+    if (!hasCoins(cost)) {
+      showNotice("Not enough coins", true);
+      return;
+    }
+    subCoins(cost);
+    save_.data.frames = save_.data.frames || [];
+    save_.data.frames.push(f.id);
+    save_.data.frame = f.id;
+    save();
+    lastPublishedTag = undefined;
+    showNotice("Profile frame unlocked!", false);
+    renderShop();
+    syncHomeStats();
+    syncCoinUI();
+  }
+
+  function renderShopTrails() {
+    const box = el("shopTrailGrid");
+    if (!box) return;
+    box.innerHTML = "";
+    SHOP_TRAILS.forEach(function (t) {
+      const owned = ownsTrail(t.id);
+      const equipped = save_.data.trail === t.id;
+      const cost = coinAmount(t.cost);
+      const can = hasCoins(cost);
+      const b = document.createElement("button");
+      b.className = "skin-tile" + (equipped ? " selected" : "") + (!owned && !can ? " cant" : "");
+      const hint = owned ? (equipped ? "EQUIPPED" : "TAP TO EQUIP") : can ? "TAP TO BUY" : "NEED " + fmtCoins(cost);
+      const dots = (t.dots || []).map(function (c) {
+        return '<span class="trail-dot" style="background:' + c + ";box-shadow:0 0 6px " + c + '"></span>';
+      }).join("");
+      b.innerHTML =
+        '<span class="trail-preview">' + dots + "</span>" +
+        '<span class="skin-name">' + escapeHtml(t.label) + "</span>" +
+        '<span class="shop-cost">' + coinIcon() + fmtCoins(cost) + "</span>" +
+        '<span class="skin-hint">' + escapeHtml(hint) + "</span>";
+      b.addEventListener("click", function () {
+        if (owned) {
+          save_.data.trail = equipped ? "" : t.id;
+          save();
+          renderShopTrails();
+          return;
+        }
+        buyShopTrail(t);
+      });
+      box.appendChild(b);
+    });
+  }
+
+  function buyShopTrail(t) {
+    if (!t || ownsTrail(t.id)) return;
+    const cost = coinAmount(t.cost);
+    if (!hasCoins(cost)) {
+      showNotice("Not enough coins", true);
+      return;
+    }
+    subCoins(cost);
+    save_.data.trails = save_.data.trails || [];
+    save_.data.trails.push(t.id);
+    save_.data.trail = t.id;
+    save();
+    showNotice("Trail unlocked!", false);
+    renderShop();
+    syncHomeStats();
     syncCoinUI();
   }
 
@@ -1572,7 +1851,7 @@
     if (!entry) return;
     state.currentFile = entry.id ? "net:" + entry.id : entry.file;
     state.currentMeta = entry.meta || null;
-    state.engine = new DP.Engine(entry.level.clone(), { skin: save_.data.skin });
+    state.engine = new DP.Engine(entry.level.clone(), { skin: save_.data.skin, trail: equippedTrailId() });
     if (DP.Music) DP.Music.play(entry.level.song);
     state.playing = true;
     state.deaths = 0;
@@ -1949,13 +2228,15 @@
       qbubbles[qbubbles.length - 1].el = b;
     }
   }
-  function addFeedMsg(text, name, self) {
+  function addFeedMsg(text, name, self, color) {
     const feed = el("chatFeed");
     if (!feed) return;
     const d = document.createElement("div");
     d.className = "feed-item" + (self ? " feed-self" : "");
     const b = document.createElement("b");
     b.textContent = self ? "You" : (name || "player");
+    const nc = self ? equippedNameColor() : findShopColor(color);
+    if (nc) b.style.color = nc.color;
     const s = document.createElement("span");
     s.textContent = text;
     d.appendChild(b); d.appendChild(s);
@@ -1988,7 +2269,7 @@
     if (near && peer.cube) {
       spawnBubble(c.text, peer.cube.x, peer.cube.y, peer.level);
     } else {
-      addFeedMsg(c.text, peer.name, false);
+      addFeedMsg(c.text, peer.name, false, peer.nameColor);
     }
   }
   function pollChat() {
@@ -2118,10 +2399,12 @@
       for (const p of MP.peers()) {
         if (p.cube && p.level === state.currentFile) {
           const pTag = findShopTag(p.tag);
+          const pColor = findShopColor(p.nameColor);
           remoteCubes.push(Object.assign({
             name: p.name,
             tagLabel: pTag ? pTag.label : "",
             tagColor: pTag ? pTag.color : "",
+            nameColor: pColor ? pColor.color : "",
           }, p.cube));
         }
       }
@@ -2190,7 +2473,12 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     // profile modal (account moved here)
     const plo = el("profLoggedOut"); if (plo) plo.style.display = u ? "none" : "";
     const pli = el("profLoggedIn"); if (pli) pli.style.display = u ? "" : "none";
-    const pn = el("profName"); if (pn) pn.textContent = name;
+    const pn = el("profName");
+    if (pn) {
+      pn.textContent = name;
+      const nc = equippedNameColor();
+      pn.style.color = nc ? nc.color : "";
+    }
     const tagEl = el("profGuestTag"); if (tagEl) tagEl.style.display = guest ? "" : "none";
     const pass = el("profPassSection"); if (pass) pass.style.display = u && !guest ? "" : "none";
     syncAccountTagUI();
@@ -2225,7 +2513,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
           dot.style.color = q.online ? "var(--good)" : "#9db4d8";
           const nm = document.createElement("span");
           const tagId = q.tag || (q.me ? equippedTagId() : tagIdForUid(q.uid));
-          nm.innerHTML = taggedNameHtml(q.name + (q.me ? " (you)" : "") + (q.slot === "host" ? " [host]" : ""), tagId);
+          const colorId = q.nameColor || (q.me ? equippedNameColorId() : nameColorForUid(q.uid));
+          nm.innerHTML = taggedNameHtml(q.name + (q.me ? " (you)" : "") + (q.slot === "host" ? " [host]" : ""), tagId, "", colorId);
           nm.style.flex = "1";
           row.appendChild(dot); row.appendChild(nm);
           if (!q.me && q.online) {
@@ -2443,7 +2732,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     info.className = "n-main";
     info.innerHTML =
       '<div class="n-title">' + escapeHtml(meta.title || "Untitled") + "</div>" +
-      '<div class="n-sub">by <b class="n-author" style="cursor:pointer">' + taggedNameHtml(meta.authorName || "?", tagIdForUid(meta.authorUid)) + "</b></div>" +
+      '<div class="n-sub">by <b class="n-author" style="cursor:pointer">' + taggedNameHtml(meta.authorName || "?", tagIdForUid(meta.authorUid), "", nameColorForUid(meta.authorUid)) + "</b></div>" +
       (meta.tags && meta.tags.length ? '<div class="n-sub"><span class="level-tag">' + escapeHtml(meta.tags.join(" · ")) + "</span></div>" : "") +
       '<div class="n-sub">' + escapeHtml((meta.desc || "").slice(0, 90)) + "</div>";
     const diff = document.createElement("div");
@@ -2625,7 +2914,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
             for (var ri = 0; ri < nodes.length; ri++) {
               if (nodes[ri].getAttribute("data-uid") === u.uid) {
                 var title = nodes[ri].querySelector(".n-title");
-                if (title) title.innerHTML = taggedNameHtml(u.name, u.tag);
+                if (title) title.innerHTML = taggedNameHtml(u.name, u.tag, "", u.nameColor || nameColorForUid(u.uid));
                 break;
               }
             }
@@ -2640,8 +2929,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         row.className = "net-row user";
         row.setAttribute("data-uid", u.uid);
         row.innerHTML =
-          '<img class="n-avatar" src="assets/skins/skin-1.png" alt="" />' +
-          '<span class="n-main"><span class="n-title">' + taggedNameHtml(u.name, u.tag || tagIdForUid(u.uid)) + "</span>" +
+          frameAvatarHtml(1, frameForUid(u.uid), "n-avatar") +
+          '<span class="n-main"><span class="n-title">' + taggedNameHtml(u.name, u.tag || tagIdForUid(u.uid), "", u.nameColor || nameColorForUid(u.uid)) + "</span>" +
           '<div class="n-sub">' + made + " level" + (made === 1 ? "" : "s") + " made</div></span>" +
           '<span class="n-play">VIEW</span>';
         (function(uid){ row.addEventListener("click", function(){ openAccount(uid); }); })(u.uid);
@@ -2685,7 +2974,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       return;
     }
     var theirs = (levelIndexCache || []).filter(function(l){ return l.authorUid === uid; });
-    el("acctTitle").innerHTML = taggedNameHtml(String(u.name || "player").toUpperCase(), u.tag || tagIdForUid(u.uid));
+    el("acctTitle").innerHTML = taggedNameHtml(String(u.name || "player").toUpperCase(), u.tag || tagIdForUid(u.uid), "", u.nameColor || nameColorForUid(u.uid));
     el("acctMade").textContent = theirs.length;
     el("acctBeaten").textContent = u.beatenCount || 0;
     el("acctDeaths").textContent = u.deaths || 0;
@@ -2712,7 +3001,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       row.innerHTML =
         '<span class="lc-face">' + diffFaceImg(netDiff(sv.meta)) + "</span>" +
         '<span class="n-main"><span class="n-title">' + escapeHtml(sv.meta.title || "Untitled") + "</span>" +
-        '<div class="n-sub">by ' + taggedNameHtml(sv.meta.authorName || "?", tagIdForUid(sv.meta.authorUid)) + " · offline ready</div></span>";
+        '<div class="n-sub">by ' + taggedNameHtml(sv.meta.authorName || "?", tagIdForUid(sv.meta.authorUid), "", nameColorForUid(sv.meta.authorUid)) + " · offline ready</div></span>";
       row.addEventListener("click", () => openLevelInfo(sv));
       const play = document.createElement("button");
       play.className = "n-play";
@@ -2744,7 +3033,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     const meta = sv.meta;
     el("liName").textContent = meta.title || "Untitled";
     el("liDiff").innerHTML = diffFaceImg(netDiff(meta));
-    el("liAuthor").innerHTML = taggedNameHtml(meta.authorName || "—", tagIdForUid(meta.authorUid));
+    el("liAuthor").innerHTML = taggedNameHtml(meta.authorName || "—", tagIdForUid(meta.authorUid), "", nameColorForUid(meta.authorUid));
     const best = save_.data.best[key];
     el("liBest").textContent = best !== undefined ? fmtTime(best) : "—";
     const a = save_.data.attempts[key] || { attempts: 0, deaths: 0 };
@@ -2803,7 +3092,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     const chip = el("hudAuthor");
     const m = state.currentMeta;
     if (m && m.authorName) {
-      chip.innerHTML = "by " + taggedNameHtml(m.authorName, tagIdForUid(m.authorUid));
+      chip.innerHTML = "by " + taggedNameHtml(m.authorName, tagIdForUid(m.authorUid), "", nameColorForUid(m.authorUid));
       chip.classList.remove("hidden");
       chip.onclick = () => openAccount(m.authorUid);
     } else {
@@ -3176,7 +3465,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       if (!u) { profileMsg("Not logged in"); return; }
       const st = el("profCloudStatus"); if (st) st.textContent = "Uploading…";
       try {
-        const saved = await NET.syncCloud({ deaths: save_.data.deaths, jumps: save_.data.jumps, playtime: Number(save_.data.playtime) || 0, coins: save_.data.coins, coinPaid: save_.data.coinPaid, coinMigrated: !!save_.data.coinMigrated, codes: save_.data.codes, skin: save_.data.skin, unlocked: save_.data.unlocked, beaten: save_.data.beaten, best: save_.data.best, secretA: !!save_.data.secretA, spaceMenu: !!save_.data.spaceMenu, tags: save_.data.tags, tag: save_.data.tag, chestFree: save_.data.chestFree, championKeys: save_.data.championKeys });
+        const saved = await NET.syncCloud({ deaths: save_.data.deaths, jumps: save_.data.jumps, playtime: Number(save_.data.playtime) || 0, coins: save_.data.coins, coinPaid: save_.data.coinPaid, coinMigrated: !!save_.data.coinMigrated, codes: save_.data.codes, skin: save_.data.skin, unlocked: save_.data.unlocked, beaten: save_.data.beaten, best: save_.data.best, secretA: !!save_.data.secretA, spaceMenu: !!save_.data.spaceMenu, tags: save_.data.tags, tag: save_.data.tag, nameColors: save_.data.nameColors, nameColor: save_.data.nameColor, frames: save_.data.frames, frame: save_.data.frame, trails: save_.data.trails, trail: save_.data.trail, chestFree: save_.data.chestFree, championKeys: save_.data.championKeys });
         if (st) st.textContent = "Cloud updated " + new Date(saved.updatedAt).toLocaleTimeString();
         profileMsg("Synced to cloud");
         syncHomeStats();
@@ -3205,6 +3494,27 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
           save_.data.tags = Object.keys(ts);
         }
         if (cloud.tag && !save_.data.tag && findShopTag(cloud.tag) && ownsTag(cloud.tag)) save_.data.tag = cloud.tag;
+        if (Array.isArray(cloud.nameColors)) {
+          const cs = {};
+          (save_.data.nameColors || []).forEach(function (id) { cs[id] = true; });
+          cloud.nameColors.forEach(function (id) { if (findShopColor(id)) cs[id] = true; });
+          save_.data.nameColors = Object.keys(cs);
+        }
+        if (cloud.nameColor && !save_.data.nameColor && findShopColor(cloud.nameColor) && ownsNameColor(cloud.nameColor)) save_.data.nameColor = cloud.nameColor;
+        if (Array.isArray(cloud.frames)) {
+          const fs = {};
+          (save_.data.frames || []).forEach(function (id) { fs[id] = true; });
+          cloud.frames.forEach(function (id) { if (findShopFrame(id)) fs[id] = true; });
+          save_.data.frames = Object.keys(fs);
+        }
+        if (cloud.frame && !save_.data.frame && findShopFrame(cloud.frame) && ownsFrame(cloud.frame)) save_.data.frame = cloud.frame;
+        if (Array.isArray(cloud.trails)) {
+          const tr = {};
+          (save_.data.trails || []).forEach(function (id) { tr[id] = true; });
+          cloud.trails.forEach(function (id) { if (findShopTrail(id)) tr[id] = true; });
+          save_.data.trails = Object.keys(tr);
+        }
+        if (cloud.trail && !save_.data.trail && findShopTrail(cloud.trail) && ownsTrail(cloud.trail)) save_.data.trail = cloud.trail;
         lastPublishedTag = undefined;
         if (cloud.chestFree && typeof cloud.chestFree === "object") {
           save_.data.chestFree = save_.data.chestFree || {};
