@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>DashPoint</title>
   <link rel="icon" href="assets/ui/favicon.png" type="image/png" />
   <link rel="stylesheet" href="css/game.css" />
@@ -58,6 +58,15 @@
   <div class="screen" id="screen-game">
     <canvas id="view"></canvas>
     <div id="widgetLayer"></div>
+    <div id="touchControls">
+      <div class="touch-cluster">
+        <button class="touch-btn" id="touchLeft" aria-label="Move left">&#9664;</button>
+        <button class="touch-btn" id="touchRight" aria-label="Move right">&#9654;</button>
+      </div>
+      <div class="touch-cluster">
+        <button class="touch-btn jump" id="touchJump" aria-label="Jump">&#9650;</button>
+      </div>
+    </div>
     <div class="hud">
       <div class="hud-chip">
         <span id="hudTime">0.00</span>

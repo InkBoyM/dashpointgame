@@ -757,8 +757,92 @@
     qcOpen: false,
     qcSel: 0,
     keys: new Set(),
+    touch: { left: false, right: false, jump: false },
     lastFrame: 0,
   };
+
+  // ---- Touch controls (phones/tablets) + pinch zoom ----
+  const pinch = { ids: [], dist: 0 };
+
+  function setTouchBtn(btn, action, on) {
+    state.touch[action] = !!on;
+    if (btn) btn.classList.toggle("on", !!on);
+  }
+
+  function bindTouchBtn(id, action) {
+    const btn = el(id);
+    if (!btn) return;
+    const release = (ev) => {
+      if (ev && ev.pointerId !== undefined && btn.hasPointerCapture && ev.pointerId !== null) {
+        try { if (btn.hasPointerCapture(ev.pointerId)) btn.releasePointerCapture(ev.pointerId); } catch (e) {}
+      }
+      setTouchBtn(btn, action, false);
+    };
+    btn.addEventListener("pointerdown", (ev) => {
+      ev.preventDefault();
+      try { btn.setPointerCapture(ev.pointerId); } catch (e) {}
+      setTouchBtn(btn, action, true);
+    });
+    btn.addEventListener("pointerup", release);
+    btn.addEventListener("pointercancel", release);
+    btn.addEventListener("lostpointercapture", () => setTouchBtn(btn, action, false));
+    btn.addEventListener("contextmenu", (ev) => ev.preventDefault());
+  }
+
+  function pinchDist() {
+    if (pinch.ids.length < 2) return 0;
+    const a = pinch.ids[0], b = pinch.ids[1];
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  function pinchZoomBy(factor) {
+    if (!(factor > 0) || !isFinite(factor)) return;
+    if (gfxMode() === "good") {
+      cam.zoom = Math.max(2, Math.min(4, Math.round(cam.zoom * factor)));
+    } else {
+      cam.zoom = Math.max(1.5, Math.min(9, Math.round(cam.zoom * factor * 100) / 100));
+    }
+  }
+
+  function bindPinchZoom() {
+    const c = el("view");
+    if (!c) return;
+    c.addEventListener("pointerdown", (ev) => {
+      if (ev.pointerType !== "touch") return;
+      pinch.ids.push({ id: ev.pointerId, x: ev.clientX, y: ev.clientY });
+      if (pinch.ids.length > 2) pinch.ids.shift();
+      pinch.dist = pinchDist();
+    });
+    const move = (ev) => {
+      if (ev.pointerType !== "touch") return;
+      let found = false;
+      for (const p of pinch.ids) {
+        if (p.id === ev.pointerId) { p.x = ev.clientX; p.y = ev.clientY; found = true; break; }
+      }
+      if (!found) return;
+      if (state.screen !== "game") { pinch.dist = pinchDist(); return; }
+      const d = pinchDist();
+      if (pinch.dist > 0 && d > 0) pinchZoomBy(d / pinch.dist);
+      pinch.dist = d;
+    };
+    const up = (ev) => {
+      pinch.ids = pinch.ids.filter((p) => p.id !== ev.pointerId);
+      pinch.dist = pinchDist();
+    };
+    c.addEventListener("pointermove", move);
+    c.addEventListener("pointerup", up);
+    c.addEventListener("pointercancel", up);
+  }
+
+  function clearTouch() {
+    state.touch.left = state.touch.right = state.touch.jump = false;
+    pinch.ids = [];
+    pinch.dist = 0;
+    ["touchLeft", "touchRight", "touchJump"].forEach(function (id) {
+      const b = el(id);
+      if (b) b.classList.remove("on");
+    });
+  }
 
   // ---- Quick chat state ----
   const QC_FIXED = ["Hi", "Hello", "Where are you", "Nice", "Tuff", "Bye", "Dashpoint is the best game ever made", "\uD83D\uDD25", "\uD83D\uDE00"];
@@ -2330,9 +2414,9 @@
 
     const pad = padState();
     state.engine.setInput({
-      left: bindPressed("left") || !!(pad && pad.left),
-      right: bindPressed("right") || !!(pad && pad.right),
-      jump: bindPressed("jump") || !!(pad && pad.jump),
+      left: bindPressed("left") || !!(pad && pad.left) || state.touch.left,
+      right: bindPressed("right") || !!(pad && pad.right) || state.touch.right,
+      jump: bindPressed("jump") || !!(pad && pad.jump) || state.touch.jump,
     });
     if (pad && pad.startEdge && state.screen === "game" && !el("winCard").classList.contains("visible")) {
       restartLevel();
@@ -3219,6 +3303,16 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
   function boot() {
     document.addEventListener("click", function () { closeAllOpts(); });
     bindNetworkUI();
+    bindTouchBtn("touchLeft", "left");
+    bindTouchBtn("touchRight", "right");
+    bindTouchBtn("touchJump", "jump");
+    bindPinchZoom();
+    if ((window.matchMedia && window.matchMedia("(pointer: coarse)").matches) || ("ontouchstart" in window)) {
+      document.body.classList.add("touch");
+    }
+    window.addEventListener("touchstart", function () {
+      document.body.classList.add("touch");
+    }, { passive: true });
     el("btnPlay").addEventListener("click", () => show("levels"));
     el("btnSkinsHome").addEventListener("click", () => openModal("modalSkins"));
     el("btnOpenShop").addEventListener("click", () => openModal("modalShop"));
@@ -3537,7 +3631,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     window.addEventListener("resize", resizeCanvas);
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
-    window.addEventListener("blur", () => state.keys.clear());
+    window.addEventListener("blur", () => { state.keys.clear(); clearTouch(); });
     window.addEventListener(
       "wheel",
       (ev) => {
