@@ -340,6 +340,14 @@
         <button type="button" class="px-btn small gfx-opt" data-gfx="good">GOOD</button>
       </div>
       <p class="hint" id="gfxHint">Default look.</p>
+      <button type="button" class="px-btn small" id="btnAdvFx">ADVANCED &#9656;</button>
+      <div id="advFx" style="display:none">
+        <label class="check-row"><input type="checkbox" id="setFxShaders" checked /> Shaders</label>
+        <label class="check-row"><input type="checkbox" id="setFxShadows" checked /> Shadows</label>
+        <label class="check-row"><input type="checkbox" id="setFxFlashes" checked /> Flashes</label>
+        <label class="check-row"><input type="checkbox" id="setFxParticles" checked /> Particles</label>
+        <p class="hint">Shaders: animated background glow. Shadows: tile and player shadows. Flashes: hit and orb/pad/dash flashes. Particles: cube trails and effects. Untick any of them for more speed.</p>
+      </div>
       <label class="check-row" id="spaceRow"><input type="checkbox" id="setSpace" disabled /> Space mode</label>
       <p class="hint" id="spaceHint">Beat The Climb to unlock this menu theme.</p>
       <hr class="sep" />

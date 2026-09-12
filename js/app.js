@@ -797,11 +797,21 @@
 
   function pinchZoomBy(factor) {
     if (!(factor > 0) || !isFinite(factor)) return;
+    cam.zoom = clampZoom(cam.zoom * factor);
+  }
+
+  function isTouchMode() {
+    return !!(document.body && document.body.classList.contains("touch"));
+  }
+
+  function clampZoom(z) {
+    if (!isFinite(z)) return cam.zoom;
     if (gfxMode() === "good") {
-      cam.zoom = Math.max(2, Math.min(4, Math.round(cam.zoom * factor)));
-    } else {
-      cam.zoom = Math.max(1.5, Math.min(9, Math.round(cam.zoom * factor * 100) / 100));
+      const lo = isTouchMode() ? 1.5 : 2;
+      return Math.max(lo, Math.min(4, Math.round(z)));
     }
+    const lo = isTouchMode() ? 1 : 1.5;
+    return Math.max(lo, Math.min(9, Math.round(z * 100) / 100));
   }
 
   function bindPinchZoom() {
@@ -1832,6 +1842,9 @@
       el("setAuto").checked = save_.data.autoRespawn !== false;
       syncGhostOpUI();
       syncGfxUI();
+      syncFxUI();
+      el("advFx").style.display = "none";
+      el("btnAdvFx").innerHTML = "ADVANCED &#9656;";
       syncSpaceSettings();
     }
   }
@@ -1854,6 +1867,23 @@
     const g = save_.data && save_.data.graphics;
     if (g === "good" || g === "simple") return g;
     return "normal";
+  }
+
+  function gfxFlags() {
+    return {
+      shaders: save_.data.fxShaders !== false,
+      shadows: save_.data.fxShadows !== false,
+      flashes: save_.data.fxFlashes !== false,
+      particles: save_.data.fxParticles !== false,
+    };
+  }
+
+  function syncFxUI() {
+    const pairs = [["fxShaders", "setFxShaders"], ["fxShadows", "setFxShadows"], ["fxFlashes", "setFxFlashes"], ["fxParticles", "setFxParticles"]];
+    for (const pair of pairs) {
+      const box = el(pair[1]);
+      if (box) box.checked = save_.data[pair[0]] !== false;
+    }
   }
 
   function syncGhostOpUI() {
@@ -2513,6 +2543,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       showSpawn: false,
       remoteCubes: remoteCubes || [],
       graphics: gfxMode(),
+      fx: gfxFlags(),
     });
     try {
       if (gfxMode() === "simple") DP.syncWidgetDom(el("widgetLayer"), [], null);
@@ -3425,6 +3456,18 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         syncGfxUI();
       });
     });
+    el("btnAdvFx").addEventListener("click", () => {
+      const box = el("advFx");
+      const open = box.style.display !== "none";
+      box.style.display = open ? "none" : "";
+      el("btnAdvFx").innerHTML = open ? "ADVANCED &#9656;" : "ADVANCED &#9662;";
+    });
+    [["setFxShaders", "fxShaders"], ["setFxShadows", "fxShadows"], ["setFxFlashes", "fxFlashes"], ["setFxParticles", "fxParticles"]].forEach(function (pair) {
+      el(pair[0]).addEventListener("change", (ev) => {
+        save_.data[pair[1]] = ev.target.checked;
+        save();
+      });
+    });
     el("setSpace").addEventListener("change", (ev) => {
       if (!hasSpaceUnlock()) {
         ev.target.checked = false;
@@ -3639,10 +3682,10 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         ev.preventDefault();
         if (gfxMode() === "good") {
           const step = ev.deltaY > 0 ? -1 : 1;
-          cam.zoom = Math.max(2, Math.min(4, Math.round(cam.zoom + step)));
+          cam.zoom = clampZoom(cam.zoom + step);
         } else {
           const step = ev.deltaY > 0 ? -0.25 : 0.25;
-          cam.zoom = Math.max(1.5, Math.min(9, Math.round((cam.zoom + step) * 100) / 100));
+          cam.zoom = clampZoom(cam.zoom + step);
         }
       },
       { passive: false }

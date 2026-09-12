@@ -1831,7 +1831,7 @@
     }
   }
 
-  function drawBackdrop(ctx, w, h, t, theme, simple) {
+  function drawBackdrop(ctx, w, h, t, theme, simple, shaders) {
     const th = theme || DEFAULT_THEME;
     if (simple) {
       ctx.fillStyle = th.mid || "#0a1628";
@@ -1852,18 +1852,21 @@
       { x: 0.5 + 0.16 * Math.sin(t * 0.026 + 2.1), y: 0.5 + 0.2 * Math.sin(t * 0.031 + 0.7), r: 0.48, c: hexToRgba(th.mid, 0.06) },
     ];
     const R = Math.max(w, h);
-    for (const gl of glows) {
-      const rg = ctx.createRadialGradient(gl.x * w, gl.y * h, 0, gl.x * w, gl.y * h, gl.r * R);
-      rg.addColorStop(0, gl.c);
-      rg.addColorStop(1, "rgba(0, 0, 0, 0)");
-      ctx.fillStyle = rg;
-      ctx.fillRect(0, 0, w, h);
+    if (shaders !== false) {
+      for (const gl of glows) {
+        const rg = ctx.createRadialGradient(gl.x * w, gl.y * h, 0, gl.x * w, gl.y * h, gl.r * R);
+        rg.addColorStop(0, gl.c);
+        rg.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = rg;
+        ctx.fillRect(0, 0, w, h);
+      }
     }
   }
 
   function drawWorld(ctx, level, images, cam, extras) {
     extras = extras || {};
     const gfx = extras.graphics === "good" || extras.graphics === "simple" ? extras.graphics : "normal";
+    const fx = Object.assign({ shaders: true, shadows: true, flashes: true, particles: true }, extras.fx || {});
     const w = ctx.canvas.width;
     const h = ctx.canvas.height;
     const zoom = cam.zoom;
@@ -1871,7 +1874,7 @@
     const worldH = level.rows * TILE;
 
     ctx.imageSmoothingEnabled = false;
-    drawBackdrop(ctx, w, h, Date.now() / 1000, level.theme, gfx === "simple");
+    drawBackdrop(ctx, w, h, Date.now() / 1000, level.theme, gfx === "simple", fx.shaders);
 
     ctx.save();
     ctx.scale(zoom, zoom);
@@ -1890,6 +1893,21 @@
     const r0 = Math.max(0, Math.floor(cam.y / TILE) - 1);
     const c1 = Math.min(level.cols - 1, Math.ceil((cam.x + w / zoom) / TILE) + 1);
     const r1 = Math.min(level.rows - 1, Math.ceil((cam.y + h / zoom) / TILE) + 1);
+
+    if (fx.shadows && gfx !== "simple") {
+      const hideInv = !!extras.engine && !extras.hitboxes;
+      ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+      for (let r = r0; r <= r1; r++) {
+        for (let c = c0; c <= c1; c++) {
+          const tile = level.grid[r][c];
+          // All brick looks (including fakes, so they stay hidden) cast a shadow —
+          // except invisible ones while playing, which must stay secret.
+          if (tile && isBrickId(tile.id) && !(hideInv && isInvisibleId(tile.id))) {
+            ctx.fillRect(cellX(c, tile) + 3, cellY(r, tile) + 4, TILE, TILE);
+          }
+        }
+      }
+    }
 
     const moverCells = {};
     if (extras.engine && extras.engine.movers) {
@@ -2112,7 +2130,16 @@
       const skinImg = images.skins && images.skins[skinId];
       const dx = Math.round(p.x + p.w / 2 - TILE / 2);
       const dy = Math.round(p.y + p.h - TILE);
-      if (gfx !== "simple" && engine.trailParts && engine.trailParts.length) {
+      if (fx.shadows && gfx !== "simple" && p.onGround && !engine.dead && !engine.won) {
+        ctx.save();
+        ctx.globalAlpha = 0.32;
+        ctx.fillStyle = "#000";
+        ctx.beginPath();
+        ctx.ellipse(p.x + p.w / 2, p.y + p.h + 5, p.w * 0.42, 4.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      if (fx.particles && gfx !== "simple" && engine.trailParts && engine.trailParts.length) {
         for (const q of engine.trailParts) {
           const a = Math.max(0, q.life / q.max);
           const s = Math.max(1, q.size * (0.4 + 0.6 * a));
@@ -2146,11 +2173,11 @@
         ctx.lineWidth = 1 / zoom;
         ctx.strokeRect(p.x, p.y, p.w, p.h);
       }
-      if (engine.flash > 0) {
+      if (fx.flashes && engine.flash > 0) {
         ctx.fillStyle = "rgba(255, 30, 50, " + engine.flash * 0.55 + ")";
         ctx.fillRect(cam.x, cam.y, w / zoom, h / zoom);
       }
-      if (gfx !== "simple" && engine.orbFlash > 0) {
+      if (fx.flashes && gfx !== "simple" && engine.orbFlash > 0) {
         const t = 1 - engine.orbFlash / 0.22;
         ctx.save();
         ctx.globalAlpha = 1 - t;
@@ -2161,7 +2188,7 @@
         ctx.stroke();
         ctx.restore();
       }
-      if (gfx !== "simple" && engine.padFlash > 0) {
+      if (fx.flashes && gfx !== "simple" && engine.padFlash > 0) {
         const t = 1 - engine.padFlash / 0.25;
         ctx.save();
         ctx.globalAlpha = 1 - t;
@@ -2172,7 +2199,7 @@
         ctx.stroke();
         ctx.restore();
       }
-      if (gfx !== "simple" && engine.dashFlash > 0) {
+      if (fx.flashes && gfx !== "simple" && engine.dashFlash > 0) {
         const t = 1 - engine.dashFlash / 0.35;
         ctx.save();
         ctx.globalAlpha = 1 - t;
