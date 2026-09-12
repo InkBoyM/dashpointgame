@@ -2912,6 +2912,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       return;
     }
     if (isTyping(ev)) return;
+    if (document.querySelector(".modal-root.visible")) return;
     if (ev.code === "KeyT" && state.screen === "game" && !el("winCard").classList.contains("visible")) { ev.preventDefault(); startGhostRace(); return; }
     if (ev.code === "Space") ev.preventDefault();
     if (state.screen === "game" && ev.code === "KeyR") {
@@ -2965,6 +2966,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnQuit").addEventListener("click", togglePause);
     el("btnPauseResume").addEventListener("click", resumeGame);
     el("btnPauseRestart").addEventListener("click", () => { resumeGame(); restartLevel(); });
+    el("btnPauseSettings").addEventListener("click", () => openModal("modalSettings"));
     el("btnPauseQuit").addEventListener("click", quitToLevels);
     el("btnLiPlay").addEventListener("click", liPlay);
     el("btnLiDownload").addEventListener("click", function () {
