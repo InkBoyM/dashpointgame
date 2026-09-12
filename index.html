@@ -75,6 +75,7 @@
       <div class="hud-chip">
         <span id="hudTime">0.00</span>
         <span id="hudDeaths">deaths 0</span>
+        <span id="hudPractice" class="hud-practice hidden">PRACTICE</span>
         <span id="hudSpectate" class="hud-author-chip hidden" style="color:var(--gold)"></span>
         <span id="hudAuthor" class="hud-author-chip hidden" title="Open creator's profile"></span>
       </div>
@@ -90,6 +91,7 @@
         <div class="card-actions">
           <button class="px-btn small good" id="btnPauseResume">RESUME</button>
           <button class="px-btn small" id="btnPauseRestart">RESTART</button>
+          <button class="px-btn small gold" id="btnPausePractice">PRACTICE: OFF</button>
           <button class="px-btn small" id="btnPauseSettings">SETTINGS</button>
           <button class="px-btn small danger" id="btnPauseQuit">LEVELS</button>
         </div>
@@ -508,6 +510,7 @@
     <div class="net-search-head">
       <div class="chips">
         <button class="chip active" data-tab="levels">LEVELS</button>
+        <button class="chip" data-tab="trending">TRENDING</button>
         <button class="chip" data-tab="users">PLAYERS</button>
       </div>
       <input type="text" id="netQuery" class="px-input" placeholder="type to search…" autocomplete="off" />

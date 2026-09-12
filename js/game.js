@@ -2680,6 +2680,26 @@
       ctx.textAlign = "start";
     }
 
+    if (extras.engine && extras.engine.checkpoint && extras.engine.checkpoint.practice) {
+      const cp = extras.engine.checkpoint;
+      const px = cp.c * TILE + (cp.ox || 0) + TILE / 2;
+      const py = cp.r * TILE + (cp.oy || 0) + TILE / 2;
+      ctx.save();
+      ctx.strokeStyle = "rgba(62, 224, 122, 0.95)";
+      ctx.lineWidth = 2 / zoom;
+      ctx.setLineDash([4 / zoom, 3 / zoom]);
+      ctx.beginPath();
+      ctx.arc(px, py, TILE * 0.42, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(62, 224, 122, 0.95)";
+      ctx.font = Math.max(8, 11 / zoom) + "px Consolas, monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("CP", px, py - TILE * 0.55);
+      ctx.textAlign = "start";
+      ctx.restore();
+    }
+
     if (extras.hitboxes) {
       ctx.lineWidth = 1 / zoom;
       for (let r = r0; r <= r1; r++) {

@@ -452,6 +452,15 @@ body.joystick #joystick { display: block; }
 }
 #hudTime { color: var(--gold); }
 #hudDeaths { color: #ff8ba0; }
+.hud-practice {
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #062a14;
+  background: var(--good);
+  border: 2px solid var(--ink-dark);
+  padding: 1px 7px;
+  cursor: pointer;
+}
 
 .fps-debug {
   position: fixed;

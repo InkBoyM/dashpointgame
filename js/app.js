@@ -795,6 +795,7 @@
     netBack: "network",
     engine: null,
     playing: false,
+    practice: false,
     deaths: 0,
     paused: false,
     shake: 0,
@@ -2176,6 +2177,7 @@
     state.deaths = 0;
     state.winShown = false;
     state.paused = false;
+    state.practice = false;
     setSpectate(null);
     clearChatBubbles();
     el("pauseCard").classList.remove("visible");
@@ -2207,6 +2209,48 @@
   function setStatusHud() {
     el("hudTime").textContent = (state.engine ? state.engine.time : 0).toFixed(2);
     el("hudDeaths").textContent = "deaths " + state.deaths;
+    el("hudPractice").classList.toggle("hidden", !state.practice);
+  }
+
+  function syncPracticeUI() {
+    const b = el("btnPausePractice");
+    if (b) b.textContent = state.practice ? "PRACTICE: ON" : "PRACTICE: OFF";
+    setStatusHud();
+  }
+
+  function togglePractice() {
+    if (!state.engine || !state.playing) return;
+    state.practice = !state.practice;
+    if (!state.practice && state.engine.checkpoint && state.engine.checkpoint.practice) {
+      state.engine.checkpoint = null;
+    }
+    if (state.practice) showNotice("Practice ON — press X (or tap PRACTICE) to drop checkpoints, no records", false);
+    else showNotice("Practice OFF", false);
+    syncPracticeUI();
+  }
+
+  function placePracticeCheckpoint() {
+    if (!state.engine || !state.playing || state.paused) return;
+    if (state.engine.dead || state.engine.won) return;
+    const lvl = state.engine.level;
+    const p = state.engine.player;
+    const cx = p.x + p.w / 2, cy = p.y + p.h;
+    let c = Math.max(0, Math.min(lvl.cols - 1, Math.floor(cx / TILE)));
+    let r = Math.max(0, Math.min(lvl.rows - 1, Math.floor(cy / TILE)));
+    let ox = Math.round(cx - (c * TILE + TILE / 2));
+    let oy = Math.round(cy - (r * TILE + TILE));
+    while (ox > 24 && c < lvl.cols - 1) { c++; ox -= TILE; }
+    while (ox < -24 && c > 0) { c--; ox += TILE; }
+    while (oy > 24 && r < lvl.rows - 1) { r++; oy -= TILE; }
+    while (oy < -24 && r > 0) { r--; oy += TILE; }
+    state.engine.checkpoint = {
+      c: c, r: r,
+      ox: Math.max(-24, Math.min(24, ox)),
+      oy: Math.max(-24, Math.min(24, oy)),
+      practice: true,
+    };
+    showNotice("Checkpoint set", false);
+    try { haptic("tick"); } catch (e) {}
   }
 
   function restartLevel() {
@@ -2248,6 +2292,7 @@
     if (el("winCard").classList.contains("visible")) return;
     flushPlaytime();
     state.paused = true;
+    syncPracticeUI();
     el("pauseCard").classList.add("visible");
   }
 
@@ -2270,6 +2315,7 @@
     state.playing = false;
     state.engine = null;
     state.paused = false;
+    state.practice = false;
     el("pauseCard").classList.remove("visible");
     ghostMode = false; ghostPlayback = null; if (ghostCountdownTimer){ clearInterval(ghostCountdownTimer); ghostCountdownTimer=null; var cd=el("ghostCountdown"); if(cd) cd.classList.add("hidden"); }
     MP.clearCube();
@@ -2290,6 +2336,11 @@
     if (!entry) return;
     flushPlaytime();
     const t = state.engine.time;
+    if (state.practice) {
+      el("winText").textContent = "PRACTICE CLEAR in " + fmtTime(t) + " — no records saved.";
+      el("winCard").classList.add("visible");
+      return;
+    }
     const firstClear = save_.data.beaten[entry.file] === undefined;
     save_.data.beaten[entry.file] = true;
     if (save_.data.best[entry.file] === undefined || t < save_.data.best[entry.file]) {
@@ -2703,7 +2754,7 @@
     if (state.engine.pendingCoinGrant) {
       const n = state.engine.pendingCoinGrant | 0;
       state.engine.pendingCoinGrant = 0;
-      if (n > 0) {
+      if (n > 0 && !state.practice) {
         const got = grantCoins(n);
         if (got) {
           save();
@@ -2731,7 +2782,7 @@
     if (!state.engine.won) state.winShown = false;
 
     followPlayer();
-    try{ recordGhost(dt); }catch(e){}
+    if (!state.practice) { try{ recordGhost(dt); }catch(e){} }
     tickShake(dt);
     trackPlaytime(dt);
     setStatusHud();
@@ -3243,6 +3294,37 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       }
       hits.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       hits.forEach((m) => box.appendChild(levelRow(m)));
+    } else if (netTab === "trending") {
+      const scored = levelIndexCache
+        .filter(
+          (l) =>
+            !q ||
+            String(l.title).toLowerCase().indexOf(q) !== -1 ||
+            String(l.authorName).toLowerCase().indexOf(q) !== -1 ||
+            String(l.desc || "").toLowerCase().indexOf(q) !== -1 ||
+            String((l.tags || []).join(" ")).toLowerCase().indexOf(q) !== -1
+        )
+        .map((l) => ({ meta: l, score: (Number(l.plays) || 0) + (Number(l.downloads) || 0) * 3 }));
+      if (!scored.length) {
+        box.innerHTML = '<p class="loading-note">No levels match.</p>';
+        return;
+      }
+      scored.sort((a, b) => b.score - a.score);
+      scored.slice(0, 25).forEach((s, i) => {
+        const row = levelRow(s.meta);
+        const rank = document.createElement("span");
+        rank.className = "lb-rank";
+        rank.textContent = "#" + (i + 1);
+        row.insertBefore(rank, row.firstChild);
+        const info = row.querySelector(".n-main");
+        if (info) {
+          const d = document.createElement("div");
+          d.className = "n-sub";
+          d.textContent = (Number(s.meta.plays) || 0) + " plays · " + (Number(s.meta.downloads) || 0) + " downloads";
+          info.appendChild(d);
+        }
+        box.appendChild(row);
+      });
     } else {
       // Players tab: combine cached users + authors from levels so it works even when usersIndex is stale/restricted
       var combinedMap = {};
@@ -3561,6 +3643,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     if (isTyping(ev)) return;
     if (document.querySelector(".modal-root.visible")) return;
     if (ev.code === "KeyT" && state.screen === "game" && !el("winCard").classList.contains("visible")) { ev.preventDefault(); startGhostRace(); return; }
+    if (ev.code === "KeyX" && !ev.repeat && state.screen === "game" && state.playing && state.practice && !state.paused && !el("winCard").classList.contains("visible")) { ev.preventDefault(); placePracticeCheckpoint(); return; }
     if (ev.code === "Space") ev.preventDefault();
     if (state.screen === "game" && ev.code === "KeyR") {
       ev.preventDefault();
@@ -3633,6 +3716,10 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnQuit").addEventListener("click", togglePause);
     el("btnPauseResume").addEventListener("click", resumeGame);
     el("btnPauseRestart").addEventListener("click", () => { resumeGame(); restartLevel(); });
+    el("btnPausePractice").addEventListener("click", togglePractice);
+    el("hudPractice").addEventListener("click", () => {
+      if (state.practice && state.playing && !state.paused) placePracticeCheckpoint();
+    });
     el("btnPauseSettings").addEventListener("click", () => openModal("modalSettings"));
     el("btnPauseQuit").addEventListener("click", quitToLevels);
     el("btnLiPlay").addEventListener("click", liPlay);
