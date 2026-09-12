@@ -341,6 +341,7 @@
       <label class="check-row"><input type="checkbox" id="setHitbox" /> Show hitboxes</label>
       <label class="check-row"><input type="checkbox" id="setFps" /> FPS (debug)</label>
       <label class="check-row"><input type="checkbox" id="setAuto" checked /> Auto-respawn</label>
+      <label class="check-row"><input type="checkbox" id="setHaptics" checked /> Haptics</label>
       <div class="section-title">GHOST RACE</div>
       <div class="slider-row"><span>Opacity</span><b id="setGhostOpVal">100%</b></div>
       <input type="range" id="setGhostOp" min="0" max="100" step="5" value="100" />
@@ -350,6 +351,7 @@
         <button type="button" class="px-btn small gfx-opt" data-gfx="simple">SIMPLE</button>
         <button type="button" class="px-btn small gfx-opt" data-gfx="normal">NORMAL</button>
         <button type="button" class="px-btn small gfx-opt" data-gfx="good">GOOD</button>
+        <button type="button" class="px-btn small gfx-opt" data-gfx="dlls5">DLLS 5</button>
       </div>
       <p class="hint" id="gfxHint">Default look.</p>
       <div class="section-title">TOUCH CONTROLS</div>
@@ -367,11 +369,10 @@
       <p class="hint">Move and resize the on-screen buttons (mobile). Changes apply instantly.</p>
       <button type="button" class="px-btn small" id="btnAdvFx">ADVANCED &#9656;</button>
       <div id="advFx" style="display:none">
-        <label class="check-row"><input type="checkbox" id="setFxShaders" checked /> Shaders</label>
         <label class="check-row"><input type="checkbox" id="setFxShadows" checked /> Shadows</label>
         <label class="check-row"><input type="checkbox" id="setFxFlashes" checked /> Flashes</label>
         <label class="check-row"><input type="checkbox" id="setFxParticles" checked /> Particles</label>
-        <p class="hint">Shaders: animated background glow. Shadows: tile and player shadows. Flashes: hit and orb/pad/dash flashes. Particles: cube trails and effects. Untick any of them for more speed.</p>
+        <p class="hint">Shadows: tile and player shadows. Flashes: hit and orb/pad/dash flashes. Particles: cube trails and effects. Untick any of them for more speed.</p>
       </div>
       <label class="check-row" id="spaceRow"><input type="checkbox" id="setSpace" disabled /> Space mode</label>
       <p class="hint" id="spaceHint">Beat The Climb to unlock this menu theme.</p>

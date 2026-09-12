@@ -1752,6 +1752,333 @@
     ctx.restore();
   }
 
+  // ---- DLLS 5 realistic tile textures (pre-rendered once, cached) ----
+  const REAL_SS = 2;
+  const realTileCache = {};
+
+  function realHash(i, s) {
+    let h = (Math.imul(i + 1, 374761393) + Math.imul(s, 668265263)) | 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  }
+
+  function realSpeckle(g, S, n, seed) {
+    for (let i = 0; i < n; i++) {
+      const rx = realHash(i, seed) * S;
+      const ry = realHash(i, seed + 101) * S;
+      const r = realHash(i, seed + 202);
+      g.fillStyle = r > 0.5 ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.12)";
+      const s2 = 1 + ((r * 3) | 0);
+      g.fillRect(rx, ry, s2, s2);
+    }
+  }
+
+  function realRivet(g, x, y, r) {
+    const rg = g.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
+    rg.addColorStop(0, "#e8eef6");
+    rg.addColorStop(0.6, "#8a95a8");
+    rg.addColorStop(1, "#2b3342");
+    g.fillStyle = rg;
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fill();
+  }
+
+  const REAL_PAINT = {
+    brick(g, S) {
+      const u = S / 32;
+      const bg = g.createLinearGradient(0, 0, 0, S);
+      bg.addColorStop(0, "#4a5878");
+      bg.addColorStop(0.5, "#39445e");
+      bg.addColorStop(1, "#222a3f");
+      g.fillStyle = bg;
+      g.fillRect(0, 0, S, S);
+      // mortar joints: two staggered courses
+      g.fillStyle = "#131828";
+      g.fillRect(0, S / 2 - u, S, 2 * u);
+      g.fillRect(S / 2 - u, 0, 2 * u, S / 2);
+      g.fillRect(S / 4 - u, S / 2, 2 * u, S / 2);
+      g.fillRect((3 * S) / 4 - u, S / 2, 2 * u, S / 2);
+      // top bevel light + bottom shade
+      g.fillStyle = "rgba(255,255,255,0.22)";
+      g.fillRect(0, 0, S, 2 * u);
+      g.fillStyle = "rgba(0,0,0,0.35)";
+      g.fillRect(0, S - 3 * u, S, 3 * u);
+      realSpeckle(g, S, 90, 7);
+      g.strokeStyle = "#0e1320";
+      g.lineWidth = 2;
+      g.strokeRect(1, 1, S - 2, S - 2);
+    },
+    spike(g, S) {
+      // base plate
+      const plate = g.createLinearGradient(0, S * 0.74, 0, S);
+      plate.addColorStop(0, "#5a6678");
+      plate.addColorStop(1, "#272f3d");
+      g.fillStyle = plate;
+      g.fillRect(S * 0.05, S * 0.76, S * 0.9, S * 0.2);
+      g.strokeStyle = "#141a26";
+      g.lineWidth = 2;
+      g.strokeRect(S * 0.05, S * 0.76, S * 0.9, S * 0.2);
+      realRivet(g, S * 0.2, S * 0.86, S * 0.045);
+      realRivet(g, S * 0.8, S * 0.86, S * 0.045);
+      // blade
+      const bx0 = S * 0.12, bx1 = S * 0.88, by = S * 0.78, apex = S * 0.06;
+      const steel = g.createLinearGradient(bx0, 0, bx1, 0);
+      steel.addColorStop(0, "#5f6d84");
+      steel.addColorStop(0.42, "#dfe7f2");
+      steel.addColorStop(0.55, "#f6fafd");
+      steel.addColorStop(1, "#5f6d84");
+      g.fillStyle = steel;
+      g.beginPath();
+      g.moveTo(bx0, by);
+      g.lineTo(S * 0.5, apex);
+      g.lineTo(bx1, by);
+      g.closePath();
+      g.fill();
+      g.strokeStyle = "#1a2130";
+      g.lineWidth = 2.5;
+      g.stroke();
+      // edge highlight
+      g.strokeStyle = "rgba(255,255,255,0.55)";
+      g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(bx0 + 3, by - 3);
+      g.lineTo(S * 0.5, apex + 4);
+      g.stroke();
+    },
+    orb(g, S) {
+      const cx = S / 2, cy = S / 2, r = S * 0.3;
+      const glow = g.createRadialGradient(cx, cy, r * 0.4, cx, cy, S * 0.52);
+      glow.addColorStop(0, "rgba(62,224,122,0.4)");
+      glow.addColorStop(1, "rgba(62,224,122,0)");
+      g.fillStyle = glow;
+      g.fillRect(0, 0, S, S);
+      const glass = g.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.1, cx, cy, r);
+      glass.addColorStop(0, "#f2fff6");
+      glass.addColorStop(0.55, "#3ee07a");
+      glass.addColorStop(1, "#0a4a24");
+      g.fillStyle = glass;
+      g.beginPath();
+      g.arc(cx, cy, r, 0, Math.PI * 2);
+      g.fill();
+      g.strokeStyle = "#062d16";
+      g.lineWidth = 2;
+      g.stroke();
+      g.fillStyle = "rgba(255,255,255,0.9)";
+      g.beginPath();
+      g.ellipse(cx - r * 0.34, cy - r * 0.4, r * 0.16, r * 0.11, -0.5, 0, Math.PI * 2);
+      g.fill();
+    },
+    pad(g, S) {
+      // steel base
+      const base = g.createLinearGradient(0, S * 0.5, 0, S);
+      base.addColorStop(0, "#4c5668");
+      base.addColorStop(1, "#222a38");
+      g.fillStyle = base;
+      g.fillRect(S * 0.08, S * 0.52, S * 0.84, S * 0.42);
+      g.strokeStyle = "#121722";
+      g.lineWidth = 2;
+      g.strokeRect(S * 0.08, S * 0.52, S * 0.84, S * 0.42);
+      realRivet(g, S * 0.16, S * 0.87, S * 0.04);
+      realRivet(g, S * 0.84, S * 0.87, S * 0.04);
+      // springboard
+      const board = g.createLinearGradient(0, S * 0.2, 0, S * 0.5);
+      board.addColorStop(0, "#ffc46b");
+      board.addColorStop(1, "#c25a10");
+      g.fillStyle = board;
+      g.fillRect(S * 0.05, S * 0.24, S * 0.9, S * 0.26);
+      g.strokeStyle = "#5e2c05";
+      g.lineWidth = 2;
+      g.strokeRect(S * 0.05, S * 0.24, S * 0.9, S * 0.26);
+      // chevrons
+      g.fillStyle = "#ffe27a";
+      for (let i = 0; i < 3; i++) {
+        const cxp = S * (0.25 + i * 0.25);
+        g.beginPath();
+        g.moveTo(cxp - S * 0.07, S * 0.45);
+        g.lineTo(cxp, S * 0.3);
+        g.lineTo(cxp + S * 0.07, S * 0.45);
+        g.lineTo(cxp + S * 0.07, S * 0.4);
+        g.lineTo(cxp, S * 0.26);
+        g.lineTo(cxp - S * 0.07, S * 0.4);
+        g.closePath();
+        g.fill();
+      }
+      g.fillStyle = "rgba(255,255,255,0.35)";
+      g.fillRect(S * 0.05, S * 0.24, S * 0.9, S * 0.04);
+    },
+    dash(g, S) {
+      // dark plate
+      const plate = g.createLinearGradient(0, 0, 0, S);
+      plate.addColorStop(0, "#1b2740");
+      plate.addColorStop(1, "#0b1226");
+      g.fillStyle = plate;
+      const m = S * 0.06;
+      g.beginPath();
+      if (g.roundRect) g.roundRect(m, m, S - 2 * m, S - 2 * m, S * 0.12);
+      else g.rect(m, m, S - 2 * m, S - 2 * m);
+      g.fill();
+      g.strokeStyle = "#0e3a44";
+      g.lineWidth = 2;
+      g.stroke();
+      // energy chevron
+      function chev(ox, alpha, lw) {
+        g.strokeStyle = "rgba(46,230,255," + alpha + ")";
+        g.lineWidth = lw;
+        g.lineCap = "round";
+        g.lineJoin = "round";
+        g.beginPath();
+        g.moveTo(S * 0.3 + ox, S * 0.26);
+        g.lineTo(S * 0.62 + ox, S * 0.5);
+        g.lineTo(S * 0.3 + ox, S * 0.74);
+        g.stroke();
+      }
+      chev(-S * 0.12, 0.4, S * 0.07);
+      chev(0, 0.35, S * 0.14);
+      chev(0, 1, S * 0.07);
+      g.strokeStyle = "#e8fdff";
+      g.lineWidth = S * 0.035;
+      g.beginPath();
+      g.moveTo(S * 0.3, S * 0.26);
+      g.lineTo(S * 0.62, S * 0.5);
+      g.lineTo(S * 0.3, S * 0.74);
+      g.stroke();
+    },
+    goal(g, S) {
+      // stone frame
+      const frame = g.createLinearGradient(0, 0, S, S);
+      frame.addColorStop(0, "#565f74");
+      frame.addColorStop(1, "#262d3d");
+      g.fillStyle = frame;
+      g.fillRect(0, 0, S, S);
+      realSpeckle(g, S, 40, 31);
+      // portal
+      const px = S * 0.16, py = S * 0.1, pw = S * 0.68, ph = S * 0.8;
+      const portal = g.createLinearGradient(0, py, 0, py + ph);
+      portal.addColorStop(0, "#fff6d8");
+      portal.addColorStop(0.5, "#ffd23c");
+      portal.addColorStop(1, "#8a5a00");
+      g.fillStyle = portal;
+      g.fillRect(px, py, pw, ph);
+      g.fillStyle = "rgba(255,255,255,0.3)";
+      g.fillRect(px, py + ph * 0.15, pw, ph * 0.1);
+      g.fillRect(px, py + ph * 0.55, pw, ph * 0.07);
+      g.strokeStyle = "#3a2a05";
+      g.lineWidth = 2;
+      g.strokeRect(px, py, pw, ph);
+      // sparkles
+      g.fillStyle = "rgba(255,255,255,0.9)";
+      for (let i = 0; i < 5; i++) {
+        const sx = px + realHash(i, 51) * pw;
+        const sy = py + realHash(i, 77) * ph;
+        g.fillRect(sx, sy, 2, 2);
+      }
+    },
+    checkpoint(g, S) {
+      realCheckpoint(g, S, false);
+    },
+    checkpoint_touched(g, S) {
+      realCheckpoint(g, S, true);
+    },
+  };
+
+  function realCheckpoint(g, S, lit) {
+    // pole
+    const pole = g.createLinearGradient(S * 0.44, 0, S * 0.56, 0);
+    pole.addColorStop(0, "#7c8798");
+    pole.addColorStop(0.5, "#dfe7f2");
+    pole.addColorStop(1, "#4a5468");
+    g.fillStyle = pole;
+    g.fillRect(S * 0.44, S * 0.12, S * 0.12, S * 0.8);
+    // base
+    g.fillStyle = "#2b3342";
+    g.fillRect(S * 0.34, S * 0.86, S * 0.32, S * 0.1);
+    // lamp
+    if (lit) {
+      const halo = g.createRadialGradient(S * 0.5, S * 0.08, 1, S * 0.5, S * 0.08, S * 0.16);
+      halo.addColorStop(0, "rgba(62,224,122,0.8)");
+      halo.addColorStop(1, "rgba(62,224,122,0)");
+      g.fillStyle = halo;
+      g.fillRect(S * 0.3, 0, S * 0.4, S * 0.28);
+    }
+    g.fillStyle = lit ? "#3ee07a" : "#5a6478";
+    g.beginPath();
+    g.arc(S * 0.5, S * 0.08, S * 0.055, 0, Math.PI * 2);
+    g.fill();
+    // flag
+    g.fillStyle = lit ? "#3ee07a" : "#8a93a8";
+    g.beginPath();
+    g.moveTo(S * 0.56, S * 0.2);
+    g.lineTo(S * 0.88, S * 0.32);
+    g.lineTo(S * 0.56, S * 0.44);
+    g.closePath();
+    g.fill();
+    if (lit) {
+      g.strokeStyle = "rgba(234,255,246,0.9)";
+      g.lineWidth = 1.5;
+      g.stroke();
+    }
+  }
+
+  function realTileImage(kind) {
+    if (realTileCache[kind] !== undefined) return realTileCache[kind];
+    let c = null;
+    try {
+      const S = TILE * REAL_SS;
+      c = document.createElement("canvas");
+      c.width = S;
+      c.height = S;
+      const g = c.getContext("2d");
+      if (!g || !REAL_PAINT[kind]) c = null;
+      else REAL_PAINT[kind](g, S);
+    } catch (e) {
+      c = null;
+    }
+    realTileCache[kind] = c;
+    return c;
+  }
+
+  function realCoinRim(value) {
+    if (value >= 500) return "#e8ecf4";
+    if (value >= 100) return "#ffd23c";
+    if (value >= 50) return "#cfd8e6";
+    return "#b0783c";
+  }
+
+  function drawRealCoin(ctx, tile, x, y, size, bob) {
+    const dy = y + (bob || 0);
+    const cx = x + size / 2;
+    const cy = dy + size / 2;
+    const r = size * 0.42;
+    const rim = realCoinRim(coinValue(tile.id));
+    const prevSmooth = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = true;
+    ctx.save();
+    const face = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.35, r * 0.1, cx, cy, r);
+    face.addColorStop(0, "#fff6d8");
+    face.addColorStop(0.6, "#f5c414");
+    face.addColorStop(1, "#8a5a00");
+    ctx.fillStyle = face;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = rim;
+    ctx.lineWidth = Math.max(1.5, size * 0.07);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(138,90,0,0.7)";
+    ctx.lineWidth = Math.max(1, size * 0.03);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.72, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(255,255,255,0.85)";
+    ctx.lineWidth = Math.max(1.5, size * 0.06);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.82, Math.PI * 1.05, Math.PI * 1.5);
+    ctx.stroke();
+    ctx.restore();
+    ctx.imageSmoothingEnabled = prevSmooth;
+  }
+
   function drawTile(ctx, images, tile, x, y, size, opts) {
     size = size || TILE;
     opts = opts || {};
@@ -1766,6 +2093,10 @@
         drawSimpleTile(ctx, tile, x, y + bob, size, opts);
         return;
       }
+      if (opts.real) {
+        drawRealCoin(ctx, tile, x, y, size, bob);
+        return;
+      }
       drawCoinGraphic(ctx, images, tile, x, y, size, bob);
       return;
     }
@@ -1774,26 +2105,47 @@
       return;
     }
     let img;
-    if (tile.id === "checkpoint") {
-      const touched = opts.touched && opts.c != null && opts.touched.has(opts.c + "," + opts.r);
-      img = touched ? images.checkpointTouched : images.checkpoint;
-    } else if (isBrickId(tile.id)) {
-      img = images.brick;
-    } else if (isSpikeId(tile.id)) {
-      img = images.spike;
-    } else if (isOrbId(tile.id)) {
-      img = images.orb;
-    } else if (tile.id === "pad") {
-      img = images.pad;
-    } else if (tile.id === "dash") {
-      img = images.dash;
-    } else if (isGoalId(tile.id)) {
-      img = images.goal;
+    let realImg = null;
+    if (opts.real) {
+      if (tile.id === "checkpoint") {
+        const touched = opts.touched && opts.c != null && opts.touched.has(opts.c + "," + opts.r);
+        realImg = realTileImage(touched ? "checkpoint_touched" : "checkpoint");
+      } else if (isBrickId(tile.id)) realImg = realTileImage("brick");
+      else if (isSpikeId(tile.id)) realImg = realTileImage("spike");
+      else if (isOrbId(tile.id)) realImg = realTileImage("orb");
+      else if (tile.id === "pad") realImg = realTileImage("pad");
+      else if (tile.id === "dash") realImg = realTileImage("dash");
+      else if (isGoalId(tile.id)) realImg = realTileImage("goal");
+    }
+    if (!realImg) {
+      if (tile.id === "checkpoint") {
+        const touched = opts.touched && opts.c != null && opts.touched.has(opts.c + "," + opts.r);
+        img = touched ? images.checkpointTouched : images.checkpoint;
+      } else if (isBrickId(tile.id)) {
+        img = images.brick;
+      } else if (isSpikeId(tile.id)) {
+        img = images.spike;
+      } else if (isOrbId(tile.id)) {
+        img = images.orb;
+      } else if (tile.id === "pad") {
+        img = images.pad;
+      } else if (tile.id === "dash") {
+        img = images.dash;
+      } else if (isGoalId(tile.id)) {
+        img = images.goal;
+      }
+    } else {
+      img = realImg;
     }
     if (!img) return;
     const rot = isSpikeId(tile.id) ? tile.rot || 0 : 0;
     ctx.save();
     if (isInvisibleId(tile.id)) ctx.globalAlpha *= 0.4;
+    const prevSmooth = ctx.imageSmoothingEnabled;
+    if (realImg) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+    }
     if (rot) {
       ctx.translate(x + size / 2, y + size / 2);
       ctx.rotate((rot * Math.PI) / 180);
@@ -1801,6 +2153,7 @@
     } else {
       ctx.drawImage(img, x, y, size, size);
     }
+    if (realImg) ctx.imageSmoothingEnabled = prevSmooth;
     ctx.restore();
     if (!opts.hideInvisible && isInvisibleId(tile.id)) {
       ctx.save();
@@ -1831,7 +2184,7 @@
     }
   }
 
-  function drawBackdrop(ctx, w, h, t, theme, simple, shaders) {
+  function drawBackdrop(ctx, w, h, t, theme, simple) {
     const th = theme || DEFAULT_THEME;
     if (simple) {
       ctx.fillStyle = th.mid || "#0a1628";
@@ -1852,21 +2205,20 @@
       { x: 0.5 + 0.16 * Math.sin(t * 0.026 + 2.1), y: 0.5 + 0.2 * Math.sin(t * 0.031 + 0.7), r: 0.48, c: hexToRgba(th.mid, 0.06) },
     ];
     const R = Math.max(w, h);
-    if (shaders !== false) {
-      for (const gl of glows) {
-        const rg = ctx.createRadialGradient(gl.x * w, gl.y * h, 0, gl.x * w, gl.y * h, gl.r * R);
-        rg.addColorStop(0, gl.c);
-        rg.addColorStop(1, "rgba(0, 0, 0, 0)");
-        ctx.fillStyle = rg;
-        ctx.fillRect(0, 0, w, h);
-      }
+    for (const gl of glows) {
+      const rg = ctx.createRadialGradient(gl.x * w, gl.y * h, 0, gl.x * w, gl.y * h, gl.r * R);
+      rg.addColorStop(0, gl.c);
+      rg.addColorStop(1, "rgba(0, 0, 0, 0)");
+      ctx.fillStyle = rg;
+      ctx.fillRect(0, 0, w, h);
     }
   }
 
   function drawWorld(ctx, level, images, cam, extras) {
     extras = extras || {};
-    const gfx = extras.graphics === "good" || extras.graphics === "simple" ? extras.graphics : "normal";
-    const fx = Object.assign({ shaders: true, shadows: true, flashes: true, particles: true }, extras.fx || {});
+    const gfx = extras.graphics === "good" || extras.graphics === "simple" || extras.graphics === "dlls5" ? extras.graphics : "normal";
+    const real = gfx === "dlls5";
+    const fx = Object.assign({ shadows: true, flashes: true, particles: true }, extras.fx || {});
     const w = ctx.canvas.width;
     const h = ctx.canvas.height;
     const zoom = cam.zoom;
@@ -1874,7 +2226,7 @@
     const worldH = level.rows * TILE;
 
     ctx.imageSmoothingEnabled = false;
-    drawBackdrop(ctx, w, h, Date.now() / 1000, level.theme, gfx === "simple", fx.shaders);
+    drawBackdrop(ctx, w, h, Date.now() / 1000, level.theme, gfx === "simple");
 
     ctx.save();
     ctx.scale(zoom, zoom);
@@ -1929,6 +2281,7 @@
             collected: extras.engine ? extras.engine.collected : null,
             bob: !!extras.engine,
             graphics: gfx,
+            real: real,
           });
         }
       }
@@ -1946,6 +2299,7 @@
           r: m.cy,
           bob: !!extras.engine,
           graphics: gfx,
+          real: real,
         });
       }
     }

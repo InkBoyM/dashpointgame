@@ -747,7 +747,7 @@
         diamond: Number(cf.diamond) || 0,
         king: Number(cf.king) || 0,
       };
-      s.graphics = s.graphics === "good" || s.graphics === "simple" ? s.graphics : "normal";
+      s.graphics = s.graphics === "good" || s.graphics === "simple" || s.graphics === "dlls5" ? s.graphics : "normal";
       s.ghostOpacity = clampGhostOpacity(s.ghostOpacity);
       return s;
     } catch (e) {
@@ -826,6 +826,7 @@
       ev.preventDefault();
       try { btn.setPointerCapture(ev.pointerId); } catch (e) {}
       setTouchBtn(btn, action, true);
+      if (action === "jump") haptic("tick");
     });
     btn.addEventListener("pointerup", release);
     btn.addEventListener("pointercancel", release);
@@ -1884,6 +1885,7 @@
       el("setHitbox").checked = !!save_.data.hitboxes;
       el("setFps").checked = !!save_.data.debugFps;
       el("setAuto").checked = save_.data.autoRespawn !== false;
+      el("setHaptics").checked = save_.data.haptics !== false;
       syncGhostOpUI();
       syncGfxUI();
       syncFxUI();
@@ -1910,13 +1912,12 @@
 
   function gfxMode() {
     const g = save_.data && save_.data.graphics;
-    if (g === "good" || g === "simple") return g;
+    if (g === "good" || g === "simple" || g === "dlls5") return g;
     return "normal";
   }
 
   function gfxFlags() {
     return {
-      shaders: save_.data.fxShaders !== false,
       shadows: save_.data.fxShadows !== false,
       flashes: save_.data.fxFlashes !== false,
       particles: save_.data.fxParticles !== false,
@@ -1924,7 +1925,7 @@
   }
 
   function syncFxUI() {
-    const pairs = [["fxShaders", "setFxShaders"], ["fxShadows", "setFxShadows"], ["fxFlashes", "setFxFlashes"], ["fxParticles", "setFxParticles"]];
+    const pairs = [["fxShadows", "setFxShadows"], ["fxFlashes", "setFxFlashes"], ["fxParticles", "setFxParticles"]];
     for (const pair of pairs) {
       const box = el(pair[1]);
       if (box) box.checked = save_.data[pair[0]] !== false;
@@ -1954,6 +1955,7 @@
     if (!hint) return;
     if (mode === "good") hint.textContent = "Same crisp sprites as Normal, with a wider view.";
     else if (mode === "simple") hint.textContent = "Faster. Solid colors and fewer effects.";
+    else if (mode === "dlls5") hint.textContent = "Realistic tiles: stone, metal, glass and gold. Skins stay the same.";
     else hint.textContent = "Default look.";
   }
 
@@ -2471,6 +2473,31 @@
     clearChatBubbles();
   }
 
+  // ---- Haptics (Android bridge, else navigator.vibrate) ----
+  function haptic(kind) {
+    if (save_.data.haptics === false) return;
+    try {
+      const b = window.DashPointAndroidBridge || window.DashPointBridge;
+      if (b) {
+        if (kind === "death" && b.hapticDeath) { b.hapticDeath(); return; }
+        if (kind === "win" && b.hapticWin) { b.hapticWin(); return; }
+        if (kind === "orb" && b.hapticOrb) { b.hapticOrb(); return; }
+        if (kind === "pad" && b.hapticPad) { b.hapticPad(); return; }
+        if (kind === "dash" && b.hapticHeavy) { b.hapticHeavy(); return; }
+        if (b.hapticTick) { b.hapticTick(); return; }
+      }
+    } catch (e) {}
+    try {
+      if (navigator.vibrate) {
+        if (kind === "death") navigator.vibrate([50, 40, 60]);
+        else if (kind === "win") navigator.vibrate([30, 50, 30, 50, 90]);
+        else if (kind === "dash") navigator.vibrate(35);
+        else if (kind === "orb" || kind === "pad") navigator.vibrate(20);
+        else navigator.vibrate(12);
+      }
+    } catch (e) {}
+  }
+
   function frame(ts) {
     requestAnimationFrame(frame);
     const rawDt = Math.max(0.001, (ts - state.lastFrame) / 1000 || 0.016);
@@ -2497,7 +2524,15 @@
       restartLevel();
     }
     const wasDead = state.engine.dead;
+    const wasOrb = state.engine.orbFlash > 0;
+    const wasPad = state.engine.padFlash > 0;
+    const wasDash = state.engine.dashFlash > 0;
+    const hadCheckpoint = !!state.engine.checkpoint;
     state.engine.update(dt);
+    if (state.engine.orbFlash > 0 && !wasOrb) haptic("orb");
+    if (state.engine.padFlash > 0 && !wasPad) haptic("pad");
+    if (state.engine.dashFlash > 0 && !wasDash) haptic("dash");
+    if (!hadCheckpoint && state.engine.checkpoint) haptic("tick");
     if (state.engine.pendingJumps) {
       const n = state.engine.pendingJumps | 0;
       state.engine.pendingJumps = 0;
@@ -2516,6 +2551,7 @@
           save();
           syncCoinUI();
           showNotice("+" + got + " coins", false);
+          haptic("tick");
         }
       }
     }
@@ -2526,10 +2562,12 @@
       save();
       checkUnlocks();
       addShake(12); // death juice
+      haptic("death");
     }
     if (state.engine.dead && save_.data.autoRespawn && state.engine.deathTimer > 0.55) respawn();
     if (state.engine.won && !state.winShown) {
       state.winShown = true;
+      haptic("win");
       onWin();
     }
     if (!state.engine.won) state.winShown = false;
@@ -3487,6 +3525,11 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       save_.data.autoRespawn = ev.target.checked;
       save();
     });
+    el("setHaptics").addEventListener("change", (ev) => {
+      save_.data.haptics = ev.target.checked;
+      save();
+      if (ev.target.checked) haptic("tick");
+    });
     el("setGhostOp").addEventListener("input", (ev) => {
       save_.data.ghostOpacity = clampGhostOpacity(ev.target.value);
       save();
@@ -3495,7 +3538,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     document.querySelectorAll(".gfx-opt").forEach(function (b) {
       b.addEventListener("click", function () {
         const next = b.getAttribute("data-gfx");
-        save_.data.graphics = next === "good" || next === "simple" ? next : "normal";
+        save_.data.graphics = next === "good" || next === "simple" || next === "dlls5" ? next : "normal";
         save();
         applyGraphics();
         syncGfxUI();
@@ -3507,7 +3550,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       box.style.display = open ? "none" : "";
       el("btnAdvFx").innerHTML = open ? "ADVANCED &#9656;" : "ADVANCED &#9662;";
     });
-    [["setFxShaders", "fxShaders"], ["setFxShadows", "fxShadows"], ["setFxFlashes", "fxFlashes"], ["setFxParticles", "fxParticles"]].forEach(function (pair) {
+    [["setFxShadows", "fxShadows"], ["setFxFlashes", "fxFlashes"], ["setFxParticles", "fxParticles"]].forEach(function (pair) {
       el(pair[0]).addEventListener("change", (ev) => {
         save_.data[pair[1]] = ev.target.checked;
         save();
