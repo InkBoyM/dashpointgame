@@ -67,6 +67,10 @@
         <button class="touch-btn jump" id="touchJump" aria-label="Jump">&#9650;</button>
       </div>
     </div>
+    <div id="joystick">
+      <div id="joyBase"></div>
+      <div id="joyKnob"></div>
+    </div>
     <div class="hud">
       <div class="hud-chip">
         <span id="hudTime">0.00</span>
@@ -112,18 +116,6 @@
     <div class="qc-caption">QUICK CHAT</div>
     <div class="qc-grid" id="qcGrid"></div>
     <div class="qc-hint">ALT+ARROWS choose &middot; ENTER / ALT+ENTER send &middot; ESC close</div>
-  </div>
-
-  <div class="modal-root" id="modalUpdate">
-    <div class="modal">
-      <h2 id="updTitle">UPDATE AVAILABLE</h2>
-      <p id="updText">A new version is ready.</p>
-      <div class="update-bar" id="updBarWrap" style="display:none"><div id="updBar"></div></div>
-      <div class="row-end" style="gap:10px">
-        <button class="px-btn small" id="btnUpdLater">LATER</button>
-        <button class="px-btn small gold" id="btnUpdGo">UPDATE</button>
-      </div>
-    </div>
   </div>
   <div class="chat-feed" id="chatFeed"></div>
 
@@ -355,6 +347,11 @@
       </div>
       <p class="hint" id="gfxHint">Default look.</p>
       <div class="section-title">TOUCH CONTROLS</div>
+      <div class="gfx-row" id="ctlRow">
+        <button type="button" class="px-btn small ctl-opt" data-ctl="buttons">BUTTONS</button>
+        <button type="button" class="px-btn small ctl-opt" data-ctl="joystick">JOYSTICK</button>
+      </div>
+      <p class="hint">Joystick: drag anywhere on the left half to move, tap the right half to jump. Pinch zoom works in Buttons mode.</p>
       <div class="slider-row"><span>Button size</span><b id="tcSizeVal">72</b></div>
       <input type="range" id="tcSize" min="56" max="112" step="2" value="72" />
       <div class="slider-row"><span>Move buttons: edge</span><b id="tcLxVal">14</b></div>

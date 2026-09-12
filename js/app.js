@@ -667,7 +667,7 @@
   }
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "", trails: [], trail: "", touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
   }
 
   function touchUIDefaults() {
@@ -739,6 +739,7 @@
       s.trails = Array.isArray(s.trails) ? s.trails.filter(function (id) { return !!findShopTrail(id); }) : [];
       s.trail = findShopTrail(s.trail) ? s.trail : "";
       s.touchUI = Object.assign(touchUIDefaults(), (s.touchUI && typeof s.touchUI === "object") ? s.touchUI : {});
+      s.touchMode = s.touchMode === "joystick" ? "joystick" : "buttons";
       s.tag = findShopTag(s.tag) && s.tags.indexOf(s.tag) !== -1 ? s.tag : "";
       const cf = s.chestFree && typeof s.chestFree === "object" ? s.chestFree : {};
       s.chestFree = {
@@ -807,6 +808,21 @@
 
   // ---- Touch controls (phones/tablets) + pinch zoom ----
   const pinch = { ids: [], dist: 0 };
+  const joy = { id: null, ox: 0, oy: 0, dx: 0, dy: 0 };
+  let joyJumpId = null;
+  const JOY_DEAD = 22;
+  const JOY_RADIUS = 52;
+
+  function touchMode() {
+    return save_.data.touchMode === "joystick" ? "joystick" : "buttons";
+  }
+
+  function syncCtlUI() {
+    document.querySelectorAll(".ctl-opt").forEach(function (b) {
+      b.classList.toggle("on", b.getAttribute("data-ctl") === touchMode());
+    });
+    document.body.classList.toggle("joystick", touchMode() === "joystick");
+  }
 
   function setTouchBtn(btn, action, on) {
     state.touch[action] = !!on;
@@ -863,13 +879,13 @@
     const c = el("view");
     if (!c) return;
     c.addEventListener("pointerdown", (ev) => {
-      if (ev.pointerType !== "touch") return;
+      if (ev.pointerType !== "touch" || touchMode() !== "buttons") return;
       pinch.ids.push({ id: ev.pointerId, x: ev.clientX, y: ev.clientY });
       if (pinch.ids.length > 2) pinch.ids.shift();
       pinch.dist = pinchDist();
     });
     const move = (ev) => {
-      if (ev.pointerType !== "touch") return;
+      if (ev.pointerType !== "touch" || touchMode() !== "buttons") return;
       let found = false;
       for (const p of pinch.ids) {
         if (p.id === ev.pointerId) { p.x = ev.clientX; p.y = ev.clientY; found = true; break; }
@@ -889,10 +905,78 @@
     c.addEventListener("pointercancel", up);
   }
 
+  function showJoy(ox, oy, dx, dy) {
+    const base = el("joyBase"), knob = el("joyKnob");
+    if (!base || !knob) return;
+    base.style.display = "block";
+    knob.style.display = "block";
+    base.style.left = ox + "px";
+    base.style.top = oy + "px";
+    const m = Math.hypot(dx, dy) || 1;
+    const cl = Math.min(m, JOY_RADIUS);
+    knob.style.left = ox + (dx / m) * cl + "px";
+    knob.style.top = oy + (dy / m) * cl + "px";
+  }
+
+  function hideJoy() {
+    const base = el("joyBase"), knob = el("joyKnob");
+    if (base) base.style.display = "none";
+    if (knob) knob.style.display = "none";
+  }
+
+  function bindJoystick() {
+    const c = el("view");
+    if (!c) return;
+    c.addEventListener("pointerdown", (ev) => {
+      if (ev.pointerType !== "touch" || touchMode() !== "joystick") return;
+      if (state.screen !== "game" || state.paused) return;
+      if (ev.clientX < window.innerWidth / 2) {
+        if (joy.id !== null) return;
+        joy.id = ev.pointerId;
+        joy.ox = ev.clientX;
+        joy.oy = ev.clientY;
+        joy.dx = 0;
+        joy.dy = 0;
+        state.touch.left = state.touch.right = false;
+        showJoy(joy.ox, joy.oy, 0, 0);
+      } else {
+        if (joyJumpId !== null) return;
+        joyJumpId = ev.pointerId;
+        setTouchBtn(null, "jump", true);
+        haptic("tick");
+      }
+    });
+    const move = (ev) => {
+      if (ev.pointerId !== joy.id) return;
+      joy.dx = ev.clientX - joy.ox;
+      joy.dy = ev.clientY - joy.oy;
+      state.touch.left = joy.dx < -JOY_DEAD;
+      state.touch.right = joy.dx > JOY_DEAD;
+      showJoy(joy.ox, joy.oy, joy.dx, joy.dy);
+    };
+    const up = (ev) => {
+      if (ev.pointerId === joy.id) {
+        joy.id = null;
+        state.touch.left = state.touch.right = false;
+        hideJoy();
+      }
+      if (ev.pointerId === joyJumpId) {
+        joyJumpId = null;
+        setTouchBtn(null, "jump", false);
+      }
+    };
+    c.addEventListener("pointermove", move);
+    c.addEventListener("pointerup", up);
+    c.addEventListener("pointercancel", up);
+  }
+
   function clearTouch() {
     state.touch.left = state.touch.right = state.touch.jump = false;
     pinch.ids = [];
     pinch.dist = 0;
+    joy.id = null;
+    joyJumpId = null;
+    hideJoy();
     ["touchLeft", "touchRight", "touchJump"].forEach(function (id) {
       const b = el(id);
       if (b) b.classList.remove("on");
@@ -1890,6 +1974,7 @@
       syncGfxUI();
       syncFxUI();
       syncTouchUI();
+      syncCtlUI();
       el("advFx").style.display = "none";
       el("btnAdvFx").innerHTML = "ADVANCED &#9656;";
       syncSpaceSettings();
@@ -3421,6 +3506,16 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     bindTouchBtn("touchRight", "right");
     bindTouchBtn("touchJump", "jump");
     bindPinchZoom();
+    bindJoystick();
+    document.querySelectorAll(".ctl-opt").forEach(function (b) {
+      b.addEventListener("click", function () {
+        save_.data.touchMode = b.getAttribute("data-ctl") === "joystick" ? "joystick" : "buttons";
+        save();
+        clearTouch();
+        syncCtlUI();
+      });
+    });
+    syncCtlUI();
     if ((window.matchMedia && window.matchMedia("(pointer: coarse)").matches) || ("ontouchstart" in window)) {
       document.body.classList.add("touch");
     }
@@ -3821,95 +3916,13 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     syncFpsVis();
     show("home");
     requestAnimationFrame(frame);
-    setTimeout(checkAppUpdate, 4000);
-  }
-
-  // ---- Android in-app updates (retro popup, offline-ready download) ----
-  let updDismissed = false;
-  let updTimer = null;
-
-  function androidBridge() {
     try {
-      const b = window.DashPointAndroidBridge || window.DashPointBridge;
-      if (b && typeof b.getUpdateInfo === "function") return b;
-    } catch (e) {}
-    return null;
-  }
-
-  function checkAppUpdate() {
-    if (updDismissed || state.screen !== "home") return;
-    if (document.querySelector(".modal-root.visible")) return;
-    const b = androidBridge();
-    if (!b) return;
-    let st = null;
-    try { st = JSON.parse(b.getUpdateInfo()); } catch (e) { return; }
-    if (!st || !st.supported) return;
-    if (st.apkUpdate && st.apkUrl) {
-      showUpdateModal(
-        "APP UPDATE AVAILABLE",
-        "A new DashPoint app is out. Game updates download in-app, but this one needs a reinstall.",
-        "GET APP",
-        function () {
-          try { b.openApkUrl(st.apkUrl); } catch (e) {}
-          updDismissed = true;
-          el("modalUpdate").classList.remove("visible");
-        }
-      );
-    } else if (st.hasWwwUpdate) {
-      showUpdateModal(
-        "UPDATE AVAILABLE",
-        "Fresh stuff is ready (v" + st.remoteWww + "). Download it for offline play?",
-        "UPDATE",
-        function () { startWwwUpdateFlow(b); }
-      );
-    }
-  }
-
-  function showUpdateModal(title, text, goLabel, onGo) {
-    el("updTitle").textContent = title;
-    el("updText").textContent = text;
-    el("updBarWrap").style.display = "none";
-    el("updBar").style.width = "0%";
-    const go = el("btnUpdGo");
-    go.textContent = goLabel;
-    go.onclick = onGo;
-    el("btnUpdLater").onclick = function () {
-      updDismissed = true;
-      el("modalUpdate").classList.remove("visible");
-    };
-    el("modalUpdate").classList.add("visible");
-  }
-
-  function startWwwUpdateFlow(b) {
-    let ok = false;
-    try { ok = !!b.startWwwUpdate(); } catch (e) {}
-    if (!ok) {
-      el("updText").textContent = "Couldn't start the download. Check your connection and retry.";
-      return;
-    }
-    el("updBarWrap").style.display = "";
-    el("btnUpdGo").textContent = "...";
-    if (updTimer) clearInterval(updTimer);
-    updTimer = setInterval(function () {
-      let st = null;
-      try { st = JSON.parse(b.getUpdateInfo()); } catch (e) {}
-      if (!st) return;
-      el("updBar").style.width = Math.max(0, Math.min(100, st.progress | 0)) + "%";
-      if (st.done) {
-        clearInterval(updTimer);
-        updTimer = null;
-        updDismissed = true;
-        el("updText").textContent = "OFFLINE READY! The new version is saved on your device.";
-        el("updBarWrap").style.display = "none";
-        el("btnUpdGo").textContent = "NICE";
-        el("btnUpdGo").onclick = function () { el("modalUpdate").classList.remove("visible"); };
-      } else if (st.error && !st.downloading) {
-        clearInterval(updTimer);
-        updTimer = null;
-        el("updText").textContent = "Failed: " + st.error;
-        el("btnUpdGo").textContent = "RETRY";
+      if ("serviceWorker" in navigator && /^https:$/.test(window.location.protocol)) {
+        window.addEventListener("load", function () {
+          navigator.serviceWorker.register("sw.js").catch(function () {});
+        });
       }
-    }, 500);
+    } catch (e) {}
   }
 
 boot();
