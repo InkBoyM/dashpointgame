@@ -17,8 +17,8 @@
   --shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
   --font: "Segoe UI", "Trebuchet MS", sans-serif;
   --mono: "Cascadia Mono", "Consolas", "Segoe UI Mono", monospace;
-  --cursor-hover: url("../assets/ui/cursor-hover.png") 29 2, auto;
-  --cursor-select: url("../assets/ui/cursor-select.png") 29 2, pointer;
+  --cursor-hover: url("../assets/ui/cursor-hover.png") 8 9, auto;
+  --cursor-select: url("../assets/ui/cursor-select.png") 8 9, pointer;
 }
 
 * { box-sizing: border-box; }

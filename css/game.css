@@ -10,8 +10,8 @@
   --cyan: #2ee6ff;
   --shadow: 5px 5px 0 rgba(6, 12, 24, 0.55);
   --font: "Consolas", "Cascadia Mono", "Courier New", monospace;
-  --cursor-hover: url("../assets/ui/cursor-hover.png") 29 2, auto;
-  --cursor-select: url("../assets/ui/cursor-select.png") 29 2, pointer;
+  --cursor-hover: url("../assets/ui/cursor-hover.png") 8 9, auto;
+  --cursor-select: url("../assets/ui/cursor-select.png") 8 9, pointer;
 }
 
 * { box-sizing: border-box; }
