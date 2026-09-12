@@ -807,11 +807,17 @@
   };
 
   // ---- Touch controls (phones/tablets) + pinch zoom ----
-  const pinch = { ids: [], dist: 0 };
+  const pinch = { ids: [], dist: 0, joy: false };
   const joy = { id: null, ox: 0, oy: 0, dx: 0, dy: 0 };
   let joyJumpId = null;
   const JOY_DEAD = 22;
   const JOY_RADIUS = 52;
+  // Pinch arbitration in joystick mode: a held stick plus a jump tap must not
+  // read as a pinch. Pinch engages only once both fingers moved and spread.
+  const JOY_PINCH_MOVE = 14;
+  const JOY_PINCH_SPREAD = 48;
+  const joyPts = {};
+  let joyPinch = null;
 
   function touchMode() {
     return save_.data.touchMode === "joystick" ? "joystick" : "buttons";
@@ -856,6 +862,18 @@
     return Math.hypot(a.x - b.x, a.y - b.y);
   }
 
+  function pinchTrackMove(ev) {
+    let found = false;
+    for (const p of pinch.ids) {
+      if (p.id === ev.pointerId) { p.x = ev.clientX; p.y = ev.clientY; found = true; break; }
+    }
+    if (!found) return;
+    if (state.screen !== "game") { pinch.dist = pinchDist(); return; }
+    const d = pinchDist();
+    if (pinch.dist > 0 && d > 0) pinchZoomBy(d / pinch.dist);
+    pinch.dist = d;
+  }
+
   function pinchZoomBy(factor) {
     if (!(factor > 0) || !isFinite(factor)) return;
     cam.zoom = clampZoom(cam.zoom * factor);
@@ -886,15 +904,7 @@
     });
     const move = (ev) => {
       if (ev.pointerType !== "touch" || touchMode() !== "buttons") return;
-      let found = false;
-      for (const p of pinch.ids) {
-        if (p.id === ev.pointerId) { p.x = ev.clientX; p.y = ev.clientY; found = true; break; }
-      }
-      if (!found) return;
-      if (state.screen !== "game") { pinch.dist = pinchDist(); return; }
-      const d = pinchDist();
-      if (pinch.dist > 0 && d > 0) pinchZoomBy(d / pinch.dist);
-      pinch.dist = d;
+      pinchTrackMove(ev);
     };
     const up = (ev) => {
       pinch.ids = pinch.ids.filter((p) => p.id !== ev.pointerId);
@@ -924,14 +934,68 @@
     if (knob) knob.style.display = "none";
   }
 
+  function joyPinchCheck() {
+    if (pinch.joy || joyPinch) return;
+    const ids = Object.keys(joyPts).map(Number);
+    if (ids.length !== 2) return;
+    const a = joyPts[ids[0]], b = joyPts[ids[1]];
+    if (!a || !b) return;
+    joyPinch = { a: ids[0], b: ids[1], d0: Math.hypot(a.x - b.x, a.y - b.y) };
+  }
+
+  function joyPinchTrack(ev) {
+    if (!joyPinch) return;
+    const rec = joyPts[ev.pointerId];
+    if (!rec || (ev.pointerId !== joyPinch.a && ev.pointerId !== joyPinch.b)) return;
+    rec.moved += Math.hypot(ev.clientX - rec.x, ev.clientY - rec.y);
+    rec.x = ev.clientX;
+    rec.y = ev.clientY;
+    const a = joyPts[joyPinch.a], b = joyPts[joyPinch.b];
+    if (!a || !b) { joyPinch = null; return; }
+    if (a.moved > JOY_PINCH_MOVE && b.moved > JOY_PINCH_MOVE &&
+        Math.abs(Math.hypot(a.x - b.x, a.y - b.y) - joyPinch.d0) > JOY_PINCH_SPREAD) {
+      const qa = joyPinch.a, qb = joyPinch.b;
+      const pa = joyPts[qa], pb = joyPts[qb];
+      joyPinch = null;
+      pinch.joy = true;
+      // Release gameplay bindings; the gesture is now a zoom.
+      joy.id = null;
+      joyJumpId = null;
+      state.touch.left = state.touch.right = state.touch.jump = false;
+      hideJoy();
+      pinch.ids = [
+        { id: qa, x: pa ? pa.x : 0, y: pa ? pa.y : 0 },
+        { id: qb, x: pb ? pb.x : 0, y: pb ? pb.y : 0 },
+      ];
+      pinch.dist = pinchDist();
+    }
+  }
+
+  function joyPinchEnd(ev) {
+    delete joyPts[ev.pointerId];
+    if (joyPinch && (ev.pointerId === joyPinch.a || ev.pointerId === joyPinch.b)) joyPinch = null;
+    if (pinch.joy) {
+      pinch.ids = pinch.ids.filter((p) => p.id !== ev.pointerId);
+      if (pinch.ids.length < 2) {
+        pinch.joy = false;
+        pinch.ids = [];
+        pinch.dist = 0;
+      } else {
+        pinch.dist = pinchDist();
+      }
+    }
+  }
+
   function bindJoystick() {
     const c = el("view");
     if (!c) return;
     c.addEventListener("pointerdown", (ev) => {
       if (ev.pointerType !== "touch" || touchMode() !== "joystick") return;
       if (state.screen !== "game" || state.paused) return;
+      if (pinch.joy) return;
+      joyPts[ev.pointerId] = { x: ev.clientX, y: ev.clientY, moved: 0 };
       if (ev.clientX < window.innerWidth / 2) {
-        if (joy.id !== null) return;
+        if (joy.id !== null) { joyPinchCheck(); return; }
         joy.id = ev.pointerId;
         joy.ox = ev.clientX;
         joy.oy = ev.clientY;
@@ -940,13 +1004,17 @@
         state.touch.left = state.touch.right = false;
         showJoy(joy.ox, joy.oy, 0, 0);
       } else {
-        if (joyJumpId !== null) return;
+        if (joyJumpId !== null) { joyPinchCheck(); return; }
         joyJumpId = ev.pointerId;
         setTouchBtn(null, "jump", true);
         haptic("tick");
       }
+      joyPinchCheck();
     });
     const move = (ev) => {
+      if (pinch.joy) { pinchTrackMove(ev); return; }
+      joyPinchTrack(ev);
+      if (pinch.joy) { pinchTrackMove(ev); return; }
       if (ev.pointerId !== joy.id) return;
       joy.dx = ev.clientX - joy.ox;
       joy.dy = ev.clientY - joy.oy;
@@ -955,6 +1023,8 @@
       showJoy(joy.ox, joy.oy, joy.dx, joy.dy);
     };
     const up = (ev) => {
+      joyPinchEnd(ev);
+      if (pinch.joy) return;
       if (ev.pointerId === joy.id) {
         joy.id = null;
         state.touch.left = state.touch.right = false;
@@ -974,6 +1044,9 @@
     state.touch.left = state.touch.right = state.touch.jump = false;
     pinch.ids = [];
     pinch.dist = 0;
+    pinch.joy = false;
+    joyPinch = null;
+    for (const k in joyPts) delete joyPts[k];
     joy.id = null;
     joyJumpId = null;
     hideJoy();
