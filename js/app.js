@@ -3341,6 +3341,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
   function levelRow(meta) {
     const row = document.createElement("div");
     row.className = "net-row";
+    row.style.cursor = "pointer";
+    row.addEventListener("click", () => openLevelInfo({ id: meta.id, meta: meta }));
     const info = document.createElement("div");
     info.className = "n-main";
     info.innerHTML =
@@ -3358,7 +3360,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       ev.stopPropagation();
       playNetworkLevel(meta);
     });
-    info.querySelector(".n-author").addEventListener("click", () => openAccount(meta.authorUid));
+    info.querySelector(".n-author").addEventListener("click", (ev) => { ev.stopPropagation(); openAccount(meta.authorUid); });
     row.appendChild(diff);
     row.appendChild(info);
     row.appendChild(play);
