@@ -1753,7 +1753,7 @@
   }
 
   // ---- DLLS 5 realistic tile textures (pre-rendered once, cached) ----
-  const REAL_SS = 2;
+  const REAL_SS = 4;
   const realTileCache = {};
 
   function realHash(i, s) {
@@ -1773,6 +1773,25 @@
     }
   }
 
+  // Fine photographic grain over a rect.
+  function realGrain(g, x, y, w, h, n, seed, alpha) {
+    for (let i = 0; i < n; i++) {
+      const r = realHash(i, seed);
+      const r2 = realHash(i, seed + 311);
+      g.fillStyle = r > 0.5 ? "rgba(255,255,255," + alpha + ")" : "rgba(0,0,0," + alpha * 1.6 + ")";
+      g.fillRect(x + r2 * w, y + realHash(i, seed + 512) * h, 1.5, 1.5);
+    }
+  }
+
+  // Soft darkened corners for depth.
+  function realVignette(g, S, alpha) {
+    const v = g.createRadialGradient(S / 2, S / 2, S * 0.32, S / 2, S / 2, S * 0.75);
+    v.addColorStop(0, "rgba(0,0,0,0)");
+    v.addColorStop(1, "rgba(0,0,0," + alpha + ")");
+    g.fillStyle = v;
+    g.fillRect(0, 0, S, S);
+  }
+
   function realRivet(g, x, y, r) {
     const rg = g.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
     rg.addColorStop(0, "#e8eef6");
@@ -1787,47 +1806,98 @@
   const REAL_PAINT = {
     brick(g, S) {
       const u = S / 32;
-      const bg = g.createLinearGradient(0, 0, 0, S);
-      bg.addColorStop(0, "#4a5878");
-      bg.addColorStop(0.5, "#39445e");
-      bg.addColorStop(1, "#222a3f");
-      g.fillStyle = bg;
+      // Four stone blocks with individual tones.
+      const courses = [
+        { x: 0, w: S / 2, tone: 0 },
+        { x: S / 2, w: S / 2, tone: 1 },
+        { x: -S / 4, w: S / 2, tone: 2 },
+        { x: S / 4, w: S / 2, tone: 3 },
+        { x: (3 * S) / 4, w: S / 2, tone: 0 },
+      ];
+      const tones = [
+        ["#525f82", "#3d4763", "#252c42"],
+        ["#49536f", "#37415c", "#20263a"],
+        ["#565f7e", "#404a66", "#262d44"],
+      ];
+      g.fillStyle = "#10141f";
       g.fillRect(0, 0, S, S);
-      // mortar joints: two staggered courses
-      g.fillStyle = "#131828";
+      for (let i = 0; i < courses.length; i++) {
+        const c = courses[i];
+        const y0 = i < 2 ? 0 : S / 2;
+        const t = tones[(c.tone + i) % 3];
+        const bg = g.createLinearGradient(0, y0, 0, y0 + S / 2);
+        bg.addColorStop(0, t[0]);
+        bg.addColorStop(0.55, t[1]);
+        bg.addColorStop(1, t[2]);
+        g.fillStyle = bg;
+        const bx = Math.max(2, c.x + 2), bw = Math.min(S - 2, c.x + c.w - 2) - bx;
+        if (bw <= 0) continue;
+        g.fillRect(bx, y0 + 2, bw, S / 2 - 4);
+        // top bevel light, bottom inner shade
+        g.fillStyle = "rgba(255,255,255,0.20)";
+        g.fillRect(bx, y0 + 2, bw, 2 * u);
+        g.fillStyle = "rgba(0,0,0,0.30)";
+        g.fillRect(bx, y0 + S / 2 - 2 - 3 * u, bw, 3 * u);
+      }
+      // mortar cross lines
+      g.fillStyle = "#0d1119";
       g.fillRect(0, S / 2 - u, S, 2 * u);
-      g.fillRect(S / 2 - u, 0, 2 * u, S / 2);
-      g.fillRect(S / 4 - u, S / 2, 2 * u, S / 2);
-      g.fillRect((3 * S) / 4 - u, S / 2, 2 * u, S / 2);
-      // top bevel light + bottom shade
-      g.fillStyle = "rgba(255,255,255,0.22)";
-      g.fillRect(0, 0, S, 2 * u);
-      g.fillStyle = "rgba(0,0,0,0.35)";
-      g.fillRect(0, S - 3 * u, S, 3 * u);
-      realSpeckle(g, S, 90, 7);
-      g.strokeStyle = "#0e1320";
-      g.lineWidth = 2;
-      g.strokeRect(1, 1, S - 2, S - 2);
+      // cracks
+      g.strokeStyle = "rgba(8,10,16,0.8)";
+      g.lineWidth = 1.5;
+      for (let i = 0; i < 3; i++) {
+        let cx = realHash(i, 77) * S, cy = realHash(i, 78) * S;
+        g.beginPath();
+        g.moveTo(cx, cy);
+        for (let k = 0; k < 3; k++) {
+          cx += (realHash(i * 3 + k, 79) - 0.5) * S * 0.16;
+          cy += realHash(i * 3 + k, 80) * S * 0.1;
+          g.lineTo(cx, cy);
+        }
+        g.stroke();
+      }
+      realSpeckle(g, S, 130, 7);
+      realGrain(g, 0, 0, S, S, 130, 707, 0.05);
+      realVignette(g, S, 0.22);
+      g.strokeStyle = "#0b0e16";
+      g.lineWidth = 3;
+      g.strokeRect(1.5, 1.5, S - 3, S - 3);
     },
     spike(g, S) {
-      // base plate
+      // base plate with brushed streaks
       const plate = g.createLinearGradient(0, S * 0.74, 0, S);
-      plate.addColorStop(0, "#5a6678");
-      plate.addColorStop(1, "#272f3d");
+      plate.addColorStop(0, "#646f82");
+      plate.addColorStop(0.5, "#3d4657");
+      plate.addColorStop(1, "#232a38");
       g.fillStyle = plate;
       g.fillRect(S * 0.05, S * 0.76, S * 0.9, S * 0.2);
-      g.strokeStyle = "#141a26";
-      g.lineWidth = 2;
+      for (let i = 0; i < 8; i++) {
+        const yy = S * 0.78 + realHash(i, 91) * S * 0.16;
+        g.fillStyle = i % 2 ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.14)";
+        g.fillRect(S * 0.06, yy, S * 0.88, 1.5);
+      }
+      g.strokeStyle = "#121722";
+      g.lineWidth = 2.5;
       g.strokeRect(S * 0.05, S * 0.76, S * 0.9, S * 0.2);
       realRivet(g, S * 0.2, S * 0.86, S * 0.045);
       realRivet(g, S * 0.8, S * 0.86, S * 0.045);
-      // blade
-      const bx0 = S * 0.12, bx1 = S * 0.88, by = S * 0.78, apex = S * 0.06;
+      // blade shadow on plate
+      g.fillStyle = "rgba(0,0,0,0.4)";
+      g.beginPath();
+      g.moveTo(S * 0.3, S * 0.78);
+      g.lineTo(S * 0.5, S * 0.7);
+      g.lineTo(S * 0.7, S * 0.78);
+      g.closePath();
+      g.fill();
+      // blade: polished steel bands
+      const bx0 = S * 0.14, bx1 = S * 0.86, by = S * 0.78, apex = S * 0.05;
       const steel = g.createLinearGradient(bx0, 0, bx1, 0);
-      steel.addColorStop(0, "#5f6d84");
-      steel.addColorStop(0.42, "#dfe7f2");
-      steel.addColorStop(0.55, "#f6fafd");
-      steel.addColorStop(1, "#5f6d84");
+      steel.addColorStop(0, "#4e5a70");
+      steel.addColorStop(0.3, "#9aa5b8");
+      steel.addColorStop(0.46, "#eef3f9");
+      steel.addColorStop(0.54, "#fbfdff");
+      steel.addColorStop(0.7, "#98a3b6");
+      steel.addColorStop(1, "#495364");
       g.fillStyle = steel;
       g.beginPath();
       g.moveTo(bx0, by);
@@ -1835,95 +1905,186 @@
       g.lineTo(bx1, by);
       g.closePath();
       g.fill();
-      g.strokeStyle = "#1a2130";
-      g.lineWidth = 2.5;
-      g.stroke();
-      // edge highlight
-      g.strokeStyle = "rgba(255,255,255,0.55)";
-      g.lineWidth = 2;
+      // brushed vertical streaks clipped to blade
+      g.save();
+      g.clip();
+      for (let i = 0; i < 12; i++) {
+        const sx = bx0 + (i / 11) * (bx1 - bx0);
+        g.fillStyle = i % 2 ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.08)";
+        g.fillRect(sx, apex, (bx1 - bx0) / 12, by - apex);
+      }
+      // diagonal specular sweep
+      const spec = g.createLinearGradient(bx0, by, S * 0.55, apex);
+      spec.addColorStop(0, "rgba(255,255,255,0)");
+      spec.addColorStop(0.5, "rgba(255,255,255,0.5)");
+      spec.addColorStop(1, "rgba(255,255,255,0)");
+      g.fillStyle = spec;
       g.beginPath();
-      g.moveTo(bx0 + 3, by - 3);
-      g.lineTo(S * 0.5, apex + 4);
+      g.moveTo(bx0 + S * 0.04, by);
+      g.lineTo(S * 0.5, apex);
+      g.lineTo(S * 0.5 + S * 0.1, apex + S * 0.1);
+      g.lineTo(bx0 + S * 0.14, by);
+      g.closePath();
+      g.fill();
+      g.restore();
+      g.strokeStyle = "#161c28";
+      g.lineWidth = 3;
+      g.beginPath();
+      g.moveTo(bx0, by);
+      g.lineTo(S * 0.5, apex);
+      g.lineTo(bx1, by);
       g.stroke();
+      // apex glint
+      g.fillStyle = "rgba(255,255,255,0.95)";
+      g.beginPath();
+      g.arc(S * 0.5, apex + S * 0.02, S * 0.018, 0, Math.PI * 2);
+      g.fill();
     },
     orb(g, S) {
       const cx = S / 2, cy = S / 2, r = S * 0.3;
-      const glow = g.createRadialGradient(cx, cy, r * 0.4, cx, cy, S * 0.52);
-      glow.addColorStop(0, "rgba(62,224,122,0.4)");
+      // halo
+      const glow = g.createRadialGradient(cx, cy, r * 0.3, cx, cy, S * 0.52);
+      glow.addColorStop(0, "rgba(62,224,122,0.45)");
+      glow.addColorStop(0.6, "rgba(62,224,122,0.14)");
       glow.addColorStop(1, "rgba(62,224,122,0)");
       g.fillStyle = glow;
       g.fillRect(0, 0, S, S);
-      const glass = g.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.1, cx, cy, r);
-      glass.addColorStop(0, "#f2fff6");
-      glass.addColorStop(0.55, "#3ee07a");
-      glass.addColorStop(1, "#0a4a24");
+      // glass body
+      const glass = g.createRadialGradient(cx - r * 0.35, cy - r * 0.42, r * 0.08, cx, cy, r);
+      glass.addColorStop(0, "#f4fff8");
+      glass.addColorStop(0.35, "#8ff0b4");
+      glass.addColorStop(0.72, "#1d9e52");
+      glass.addColorStop(1, "#07381b");
       g.fillStyle = glass;
       g.beginPath();
       g.arc(cx, cy, r, 0, Math.PI * 2);
       g.fill();
-      g.strokeStyle = "#062d16";
-      g.lineWidth = 2;
-      g.stroke();
-      g.fillStyle = "rgba(255,255,255,0.9)";
+      // inner swirl
+      g.strokeStyle = "rgba(234,255,246,0.5)";
+      g.lineWidth = S * 0.02;
       g.beginPath();
-      g.ellipse(cx - r * 0.34, cy - r * 0.4, r * 0.16, r * 0.11, -0.5, 0, Math.PI * 2);
+      g.arc(cx + r * 0.08, cy + r * 0.1, r * 0.52, Math.PI * 0.15, Math.PI * 0.85);
+      g.stroke();
+      // rim light: bright upper-left, dark lower-right
+      g.strokeStyle = "rgba(240,255,246,0.85)";
+      g.lineWidth = S * 0.022;
+      g.beginPath();
+      g.arc(cx, cy, r - S * 0.012, Math.PI * 0.95, Math.PI * 1.7);
+      g.stroke();
+      g.strokeStyle = "rgba(4,30,15,0.9)";
+      g.lineWidth = S * 0.03;
+      g.beginPath();
+      g.arc(cx, cy, r - S * 0.015, Math.PI * 0.1, Math.PI * 0.6);
+      g.stroke();
+      // speculars
+      g.fillStyle = "rgba(255,255,255,0.95)";
+      g.beginPath();
+      g.ellipse(cx - r * 0.36, cy - r * 0.42, r * 0.15, r * 0.1, -0.5, 0, Math.PI * 2);
       g.fill();
+      g.fillStyle = "rgba(255,255,255,0.55)";
+      g.beginPath();
+      g.arc(cx + r * 0.3, cy + r * 0.34, r * 0.06, 0, Math.PI * 2);
+      g.fill();
+      // micro bubbles trapped inside
+      g.fillStyle = "rgba(255,255,255,0.35)";
+      for (let i = 0; i < 4; i++) {
+        const a = realHash(i, 121) * Math.PI * 2;
+        const d = r * (0.3 + realHash(i, 122) * 0.4);
+        g.beginPath();
+        g.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d, 1.5 + realHash(i, 123) * 2, 0, Math.PI * 2);
+        g.fill();
+      }
     },
     pad(g, S) {
-      // steel base
+      // steel base with brushed streaks
       const base = g.createLinearGradient(0, S * 0.5, 0, S);
-      base.addColorStop(0, "#4c5668");
-      base.addColorStop(1, "#222a38");
+      base.addColorStop(0, "#525c70");
+      base.addColorStop(0.5, "#333b4c");
+      base.addColorStop(1, "#1d2330");
       g.fillStyle = base;
       g.fillRect(S * 0.08, S * 0.52, S * 0.84, S * 0.42);
-      g.strokeStyle = "#121722";
-      g.lineWidth = 2;
+      for (let i = 0; i < 6; i++) {
+        const yy = S * 0.55 + realHash(i, 131) * S * 0.36;
+        g.fillStyle = i % 2 ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.16)";
+        g.fillRect(S * 0.09, yy, S * 0.82, 1.5);
+      }
+      g.strokeStyle = "#10141d";
+      g.lineWidth = 2.5;
       g.strokeRect(S * 0.08, S * 0.52, S * 0.84, S * 0.42);
-      realRivet(g, S * 0.16, S * 0.87, S * 0.04);
-      realRivet(g, S * 0.84, S * 0.87, S * 0.04);
+      realRivet(g, S * 0.15, S * 0.88, S * 0.04);
+      realRivet(g, S * 0.85, S * 0.88, S * 0.04);
+      // glowing side slits
+      g.fillStyle = "rgba(255,157,46,0.85)";
+      g.fillRect(S * 0.08, S * 0.62, S * 0.03, S * 0.2);
+      g.fillRect(S * 0.89, S * 0.62, S * 0.03, S * 0.2);
       // springboard
       const board = g.createLinearGradient(0, S * 0.2, 0, S * 0.5);
-      board.addColorStop(0, "#ffc46b");
-      board.addColorStop(1, "#c25a10");
+      board.addColorStop(0, "#ffd98c");
+      board.addColorStop(0.45, "#ff9d2e");
+      board.addColorStop(1, "#a84a08");
       g.fillStyle = board;
       g.fillRect(S * 0.05, S * 0.24, S * 0.9, S * 0.26);
-      g.strokeStyle = "#5e2c05";
-      g.lineWidth = 2;
-      g.strokeRect(S * 0.05, S * 0.24, S * 0.9, S * 0.26);
-      // chevrons
-      g.fillStyle = "#ffe27a";
+      // chevrons with dark outline
       for (let i = 0; i < 3; i++) {
         const cxp = S * (0.25 + i * 0.25);
         g.beginPath();
-        g.moveTo(cxp - S * 0.07, S * 0.45);
-        g.lineTo(cxp, S * 0.3);
-        g.lineTo(cxp + S * 0.07, S * 0.45);
-        g.lineTo(cxp + S * 0.07, S * 0.4);
-        g.lineTo(cxp, S * 0.26);
-        g.lineTo(cxp - S * 0.07, S * 0.4);
+        g.moveTo(cxp - S * 0.075, S * 0.455);
+        g.lineTo(cxp, S * 0.295);
+        g.lineTo(cxp + S * 0.075, S * 0.455);
+        g.lineTo(cxp + S * 0.075, S * 0.4);
+        g.lineTo(cxp, S * 0.25);
+        g.lineTo(cxp - S * 0.075, S * 0.4);
         g.closePath();
+        g.fillStyle = "#5e2c05";
         g.fill();
+        g.save();
+        g.translate(0, -S * 0.012);
+        g.fillStyle = "#ffe27a";
+        g.fill();
+        g.restore();
       }
-      g.fillStyle = "rgba(255,255,255,0.35)";
-      g.fillRect(S * 0.05, S * 0.24, S * 0.9, S * 0.04);
+      // glass top strip
+      g.fillStyle = "rgba(255,255,255,0.4)";
+      g.fillRect(S * 0.05, S * 0.24, S * 0.9, S * 0.035);
+      g.strokeStyle = "#4a2204";
+      g.lineWidth = 2.5;
+      g.strokeRect(S * 0.05, S * 0.24, S * 0.9, S * 0.26);
     },
     dash(g, S) {
-      // dark plate
+      // dark plate with circuit traces
       const plate = g.createLinearGradient(0, 0, 0, S);
-      plate.addColorStop(0, "#1b2740");
-      plate.addColorStop(1, "#0b1226");
+      plate.addColorStop(0, "#1e2a46");
+      plate.addColorStop(1, "#090f22");
       g.fillStyle = plate;
       const m = S * 0.06;
       g.beginPath();
       if (g.roundRect) g.roundRect(m, m, S - 2 * m, S - 2 * m, S * 0.12);
       else g.rect(m, m, S - 2 * m, S - 2 * m);
       g.fill();
+      g.save();
+      g.clip();
+      g.strokeStyle = "rgba(46,230,255,0.16)";
+      g.lineWidth = 1.5;
+      for (let i = 0; i < 4; i++) {
+        const yy = S * (0.14 + i * 0.2);
+        g.beginPath();
+        g.moveTo(m, yy);
+        g.lineTo(m + S * 0.2, yy);
+        g.lineTo(m + S * 0.26, yy + S * 0.06);
+        g.lineTo(m + S * 0.5, yy + S * 0.06);
+        g.stroke();
+      }
+      realGrain(g, m, m, S - 2 * m, S - 2 * m, 60, 909, 0.05);
+      g.restore();
       g.strokeStyle = "#0e3a44";
-      g.lineWidth = 2;
+      g.lineWidth = 2.5;
+      g.beginPath();
+      if (g.roundRect) g.roundRect(m, m, S - 2 * m, S - 2 * m, S * 0.12);
+      else g.rect(m, m, S - 2 * m, S - 2 * m);
       g.stroke();
-      // energy chevron
-      function chev(ox, alpha, lw) {
-        g.strokeStyle = "rgba(46,230,255," + alpha + ")";
+      // energy chevrons: halo + core
+      function chev(ox, alpha, lw, col) {
+        g.strokeStyle = col.replace("A", alpha);
         g.lineWidth = lw;
         g.lineCap = "round";
         g.lineJoin = "round";
@@ -1933,11 +2094,11 @@
         g.lineTo(S * 0.3 + ox, S * 0.74);
         g.stroke();
       }
-      chev(-S * 0.12, 0.4, S * 0.07);
-      chev(0, 0.35, S * 0.14);
-      chev(0, 1, S * 0.07);
-      g.strokeStyle = "#e8fdff";
-      g.lineWidth = S * 0.035;
+      chev(-S * 0.13, "0.35", S * 0.06, "rgba(46,230,255,A)");
+      chev(0, 0.3, S * 0.15, "rgba(46,230,255,A)");
+      chev(0, 0.9, S * 0.07, "rgba(160,245,255,A)");
+      g.strokeStyle = "#f2feff";
+      g.lineWidth = S * 0.032;
       g.beginPath();
       g.moveTo(S * 0.3, S * 0.26);
       g.lineTo(S * 0.62, S * 0.5);
@@ -1945,33 +2106,68 @@
       g.stroke();
     },
     goal(g, S) {
-      // stone frame
+      // chiseled stone frame
       const frame = g.createLinearGradient(0, 0, S, S);
-      frame.addColorStop(0, "#565f74");
-      frame.addColorStop(1, "#262d3d");
+      frame.addColorStop(0, "#5e687e");
+      frame.addColorStop(0.5, "#3a4358");
+      frame.addColorStop(1, "#222839");
       g.fillStyle = frame;
       g.fillRect(0, 0, S, S);
-      realSpeckle(g, S, 40, 31);
-      // portal
-      const px = S * 0.16, py = S * 0.1, pw = S * 0.68, ph = S * 0.8;
+      g.fillStyle = "rgba(255,255,255,0.14)";
+      g.fillRect(0, 0, S, S * 0.05);
+      g.fillRect(0, 0, S * 0.05, S);
+      g.fillStyle = "rgba(0,0,0,0.3)";
+      g.fillRect(0, S * 0.95, S, S * 0.05);
+      g.fillRect(S * 0.95, 0, S * 0.05, S);
+      realSpeckle(g, S, 60, 31);
+      // portal with swirling light
+      const px = S * 0.17, py = S * 0.09, pw = S * 0.66, ph = S * 0.82;
       const portal = g.createLinearGradient(0, py, 0, py + ph);
-      portal.addColorStop(0, "#fff6d8");
-      portal.addColorStop(0.5, "#ffd23c");
-      portal.addColorStop(1, "#8a5a00");
+      portal.addColorStop(0, "#fff8dc");
+      portal.addColorStop(0.4, "#ffdf6b");
+      portal.addColorStop(0.75, "#e09c08");
+      portal.addColorStop(1, "#6e4400");
       g.fillStyle = portal;
       g.fillRect(px, py, pw, ph);
-      g.fillStyle = "rgba(255,255,255,0.3)";
-      g.fillRect(px, py + ph * 0.15, pw, ph * 0.1);
-      g.fillRect(px, py + ph * 0.55, pw, ph * 0.07);
-      g.strokeStyle = "#3a2a05";
-      g.lineWidth = 2;
+      g.save();
+      g.beginPath();
+      g.rect(px, py, pw, ph);
+      g.clip();
+      for (let i = 0; i < 4; i++) {
+        const yy = py + ph * (0.12 + i * 0.22);
+        g.fillStyle = i % 2 ? "rgba(255,255,255,0.28)" : "rgba(120,70,0,0.22)";
+        g.beginPath();
+        g.moveTo(px, yy);
+        for (let x = 0; x <= pw; x += pw / 8) {
+          g.lineTo(px + x, yy + Math.sin(x / pw * Math.PI * 2 + i) * ph * 0.03);
+        }
+        for (let x = pw; x >= 0; x -= pw / 8) {
+          g.lineTo(px + x, yy + ph * 0.05 + Math.sin(x / pw * Math.PI * 2 + i) * ph * 0.03);
+        }
+        g.closePath();
+        g.fill();
+      }
+      // bright core
+      const core = g.createRadialGradient(px + pw / 2, py + ph * 0.42, 1, px + pw / 2, py + ph * 0.42, pw * 0.42);
+      core.addColorStop(0, "rgba(255,255,255,0.85)");
+      core.addColorStop(1, "rgba(255,255,255,0)");
+      g.fillStyle = core;
+      g.fillRect(px, py, pw, ph);
+      g.restore();
+      g.strokeStyle = "#2e2004";
+      g.lineWidth = 3;
       g.strokeRect(px, py, pw, ph);
-      // sparkles
-      g.fillStyle = "rgba(255,255,255,0.9)";
-      for (let i = 0; i < 5; i++) {
+      g.strokeStyle = "rgba(255,240,190,0.7)";
+      g.lineWidth = 1.5;
+      g.strokeRect(px + 3, py + 3, pw - 6, ph - 6);
+      // rising embers
+      for (let i = 0; i < 7; i++) {
         const sx = px + realHash(i, 51) * pw;
         const sy = py + realHash(i, 77) * ph;
-        g.fillRect(sx, sy, 2, 2);
+        const a = 0.4 + realHash(i, 78) * 0.5;
+        g.fillStyle = "rgba(255,252,240," + a.toFixed(2) + ")";
+        const sz = 1.5 + realHash(i, 79) * 2.5;
+        g.fillRect(sx, sy, sz, sz);
       }
     },
     checkpoint(g, S) {
@@ -1983,39 +2179,80 @@
   };
 
   function realCheckpoint(g, S, lit) {
-    // pole
+    // ground socket
+    const sock = g.createLinearGradient(0, S * 0.84, 0, S);
+    sock.addColorStop(0, "#5a6478");
+    sock.addColorStop(1, "#232a38");
+    g.fillStyle = sock;
+    g.fillRect(S * 0.32, S * 0.84, S * 0.36, S * 0.13);
+    g.strokeStyle = "#11151d";
+    g.lineWidth = 2;
+    g.strokeRect(S * 0.32, S * 0.84, S * 0.36, S * 0.13);
+    // pole with machined bands
     const pole = g.createLinearGradient(S * 0.44, 0, S * 0.56, 0);
-    pole.addColorStop(0, "#7c8798");
-    pole.addColorStop(0.5, "#dfe7f2");
-    pole.addColorStop(1, "#4a5468");
+    pole.addColorStop(0, "#697386");
+    pole.addColorStop(0.35, "#e6ecf4");
+    pole.addColorStop(0.6, "#aeb7c6");
+    pole.addColorStop(1, "#3d4658");
     g.fillStyle = pole;
-    g.fillRect(S * 0.44, S * 0.12, S * 0.12, S * 0.8);
-    // base
-    g.fillStyle = "#2b3342";
-    g.fillRect(S * 0.34, S * 0.86, S * 0.32, S * 0.1);
+    g.fillRect(S * 0.44, S * 0.12, S * 0.12, S * 0.74);
+    g.fillStyle = "rgba(0,0,0,0.25)";
+    for (let i = 0; i < 4; i++) {
+      g.fillRect(S * 0.44, S * (0.2 + i * 0.17), S * 0.12, S * 0.02);
+    }
     // lamp
     if (lit) {
-      const halo = g.createRadialGradient(S * 0.5, S * 0.08, 1, S * 0.5, S * 0.08, S * 0.16);
-      halo.addColorStop(0, "rgba(62,224,122,0.8)");
+      const halo = g.createRadialGradient(S * 0.5, S * 0.08, 1, S * 0.5, S * 0.08, S * 0.17);
+      halo.addColorStop(0, "rgba(62,224,122,0.85)");
       halo.addColorStop(1, "rgba(62,224,122,0)");
       g.fillStyle = halo;
-      g.fillRect(S * 0.3, 0, S * 0.4, S * 0.28);
+      g.fillRect(S * 0.3, 0, S * 0.4, S * 0.3);
     }
-    g.fillStyle = lit ? "#3ee07a" : "#5a6478";
+    const lamp = g.createRadialGradient(S * 0.48, S * 0.06, 0.5, S * 0.5, S * 0.08, S * 0.06);
+    lamp.addColorStop(0, lit ? "#eafff2" : "#c3cad6");
+    lamp.addColorStop(1, lit ? "#1d9e52" : "#4a5468");
+    g.fillStyle = lamp;
     g.beginPath();
     g.arc(S * 0.5, S * 0.08, S * 0.055, 0, Math.PI * 2);
     g.fill();
-    // flag
-    g.fillStyle = lit ? "#3ee07a" : "#8a93a8";
+    g.strokeStyle = lit ? "#0a3a1e" : "#222a38";
+    g.lineWidth = 1.5;
+    g.stroke();
+    // flag with fold shading
+    const fy0 = S * 0.2, fy1 = S * 0.44, fx1 = S * 0.88;
+    const flag = g.createLinearGradient(0, fy0, 0, fy1);
+    if (lit) {
+      flag.addColorStop(0, "#8ff0b4");
+      flag.addColorStop(0.5, "#3ee07a");
+      flag.addColorStop(1, "#147a3c");
+    } else {
+      flag.addColorStop(0, "#aab3c4");
+      flag.addColorStop(0.5, "#7e889c");
+      flag.addColorStop(1, "#4c5568");
+    }
+    g.fillStyle = flag;
     g.beginPath();
-    g.moveTo(S * 0.56, S * 0.2);
-    g.lineTo(S * 0.88, S * 0.32);
-    g.lineTo(S * 0.56, S * 0.44);
+    g.moveTo(S * 0.56, fy0);
+    g.lineTo(fx1, (fy0 + fy1) / 2);
+    g.lineTo(S * 0.56, fy1);
     g.closePath();
     g.fill();
+    g.strokeStyle = lit ? "#0a3a1e" : "#2a3140";
+    g.lineWidth = 2;
+    g.stroke();
+    // fold crease
+    g.strokeStyle = lit ? "rgba(6,45,22,0.55)" : "rgba(20,26,38,0.55)";
+    g.lineWidth = 1.5;
+    g.beginPath();
+    g.moveTo(S * 0.68, fy0 + S * 0.02);
+    g.lineTo(S * 0.68, fy1 - S * 0.02);
+    g.stroke();
     if (lit) {
-      g.strokeStyle = "rgba(234,255,246,0.9)";
+      g.strokeStyle = "rgba(234,255,246,0.85)";
       g.lineWidth = 1.5;
+      g.beginPath();
+      g.moveTo(S * 0.58, fy0 + S * 0.015);
+      g.lineTo(S * 0.82, (fy0 + fy1) / 2);
       g.stroke();
     }
   }
@@ -2050,31 +2287,81 @@
     const cx = x + size / 2;
     const cy = dy + size / 2;
     const r = size * 0.42;
-    const rim = realCoinRim(coinValue(tile.id));
+    const value = coinValue(tile.id);
+    const rim = realCoinRim(value);
     const prevSmooth = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = true;
     ctx.save();
+    // drop shadow
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + r * 0.95, r * 0.7, r * 0.16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // face
     const face = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.35, r * 0.1, cx, cy, r);
-    face.addColorStop(0, "#fff6d8");
-    face.addColorStop(0.6, "#f5c414");
-    face.addColorStop(1, "#8a5a00");
+    face.addColorStop(0, "#fff8de");
+    face.addColorStop(0.55, "#f7c416");
+    face.addColorStop(0.85, "#c88d06");
+    face.addColorStop(1, "#7a5200");
     ctx.fillStyle = face;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fill();
+    // reeded edge
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.clip();
+    for (let i = 0; i < 28; i++) {
+      const a = (i / 28) * Math.PI * 2;
+      const x0 = cx + Math.cos(a) * r * 0.97;
+      const y0 = cy + Math.sin(a) * r * 0.97;
+      ctx.strokeStyle = i % 2 ? "rgba(0,0,0,0.4)" : "rgba(255,255,255,0.5)";
+      ctx.lineWidth = Math.max(1, size * 0.02);
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * r * 0.86, cy + Math.sin(a) * r * 0.86);
+      ctx.lineTo(x0, y0);
+      ctx.stroke();
+    }
+    ctx.restore();
     ctx.strokeStyle = rim;
     ctx.lineWidth = Math.max(1.5, size * 0.07);
-    ctx.stroke();
-    ctx.strokeStyle = "rgba(138,90,0,0.7)";
-    ctx.lineWidth = Math.max(1, size * 0.03);
     ctx.beginPath();
-    ctx.arc(cx, cy, r * 0.72, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r - ctx.lineWidth / 2, 0, Math.PI * 2);
     ctx.stroke();
+    // embossed inner ring
+    ctx.strokeStyle = "rgba(122,82,0,0.8)";
+    ctx.lineWidth = Math.max(1, size * 0.025);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.68, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(255,255,255,0.45)";
+    ctx.lineWidth = Math.max(1, size * 0.015);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.68 - 1.5, 0, Math.PI * 2);
+    ctx.stroke();
+    // embossed value
+    const label = String(value);
+    ctx.font = "900 " + Math.max(8, size * (label.length > 2 ? 0.26 : 0.34)) + "px Consolas, monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "rgba(122,82,0,0.9)";
+    ctx.fillText(label, cx + 1, cy + 1.5);
+    ctx.fillStyle = "#ffe98c";
+    ctx.fillText(label, cx, cy);
+    ctx.textAlign = "start";
+    ctx.textBaseline = "alphabetic";
+    // shine sweep
     ctx.strokeStyle = "rgba(255,255,255,0.85)";
     ctx.lineWidth = Math.max(1.5, size * 0.06);
+    ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.arc(cx, cy, r * 0.82, Math.PI * 1.05, Math.PI * 1.5);
+    ctx.arc(cx, cy, r * 0.8, Math.PI * 1.02, Math.PI * 1.42);
     ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.beginPath();
+    ctx.arc(cx - r * 0.34, cy - r * 0.4, Math.max(1, size * 0.035), 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
     ctx.imageSmoothingEnabled = prevSmooth;
   }
