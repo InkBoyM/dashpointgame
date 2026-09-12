@@ -248,7 +248,7 @@
 
   const state = {
     images: null,
-    level: null,
+    level: DP.Level.createDefault("New Level"),
     tool: "paint",
     tile: "brick",
     rot: 0,
@@ -507,7 +507,7 @@
   function eventCell(ev) {
     const w = screenToWorld(ev.clientX, ev.clientY);
     const cell = worldToCell(w.x, w.y);
-    cell.inside = state.level.inBounds(cell.c, cell.r);
+    cell.inside = !!state.level && state.level.inBounds(cell.c, cell.r);
     return cell;
   }
 

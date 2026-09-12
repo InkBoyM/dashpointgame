@@ -196,17 +196,27 @@ img { image-rendering: pixelated; }
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   user-select: none;
+  padding: 3px 6px;
+  margin-left: -6px;
+  margin-right: -6px;
+  border-radius: 6px;
 }
 .section-title.collapsible::before {
   content: "▾";
-  font-size: 9px;
+  font-size: 11px;
   color: var(--cyan);
-  opacity: 0.7;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  background: rgba(46, 230, 255, 0.1);
+  border: 1px solid var(--line);
+  border-radius: 4px;
 }
 .section-title.collapsible.shut::before { content: "▸"; }
-.section-title.collapsible:hover { color: var(--text); }
+.section-title.collapsible:hover { color: var(--text); background: rgba(46, 230, 255, 0.06); }
 .collapsible-body.collapsed { display: none; }
 
 .tile-grid {
