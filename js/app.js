@@ -1622,6 +1622,19 @@
     if (!ghostMode) resetGhostTrail();
   }
 
+  function restartToCheckpoint() {
+    if (!state.engine) return;
+    if (state.engine.won || el("winCard").classList.contains("visible")) {
+      restartLevel();
+      return;
+    }
+    state.engine.reset({ keepTime: true });
+    if (DP.Music) DP.Music.play(state.engine.level.song);
+    el("winCard").classList.remove("visible");
+    el("pauseCard").classList.remove("visible");
+    state.paused = false;
+  }
+
   function respawn() {
     if (!state.engine) return;
     state.engine.reset(); // checkpoint spawn keeps the run time
@@ -2903,7 +2916,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     if (ev.code === "Space") ev.preventDefault();
     if (state.screen === "game" && ev.code === "KeyR") {
       ev.preventDefault();
-      restartLevel();
+      restartToCheckpoint();
     }
   }
 
@@ -2948,7 +2961,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     });
     el("btnSettingsHome").addEventListener("click", () => openModal("modalSettings"));
     el("btnBackHome").addEventListener("click", () => show("home"));
-    el("btnRestart").addEventListener("click", restartLevel);
+    el("btnRestart").addEventListener("click", restartToCheckpoint);
     el("btnQuit").addEventListener("click", togglePause);
     el("btnPauseResume").addEventListener("click", resumeGame);
     el("btnPauseRestart").addEventListener("click", () => { resumeGame(); restartLevel(); });

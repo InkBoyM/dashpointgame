@@ -1177,8 +1177,8 @@
       this.reset();
     }
 
-    reset() {
-      const keepTime = this.checkpoint ? this.time : 0;
+    reset(opts) {
+      const keepTime = ((opts && opts.keepTime) || this.checkpoint) ? (this.time || 0) : 0;
       this.level = this.source.clone();
       let p;
       if (this.checkpoint) {
