@@ -1398,7 +1398,63 @@
     el("screen-" + name).classList.add("visible");
     if (name === "levels") renderLevels();
     if (name === "game") resizeCanvas();
+    if (name === "home") renderLotd();
     if (name === "network" || name === "netsaved" || name === "netsearch") state.netBack = name;
+  }
+
+  function lotdDateStr(d) {
+    d = d || new Date();
+    return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate();
+  }
+
+  function lotdHash(s) {
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+
+  function lotdPick(levels, dateStr) {
+    if (!levels || !levels.length) return null;
+    const sorted = levels.slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    return sorted[lotdHash("lotd:" + dateStr) % sorted.length];
+  }
+
+  function showLotd(meta) {
+    const card = el("lotdCard");
+    if (!card || !meta) return;
+    el("lotdTitle").textContent = meta.title || "Untitled";
+    el("lotdBy").textContent = "by " + (meta.authorName || "?");
+    card.classList.remove("hidden");
+    card.onclick = function () { try { playNetworkLevel(meta); } catch (e) {} };
+  }
+
+  async function renderLotd() {
+    const card = el("lotdCard");
+    if (!card) return;
+    card.classList.add("hidden");
+    const today = lotdDateStr();
+    try {
+      const raw = localStorage.getItem("dashpoint.lotd");
+      if (raw) {
+        const c = JSON.parse(raw);
+        if (c && c.date === today && c.meta && c.meta.id) {
+          showLotd(c.meta);
+          return;
+        }
+      }
+    } catch (e) {}
+    try {
+      await ensureIndexes();
+    } catch (e) {
+      return;
+    }
+    const pick = lotdPick(levelIndexCache, today);
+    if (!pick) return;
+    try { localStorage.setItem("dashpoint.lotd", JSON.stringify({ date: today, meta: pick })); } catch (e) {}
+    showLotd(pick);
   }
 
   async function fetchCampaignLevel(file) {

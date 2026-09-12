@@ -49,25 +49,11 @@ self.addEventListener("fetch", (ev) => {
     return;
   }
   if (url.origin !== self.location.origin) return;
-  if (req.mode === "navigate") {
-    ev.respondWith(
-      fetch(req)
-        .then((res) => {
-          const copy = res.clone();
-          caches
-            .open(CACHE)
-            .then((c) => c.put(req, copy))
-            .catch(() => {});
-          return res;
-        })
-        .catch(() =>
-          caches.match("index.html").then((r) => r || caches.match("./"))
-        )
-    );
-    return;
-  }
+  // Everything (including navigations) is stale-while-revalidate: the shell
+  // and its scripts always move together, so a fresh page can never pair
+  // with a stale script. Offline falls back to whatever is cached.
   ev.respondWith(
-    caches.match(req).then((hit) => {
+    caches.match(req, { ignoreSearch: false }).then((hit) => {
       const net = fetch(req)
         .then((res) => {
           if (res && (res.status === 200 || res.type === "opaque")) {
@@ -80,6 +66,11 @@ self.addEventListener("fetch", (ev) => {
           return res;
         })
         .catch(() => hit);
+      if (req.mode === "navigate") {
+        return net.catch(() =>
+          hit || caches.match("index.html").then((r) => r || caches.match("./"))
+        );
+      }
       return hit || net;
     })
   );
