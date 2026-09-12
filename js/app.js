@@ -3778,6 +3778,95 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     syncFpsVis();
     show("home");
     requestAnimationFrame(frame);
+    setTimeout(checkAppUpdate, 4000);
+  }
+
+  // ---- Android in-app updates (retro popup, offline-ready download) ----
+  let updDismissed = false;
+  let updTimer = null;
+
+  function androidBridge() {
+    try {
+      const b = window.DashPointAndroidBridge || window.DashPointBridge;
+      if (b && typeof b.getUpdateInfo === "function") return b;
+    } catch (e) {}
+    return null;
+  }
+
+  function checkAppUpdate() {
+    if (updDismissed || state.screen !== "home") return;
+    if (document.querySelector(".modal-root.visible")) return;
+    const b = androidBridge();
+    if (!b) return;
+    let st = null;
+    try { st = JSON.parse(b.getUpdateInfo()); } catch (e) { return; }
+    if (!st || !st.supported) return;
+    if (st.apkUpdate && st.apkUrl) {
+      showUpdateModal(
+        "APP UPDATE AVAILABLE",
+        "A new DashPoint app is out. Game updates download in-app, but this one needs a reinstall.",
+        "GET APP",
+        function () {
+          try { b.openApkUrl(st.apkUrl); } catch (e) {}
+          updDismissed = true;
+          el("modalUpdate").classList.remove("visible");
+        }
+      );
+    } else if (st.hasWwwUpdate) {
+      showUpdateModal(
+        "UPDATE AVAILABLE",
+        "Fresh stuff is ready (v" + st.remoteWww + "). Download it for offline play?",
+        "UPDATE",
+        function () { startWwwUpdateFlow(b); }
+      );
+    }
+  }
+
+  function showUpdateModal(title, text, goLabel, onGo) {
+    el("updTitle").textContent = title;
+    el("updText").textContent = text;
+    el("updBarWrap").style.display = "none";
+    el("updBar").style.width = "0%";
+    const go = el("btnUpdGo");
+    go.textContent = goLabel;
+    go.onclick = onGo;
+    el("btnUpdLater").onclick = function () {
+      updDismissed = true;
+      el("modalUpdate").classList.remove("visible");
+    };
+    el("modalUpdate").classList.add("visible");
+  }
+
+  function startWwwUpdateFlow(b) {
+    let ok = false;
+    try { ok = !!b.startWwwUpdate(); } catch (e) {}
+    if (!ok) {
+      el("updText").textContent = "Couldn't start the download. Check your connection and retry.";
+      return;
+    }
+    el("updBarWrap").style.display = "";
+    el("btnUpdGo").textContent = "...";
+    if (updTimer) clearInterval(updTimer);
+    updTimer = setInterval(function () {
+      let st = null;
+      try { st = JSON.parse(b.getUpdateInfo()); } catch (e) {}
+      if (!st) return;
+      el("updBar").style.width = Math.max(0, Math.min(100, st.progress | 0)) + "%";
+      if (st.done) {
+        clearInterval(updTimer);
+        updTimer = null;
+        updDismissed = true;
+        el("updText").textContent = "OFFLINE READY! The new version is saved on your device.";
+        el("updBarWrap").style.display = "none";
+        el("btnUpdGo").textContent = "NICE";
+        el("btnUpdGo").onclick = function () { el("modalUpdate").classList.remove("visible"); };
+      } else if (st.error && !st.downloading) {
+        clearInterval(updTimer);
+        updTimer = null;
+        el("updText").textContent = "Failed: " + st.error;
+        el("btnUpdGo").textContent = "RETRY";
+      }
+    }, 500);
   }
 
 boot();

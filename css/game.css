@@ -1393,6 +1393,20 @@ html, body { touch-action: manipulation; -webkit-tap-highlight-color: transparen
 .feed-item.feed-self b { color: var(--gold); }
 .feed-item span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .feed-item.fade { opacity: 0; }
+.update-bar {
+  margin: 12px 0 4px;
+  height: 18px;
+  background: var(--ink-dark);
+  border: 3px solid var(--ink-dark);
+  box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.5);
+}
+#updBar {
+  height: 100%;
+  width: 0%;
+  background: var(--gold);
+  box-shadow: inset -2px -2px 0 rgba(0, 0, 0, 0.25);
+  transition: width 0.3s ease;
+}
 @media (max-width: 720px) {
   .qc-grid { grid-template-columns: 1fr; }
   .qc-msg { font-size: 12px; padding: 8px; }
