@@ -49,8 +49,47 @@
     return !!(s && s.unlock && s.unlock.type === "code");
   }
 
-  const REDEEM_CODES = {
-    rich: { coins: 5000 },
+  // Release log. I decide what ships as what:
+  //   MAJOR (x.0.0) — game-changing milestones (new platform, multiplayer overhauls)
+  //   MINOR (x.y.0) — new features and modes
+  //   PATCH (x.y.z) — fixes, tweaks, balance, shop content drops
+  // Newest entry first; APP_VER is always RELEASES[0].v.
+  const RELEASES = [
+    { v: "1.5.0", title: "Intros, bell, what's new", items: [
+      "Level intro cards show title, author and difficulty on every start",
+      "Activity bell: new comments on your levels, lost leaderboard crowns",
+      "Settings has a WHAT'S NEW log with a dot while unread",
+      "Network rows open the level popup, so comments are one tap away",
+    ] },
+    { v: "1.4.0", title: "Practice, discovery, heatmaps", items: [
+      "Practice mode: pause to enable, X drops checkpoints anywhere, no records",
+      "Trending network tab ranked by plays and downloads",
+      "Level of the day spotlight on home",
+      "Death heatmaps with an ESC-menu toggle for any level",
+    ] },
+    { v: "1.3.0", title: "Social update", items: [
+      "Spectate room members with Shift+arrows",
+      "Quick chat with head bubbles (Alt menu)",
+      "Level comments with reports, account ranks",
+      "Room player list, name colors, profile frames",
+    ] },
+    { v: "1.2.0", title: "Graphics and feel", items: [
+      "DLLS 5 realistic tile mode",
+      "Advanced graphics menu (shadows, flashes, particles)",
+      "Haptics on death, wins, orbs, pads and jumps",
+    ] },
+    { v: "1.1.0", title: "Mobile controls", items: [
+      "Touch buttons with size and position customization",
+      "Joystick mode: left-half stick, right-half tap jump",
+      "Pinch zoom, deeper zoom-out on touch screens",
+    ] },
+    { v: "1.0.0", title: "Launch", items: [
+      "Campaign and network levels, editor, rooms, shop, chests, skins, tags, trails, cloud saves",
+    ] },
+  ];
+  const APP_VER = RELEASES[0].v;
+
+  const REDEEM_CODES = {    rich: { coins: 5000 },
     noob: { skin: 19 },
     imbad: { coins: 1000 },
     "did you just say your name was burger? do you come with fries? ahahahahahahaha": { skin: 20 },
@@ -708,7 +747,7 @@
   }
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", bellSeen: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
   }
 
   function touchUIDefaults() {
@@ -1755,6 +1794,37 @@
     syncCoinUI();
   }
 
+  function renderReleases() {
+    const tag = el("verTag");
+    if (tag) tag.textContent = "v" + APP_VER;
+    const box = el("releaseLog");
+    if (!box) return;
+    box.innerHTML = "";
+    RELEASES.forEach(function (r) {
+      const wrap = document.createElement("div");
+      wrap.className = "release" + (r.v === APP_VER ? " latest" : "");
+      const head = document.createElement("div");
+      head.className = "release-head";
+      head.innerHTML = "<b>v" + escapeHtml(r.v) + "</b><span>" + escapeHtml(r.title) + "</span>" +
+        (r.v === APP_VER ? '<span class="release-new">NEW</span>' : "");
+      wrap.appendChild(head);
+      const ul = document.createElement("ul");
+      ul.className = "release-items";
+      r.items.forEach(function (it) {
+        const li = document.createElement("li");
+        li.textContent = it;
+        ul.appendChild(li);
+      });
+      wrap.appendChild(ul);
+      box.appendChild(wrap);
+    });
+  }
+
+  function syncNewVerDot() {
+    const unseen = (save_.data.seenVer || "") !== APP_VER;
+    document.body.classList.toggle("has-newver", unseen);
+  }
+
   function renderShopColors() {
     const box = el("shopColorGrid");
     if (!box) return;
@@ -2142,6 +2212,10 @@
       el("setFps").checked = !!save_.data.debugFps;
       el("setAuto").checked = save_.data.autoRespawn !== false;
       el("setHaptics").checked = save_.data.haptics !== false;
+      renderReleases();
+      save_.data.seenVer = APP_VER;
+      save();
+      syncNewVerDot();
       syncGhostOpUI();
       syncGfxUI();
       syncFxUI();
@@ -2299,6 +2373,29 @@
     show("game");
     syncAuthorChip();
     setStatusHud();
+    showIntro(entry);
+  }
+
+  let introTimer = null;
+
+  function showIntro(entry) {
+    const card = el("introCard");
+    if (!card || !entry) return;
+    const meta = entry.meta || null;
+    const file = entry.file || "";
+    el("introTitle").textContent = (entry.level && entry.level.name) || meta?.title || "LEVEL";
+    el("introAuthor").textContent = "by " + (meta?.authorName || (entry.level ? "DashPoint" : "?"));
+    let tier = 2;
+    try {
+      tier = fileDiff(file, meta);
+    } catch (e) {}
+    el("introDiff").innerHTML = diffFaceImg(tier);
+    card.classList.remove("hidden");
+    if (introTimer) clearTimeout(introTimer);
+    introTimer = setTimeout(function () {
+      introTimer = null;
+      card.classList.add("hidden");
+    }, 2200);
   }
 
   function startLevel(index) {
@@ -3585,6 +3682,123 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     }
   }
 
+  let bellEvents = [];
+  let bellChecking = false;
+
+  function levelNameOf(file) {
+    try {
+      if (String(file).indexOf("net:") === 0) {
+        const m = (levelIndexCache || []).find((l) => l.id === String(file).slice(4));
+        if (m) return m.title || "a level";
+      } else {
+        const e = (state.levels || []).find((x) => x.file === file);
+        if (e && e.level) return e.level.name || file;
+      }
+    } catch (e) {}
+    return "a level";
+  }
+
+  function bellSeen() {
+    const s = save_.data.bellSeen;
+    return s && typeof s === "object" ? s : {};
+  }
+
+  function bellUnread() {
+    const seen = bellSeen();
+    return bellEvents.filter(function (ev) {
+      if (ev.kind === "comment") return (seen["c:" + ev.levelId] || 0) < ev.ts;
+      if (ev.kind === "crown") return seen["b:" + ev.file] !== ev.holder + ev.time;
+      return false;
+    }).length;
+  }
+
+  function syncBellUI() {
+    const b = el("bellCount");
+    if (!b) return;
+    const n = bellUnread();
+    b.textContent = n > 9 ? "9+" : String(n);
+    b.classList.toggle("hidden", n <= 0);
+  }
+
+  async function checkBell() {
+    if (bellChecking) return;
+    let me = null;
+    try {
+      me = (NET.getEffectiveUser && NET.getEffectiveUser()) || (NET.getUser && NET.getUser());
+    } catch (e) {}
+    if (!me) return;
+    bellChecking = true;
+    try {
+      const events = [];
+      try {
+        await ensureIndexes();
+      } catch (e) {}
+      const mine = (levelIndexCache || []).filter((l) => l.authorUid === me.uid).slice(0, 10);
+      for (const m of mine) {
+        let list = [];
+        try {
+          list = await NET.getComments(m.id);
+        } catch (e) {}
+        list
+          .filter((c) => c.uid !== me.uid)
+          .slice(0, 3)
+          .forEach((c) =>
+            events.push({
+              kind: "comment",
+              ts: c.ts || 0,
+              levelId: m.id,
+              text: c.name + " commented on " + (m.title || "your level") + ": " + String(c.text || "").slice(0, 60),
+            })
+          );
+      }
+      const bests = save_.data.best || {};
+      const files = Object.keys(bests).slice(0, 10);
+      for (const f of files) {
+        let lb = [];
+        try {
+          lb = await NET.getLeaderboard(f, 3);
+        } catch (e) {}
+        if (lb.length && lb[0].uid !== me.uid && lb[0].time < bests[f]) {
+          events.push({
+            kind: "crown",
+            ts: Date.now(),
+            file: f,
+            holder: lb[0].uid,
+            time: lb[0].time,
+            text: lb[0].name + " beat your best on " + levelNameOf(f) + "!",
+          });
+        }
+      }
+      events.sort((a, b) => b.ts - a.ts);
+      bellEvents = events.slice(0, 20);
+      syncBellUI();
+    } finally {
+      bellChecking = false;
+    }
+  }
+
+  function renderBell() {
+    const box = el("bellList");
+    if (!box) return;
+    box.innerHTML = "";
+    if (!bellEvents.length) {
+      box.innerHTML = '<p class="loading-note">All caught up! Nothing new.</p>';
+      return;
+    }
+    const seen = bellSeen();
+    bellEvents.forEach((ev) => {
+      const row = document.createElement("div");
+      row.className = "bell-row";
+      row.textContent = ev.text;
+      box.appendChild(row);
+      if (ev.kind === "comment") seen["c:" + ev.levelId] = Math.max(seen["c:" + ev.levelId] || 0, ev.ts);
+      if (ev.kind === "crown") seen["b:" + ev.file] = ev.holder + ev.time;
+    });
+    save_.data.bellSeen = seen;
+    save();
+    syncBellUI();
+  }
+
   async function openAccount(uid) {
     uid = String(uid || "").trim();
     if (!uid) { showNotice("Player not found.", true); return; }
@@ -3876,6 +4090,11 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     });
     el("btnNetBackSaved").addEventListener("click", () => show("network"));
     el("btnNetBackSearch").addEventListener("click", () => show("network"));
+    el("btnBell").addEventListener("click", () => {
+      openModal("modalBell");
+      renderBell();
+      checkBell().then(renderBell).catch(() => {});
+    });
     el("netQuery").addEventListener("input", renderResults);
     el("netQuery").addEventListener("keydown", (ev) => ev.stopPropagation());
     document.querySelectorAll("#screen-netsearch .chip[data-tab]").forEach((b) => {
@@ -4386,11 +4605,13 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     applySpaceTheme();
     applyGraphics();
     applyTouchUI();
+    syncNewVerDot();
     syncHomeStats();
     syncCoinUI();
     syncFpsVis();
     show("home");
     requestAnimationFrame(frame);
+    setTimeout(function () { try { checkBell(); } catch (e) {} }, 12000);
     try {
       if ("serviceWorker" in navigator && /^https:$/.test(window.location.protocol)) {
         window.addEventListener("load", function () {

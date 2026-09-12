@@ -64,6 +64,11 @@
   <div class="screen" id="screen-game">
     <canvas id="view"></canvas>
     <div id="widgetLayer"></div>
+    <div id="introCard" class="intro-card hidden">
+      <div id="introDiff"></div>
+      <div id="introTitle">LEVEL</div>
+      <div id="introAuthor">by ?</div>
+    </div>
     <div id="touchControls">
       <div class="touch-cluster left">
         <button class="touch-btn" id="touchLeft" aria-label="Move left">&#9664;</button>
@@ -373,6 +378,8 @@
       <input type="range" id="tcRy" min="0" max="200" step="2" value="14" />
       <div class="row-end"><button class="px-btn small" id="btnTouchReset">RESET BUTTONS</button></div>
       <p class="hint">Move and resize the on-screen buttons (mobile). Changes apply instantly.</p>
+      <div class="section-title">WHAT'S NEW <span id="verTag"></span></div>
+      <div id="releaseLog"></div>
       <button type="button" class="px-btn small" id="btnAdvFx">ADVANCED &#9656;</button>
       <div id="advFx" style="display:none">
         <label class="check-row"><input type="checkbox" id="setFxShadows" checked /> Shadows</label>
@@ -477,6 +484,7 @@
       <button class="px-btn small" id="btnNetBack">&#9664; BACK</button>
       <h1 class="bar-title">DASHPOINT NETWORK</h1>
       <span class="bar-spacer"></span>
+      <button class="px-btn small" id="btnBell" title="Activity">&#128276;<span id="bellCount" class="bell-count hidden"></span></button>
       <span class="net-acct" id="netAcct"></span>
     </header>
     <div class="net-body">
@@ -528,14 +536,21 @@
 
   <div class="modal-root" id="modalAccount">
     <div class="modal">
-      <h2 id="acctTitle">PLAYER</h2>
-      <div class="stat-row"><span>Levels made</span><b id="acctMade">0</b></div>
+      <h2 id="acctTitle">PLAYER</h2>      <div class="stat-row"><span>Levels made</span><b id="acctMade">0</b></div>
       <div class="stat-row"><span>Levels beaten</span><b id="acctBeaten">0</b></div>
       <div class="stat-row"><span>Total deaths</span><b id="acctDeaths">0</b></div>
       <hr class="sep" />
       <div class="section-title">LEVELS BY THIS PLAYER</div>
       <div class="net-results" id="acctLevels"></div>
       <div class="row-end"><button class="px-btn small" data-close="modalAccount">CLOSE</button></div>
+    </div>
+  </div>
+
+  <div class="modal-root" id="modalBell">
+    <div class="modal">
+      <h2>ACTIVITY</h2>
+      <div class="net-results" id="bellList" style="max-height:300px"></div>
+      <div class="row-end"><button class="px-btn small" data-close="modalBell">CLOSE</button></div>
     </div>
   </div>
 
