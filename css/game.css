@@ -355,27 +355,34 @@ canvas { image-rendering: pixelated; }
   left: 0;
   right: 0;
   bottom: 0;
+  top: 0;
   display: none;
-  justify-content: space-between;
-  align-items: flex-end;
-  padding: 0 14px calc(14px + env(safe-area-inset-bottom, 0px));
   pointer-events: none;
 }
-body.touch #touchControls { display: flex; }
+body.touch #touchControls { display: block; }
 .touch-cluster {
+  position: absolute;
   display: flex;
   gap: 12px;
   pointer-events: none;
 }
+.touch-cluster.left {
+  left: var(--tc-lx, 14px);
+  bottom: calc(var(--tc-ly, 14px) + env(safe-area-inset-bottom, 0px));
+}
+.touch-cluster.right {
+  right: var(--tc-rx, 14px);
+  bottom: calc(var(--tc-ry, 14px) + env(safe-area-inset-bottom, 0px));
+}
 .touch-btn {
   pointer-events: auto;
-  width: 72px;
-  height: 72px;
+  width: var(--tc-size, 72px);
+  height: var(--tc-size, 72px);
   border-radius: 50%;
   border: 3px solid var(--ink-dark);
   background: rgba(10, 16, 24, 0.55);
   color: var(--text);
-  font-size: 26px;
+  font-size: calc(var(--tc-size, 72px) * 0.36);
   display: grid;
   place-items: center;
   touch-action: none;
@@ -384,9 +391,8 @@ body.touch #touchControls { display: flex; }
   box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.12), 4px 4px 0 rgba(0, 0, 0, 0.4);
 }
 .touch-btn.jump {
-  width: 84px;
-  height: 84px;
-  font-size: 30px;
+  width: calc(var(--tc-size, 72px) + 12px);
+  height: calc(var(--tc-size, 72px) + 12px);
   color: var(--gold);
   border-color: var(--gold);
 }
@@ -1022,9 +1028,10 @@ body.gfx-simple img, body.gfx-simple canvas { image-rendering: pixelated; }
     min-height: 0;
     padding: 10px 0 14px;
   }
-  .home-foot { max-width: 96vw; }
-  .home-account { max-width: 94vw; font-size: 12px; padding: 5px 10px; }
-  .home-stats { max-width: 94vw; }
+  .home-foot { max-width: 96vw; min-width: 0; }
+  .home-account { max-width: 94vw; font-size: 12px; padding: 5px 10px; overflow-wrap: anywhere; }
+  .home-stats { max-width: 94vw; overflow-wrap: anywhere; }
+  .acct-tag { white-space: nowrap; }
   .ui-space .home-stats { gap: 6px; }
   .home-buttons { gap: 10px; width: min(250px, 70vw); }
   .home-buttons .px-btn { font-size: 14px; padding: 9px 14px; }

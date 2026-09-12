@@ -59,11 +59,11 @@
     <canvas id="view"></canvas>
     <div id="widgetLayer"></div>
     <div id="touchControls">
-      <div class="touch-cluster">
+      <div class="touch-cluster left">
         <button class="touch-btn" id="touchLeft" aria-label="Move left">&#9664;</button>
         <button class="touch-btn" id="touchRight" aria-label="Move right">&#9654;</button>
       </div>
-      <div class="touch-cluster">
+      <div class="touch-cluster right">
         <button class="touch-btn jump" id="touchJump" aria-label="Jump">&#9650;</button>
       </div>
     </div>
@@ -340,6 +340,19 @@
         <button type="button" class="px-btn small gfx-opt" data-gfx="good">GOOD</button>
       </div>
       <p class="hint" id="gfxHint">Default look.</p>
+      <div class="section-title">TOUCH CONTROLS</div>
+      <div class="slider-row"><span>Button size</span><b id="tcSizeVal">72</b></div>
+      <input type="range" id="tcSize" min="56" max="112" step="2" value="72" />
+      <div class="slider-row"><span>Move buttons: edge</span><b id="tcLxVal">14</b></div>
+      <input type="range" id="tcLx" min="0" max="120" step="2" value="14" />
+      <div class="slider-row"><span>Move buttons: height</span><b id="tcLyVal">14</b></div>
+      <input type="range" id="tcLy" min="0" max="200" step="2" value="14" />
+      <div class="slider-row"><span>Jump button: edge</span><b id="tcRxVal">14</b></div>
+      <input type="range" id="tcRx" min="0" max="120" step="2" value="14" />
+      <div class="slider-row"><span>Jump button: height</span><b id="tcRyVal">14</b></div>
+      <input type="range" id="tcRy" min="0" max="200" step="2" value="14" />
+      <div class="row-end"><button class="px-btn small" id="btnTouchReset">RESET BUTTONS</button></div>
+      <p class="hint">Move and resize the on-screen buttons (mobile). Changes apply instantly.</p>
       <button type="button" class="px-btn small" id="btnAdvFx">ADVANCED &#9656;</button>
       <div id="advFx" style="display:none">
         <label class="check-row"><input type="checkbox" id="setFxShaders" checked /> Shaders</label>

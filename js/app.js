@@ -667,7 +667,50 @@
   }
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "", trails: [], trail: "", chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "", trails: [], trail: "", touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
+  }
+
+  function touchUIDefaults() {
+    return { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 };
+  }
+
+  function touchUI() {
+    const d = touchUIDefaults();
+    const t = (save_ && save_.data && save_.data.touchUI) || {};
+    function num(v, lo, hi, fb) {
+      v = Number(v);
+      if (!isFinite(v)) return fb;
+      return Math.max(lo, Math.min(hi, Math.round(v)));
+    }
+    return {
+      size: num(t.size, 56, 112, d.size),
+      lx: num(t.lx, 0, 120, d.lx),
+      ly: num(t.ly, 0, 200, d.ly),
+      rx: num(t.rx, 0, 120, d.rx),
+      ry: num(t.ry, 0, 200, d.ry),
+    };
+  }
+
+  function applyTouchUI() {
+    const box = el("touchControls");
+    if (!box) return;
+    const t = touchUI();
+    box.style.setProperty("--tc-size", t.size + "px");
+    box.style.setProperty("--tc-lx", t.lx + "px");
+    box.style.setProperty("--tc-ly", t.ly + "px");
+    box.style.setProperty("--tc-rx", t.rx + "px");
+    box.style.setProperty("--tc-ry", t.ry + "px");
+  }
+
+  function syncTouchUI() {
+    const t = touchUI();
+    const pairs = [["tcSize", "size", "tcSizeVal"], ["tcLx", "lx", "tcLxVal"], ["tcLy", "ly", "tcLyVal"], ["tcRx", "rx", "tcRxVal"], ["tcRy", "ry", "tcRyVal"]];
+    for (const pair of pairs) {
+      const inp = el(pair[0]);
+      const val = el(pair[2]);
+      if (inp) inp.value = String(t[pair[1]]);
+      if (val) val.textContent = String(t[pair[1]]);
+    }
   }
 
   function load() {
@@ -695,6 +738,7 @@
       s.frame = findShopFrame(s.frame) ? s.frame : "";
       s.trails = Array.isArray(s.trails) ? s.trails.filter(function (id) { return !!findShopTrail(id); }) : [];
       s.trail = findShopTrail(s.trail) ? s.trail : "";
+      s.touchUI = Object.assign(touchUIDefaults(), (s.touchUI && typeof s.touchUI === "object") ? s.touchUI : {});
       s.tag = findShopTag(s.tag) && s.tags.indexOf(s.tag) !== -1 ? s.tag : "";
       const cf = s.chestFree && typeof s.chestFree === "object" ? s.chestFree : {};
       s.chestFree = {
@@ -1843,6 +1887,7 @@
       syncGhostOpUI();
       syncGfxUI();
       syncFxUI();
+      syncTouchUI();
       el("advFx").style.display = "none";
       el("btnAdvFx").innerHTML = "ADVANCED &#9656;";
       syncSpaceSettings();
@@ -3468,6 +3513,21 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         save();
       });
     });
+    [["tcSize", "size", "tcSizeVal"], ["tcLx", "lx", "tcLxVal"], ["tcLy", "ly", "tcLyVal"], ["tcRx", "rx", "tcRxVal"], ["tcRy", "ry", "tcRyVal"]].forEach(function (tri) {
+      el(tri[0]).addEventListener("input", (ev) => {
+        save_.data.touchUI = save_.data.touchUI || {};
+        save_.data.touchUI[tri[1]] = Number(ev.target.value) || 0;
+        save();
+        applyTouchUI();
+        syncTouchUI();
+      });
+    });
+    el("btnTouchReset").addEventListener("click", () => {
+      save_.data.touchUI = touchUIDefaults();
+      save();
+      applyTouchUI();
+      syncTouchUI();
+    });
     el("setSpace").addEventListener("change", (ev) => {
       if (!hasSpaceUnlock()) {
         ev.target.checked = false;
@@ -3712,6 +3772,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     checkUnlocks();
     applySpaceTheme();
     applyGraphics();
+    applyTouchUI();
     syncHomeStats();
     syncCoinUI();
     syncFpsVis();
