@@ -667,7 +667,7 @@
   }
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
   }
 
   function touchUIDefaults() {
@@ -796,6 +796,7 @@
     engine: null,
     playing: false,
     practice: false,
+    heatmap: null,
     deaths: 0,
     paused: false,
     shake: 0,
@@ -2234,6 +2235,11 @@
     state.winShown = false;
     state.paused = false;
     state.practice = false;
+    state.heatmap = null;
+    heatLocal = {};
+    heatPending = 0;
+    heatFile = state.currentFile || "";
+    if (save_.data.showHeat === true) fetchHeat();
     setSpectate(null);
     clearChatBubbles();
     el("pauseCard").classList.remove("visible");
@@ -2349,6 +2355,7 @@
     flushPlaytime();
     state.paused = true;
     syncPracticeUI();
+    syncHeatUI();
     el("pauseCard").classList.add("visible");
   }
 
@@ -2365,6 +2372,7 @@
   function quitToLevels() {
     if (DP.Music) DP.Music.stop();
     flushPlaytime();
+    try { flushHeat(); } catch (e) {}
     setSpectate(null);
     closeQuickChatFor();
     try { el("widgetLayer").innerHTML = ""; } catch (e) {}
@@ -2391,6 +2399,7 @@
     const entry = state.netEntry || state.levels[state.current];
     if (!entry) return;
     flushPlaytime();
+    try { flushHeat(); } catch (e) {}
     const t = state.engine.time;
     if (state.practice) {
       el("winText").textContent = "PRACTICE CLEAR in " + fmtTime(t) + " — no records saved.";
@@ -2463,6 +2472,91 @@
     const dx = (Math.random() * 2 - 1) * m;
     const dy = (Math.random() * 2 - 1) * m;
     return { x: cam.x + dx, y: cam.y + dy, zoom: cam.zoom };
+  }
+
+  // ---- Death heatmaps (aggregate, anonymous) ----
+  let heatLocal = {};
+  let heatFile = "";
+  let heatPending = 0;
+
+  function heatKey() {
+    return state.currentFile || "";
+  }
+
+  function recordHeatDeath() {
+    try {
+      if (!state.engine || !state.currentFile) return;
+      if (heatFile !== state.currentFile) {
+        heatLocal = {};
+        heatPending = 0;
+        heatFile = state.currentFile;
+      }
+      const p = state.engine.player;
+      const lvl = state.engine.level;
+      const c = Math.max(0, Math.min(lvl.cols - 1, Math.floor((p.x + p.w / 2) / TILE)));
+      const r = Math.max(0, Math.min(lvl.rows - 1, Math.floor((p.y + p.h / 2) / TILE)));
+      const k = c + "," + r;
+      heatLocal[k] = (heatLocal[k] || 0) + 1;
+      heatPending++;
+      if (heatPending >= 10) flushHeat();
+    } catch (e) {}
+  }
+
+  async function flushHeat() {
+    const file = heatFile || state.currentFile;
+    const keys = Object.keys(heatLocal);
+    if (!file || !keys.length) return;
+    if (!window.DPNet) return;
+    const payload = heatLocal;
+    heatLocal = {};
+    heatPending = 0;
+    try {
+      const ok = await DPNet.submitHeatmap(file, payload);
+      if (!ok) {
+        for (const k in payload) heatLocal[k] = (heatLocal[k] || 0) + (payload[k] || 0);
+        heatPending = Object.keys(heatLocal).length;
+      }
+    } catch (e) {
+      for (const k in payload) heatLocal[k] = (heatLocal[k] || 0) + (payload[k] || 0);
+      heatPending = Object.keys(heatLocal).length;
+    }
+  }
+
+  async function fetchHeat() {
+    state.heatmap = null;
+    try {
+      if (!window.DPNet || !DPNet.getHeatmap || !state.currentFile) return;
+      const u = (DPNet.getUser && DPNet.getUser()) || null;
+      if (!u) return;
+      const cells = await DPNet.getHeatmap(state.currentFile);
+      if (!cells || state.screen !== "game" || !state.playing) return;
+      const list = Object.keys(cells)
+        .map((k) => {
+          const parts = String(k).split(",");
+          return { c: parseInt(parts[0], 10) || 0, r: parseInt(parts[1], 10) || 0, n: Math.floor(Number(cells[k]) || 0) };
+        })
+        .filter((h) => h.n > 0);
+      list.sort((a, b) => b.n - a.n);
+      state.heatmap = list.slice(0, 800);
+    } catch (e) {}
+  }
+
+  function toggleHeat() {
+    save_.data.showHeat = !(save_.data.showHeat === true);
+    save();
+    if (save_.data.showHeat) {
+      showNotice("Death heatmap ON", false);
+      fetchHeat();
+    } else {
+      state.heatmap = null;
+      showNotice("Death heatmap OFF", false);
+    }
+    syncHeatUI();
+  }
+
+  function syncHeatUI() {
+    const b = el("btnPauseHeat");
+    if (b) b.textContent = save_.data.showHeat === true ? "HEATMAP: ON" : "HEATMAP: OFF";
   }
 
   // ---- Playtime tracking ----
@@ -2828,6 +2922,7 @@
       checkUnlocks();
       addShake(12); // death juice
       haptic("death");
+      recordHeatDeath();
     }
     if (state.engine.dead && save_.data.autoRespawn && state.engine.deathTimer > 0.55) respawn();
     if (state.engine.won && !state.winShown) {
@@ -2891,6 +2986,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       showSpawn: false,
       remoteCubes: remoteCubes || [],
       graphics: gfxMode(),
+      heat: state.heatmap,
       fx: gfxFlags(),
     });
     try {
@@ -3773,6 +3869,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnPauseResume").addEventListener("click", resumeGame);
     el("btnPauseRestart").addEventListener("click", () => { resumeGame(); restartLevel(); });
     el("btnPausePractice").addEventListener("click", togglePractice);
+    el("btnPauseHeat").addEventListener("click", toggleHeat);
     el("hudPractice").addEventListener("click", () => {
       if (state.practice && state.playing && !state.paused) placePracticeCheckpoint();
     });

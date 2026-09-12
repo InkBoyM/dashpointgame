@@ -2591,6 +2591,25 @@
       }
     }
 
+    if (extras.heat && extras.heat.length && gfx !== "simple") {
+      let drawn = 0;
+      for (const h of extras.heat) {
+        if (drawn++ > 900) break;
+        const n = h.n | 0;
+        if (n <= 0) continue;
+        const hx = (h.c + 0.5) * TILE;
+        const hy = (h.r + 0.5) * TILE;
+        const glow = Math.log10(n + 1);
+        const a = Math.min(0.5, 0.1 + 0.12 * glow);
+        const rad = TILE * (0.42 + 0.1 * Math.min(3, glow));
+        const hg = ctx.createRadialGradient(hx, hy, 1, hx, hy, rad);
+        hg.addColorStop(0, "rgba(255,60,80," + a.toFixed(3) + ")");
+        hg.addColorStop(1, "rgba(255,60,80,0)");
+        ctx.fillStyle = hg;
+        ctx.fillRect(hx - rad, hy - rad, rad * 2, rad * 2);
+      }
+    }
+
     const labels = level.texts || [];
     const hover = extras.hover;
     for (let i = 0; i < labels.length; i++) {

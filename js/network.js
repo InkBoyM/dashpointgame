@@ -563,8 +563,66 @@ window.DPNet = (function () {
     } catch(e){ return []; }
   }
 
-  const GHOST_KEY = "dashpoint.ghosts";
-  function saveGhostLocal(levelFile, ghost) {
+  var HEAT_MAX_CELLS = 3000;
+  var HEAT_MAX_COUNT = 9999;
+
+  function heatCellKey(c, r) {
+    return (c | 0) + "," + (r | 0);
+  }
+
+  // Pure merge: sums local deaths into cloud counts, capped. No network here.
+  function mergeHeatCells(cloud, local) {
+    const out = {};
+    if (cloud && typeof cloud === "object") {
+      for (var k in cloud) {
+        if (!Object.prototype.hasOwnProperty.call(cloud, k)) continue;
+        const v = Math.floor(Number(cloud[k]) || 0);
+        if (v > 0) out[k] = Math.min(HEAT_MAX_COUNT, v);
+      }
+    }
+    if (local && typeof local === "object") {
+      for (var k2 in local) {
+        if (!Object.prototype.hasOwnProperty.call(local, k2)) continue;
+        const v2 = Math.floor(Number(local[k2]) || 0);
+        if (v2 > 0) out[k2] = Math.min(HEAT_MAX_COUNT, (out[k2] || 0) + v2);
+      }
+    }
+    const keys = Object.keys(out);
+    if (keys.length > HEAT_MAX_CELLS) {
+      keys.sort(function (a, b) { return out[b] - out[a]; });
+      const keep = {};
+      for (var i = 0; i < HEAT_MAX_CELLS; i++) keep[keys[i]] = out[keys[i]];
+      return keep;
+    }
+    return out;
+  }
+
+  async function getHeatmap(levelFile) {
+    try {
+      const val = await getJSON("/dashpoint/heatmaps/" + sanitizeFirebaseKey(levelFile));
+      if (!val || typeof val !== "object") return null;
+      return val.cells && typeof val.cells === "object" ? val.cells : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function submitHeatmap(levelFile, localCells) {
+    const u = getEffectiveUser() || getUser();
+    if (!u || !localCells) return false;
+    if (!Object.keys(localCells).length) return false;
+    try {
+      const path = "/dashpoint/heatmaps/" + sanitizeFirebaseKey(levelFile);
+      const cur = await getJSON(path);
+      const merged = mergeHeatCells(cur && cur.cells, localCells);
+      await putJSON(path, { cells: merged, updatedAt: Date.now() });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  const GHOST_KEY = "dashpoint.ghosts";  function saveGhostLocal(levelFile, ghost) {
     try {
       const all = JSON.parse(localStorage.getItem(GHOST_KEY) || "{}");
       all[levelFile] = ghost;
@@ -728,6 +786,10 @@ window.DPNet = (function () {
     downloadCloud: downloadCloud,
     submitLeaderboard: submitLeaderboard,
     getLeaderboard: getLeaderboard,
+    heatCellKey: heatCellKey,
+    mergeHeatCells: mergeHeatCells,
+    getHeatmap: getHeatmap,
+    submitHeatmap: submitHeatmap,
     saveGhostLocal: saveGhostLocal,
     getGhostLocal: getGhostLocal,
     saveGhostCloud: saveGhostCloud,
