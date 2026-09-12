@@ -563,6 +563,56 @@ window.DPNet = (function () {
     } catch(e){ return []; }
   }
 
+  async function getComments(levelId, limit) {
+    limit = limit || 30;
+    try {
+      const val = await getJSON("/dashpoint/comments/" + sanitizeFirebaseKey(levelId));
+      if (!val) return [];
+      const list = Object.keys(val).map(function (cid) {
+        const v = val[cid] || {};
+        return { id: cid, uid: v.uid || "", name: v.name || "player", text: String(v.text || "").slice(0, 200), ts: v.ts || 0, flags: v.flags | 0 };
+      });
+      list.sort(function (a, b) { return b.ts - a.ts; });
+      return list.slice(0, limit);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  async function postComment(levelId, text) {
+    const u = getEffectiveUser() || getUser();
+    if (!u) throw new Error("Log in to comment.");
+    text = String(text || "").replace(/\s+/g, " ").trim().slice(0, 200);
+    if (!text) throw new Error("Write something first.");
+    return await postJSON("/dashpoint/comments/" + sanitizeFirebaseKey(levelId), {
+      uid: u.uid,
+      name: u.name,
+      text: text,
+      ts: Date.now(),
+      flags: 0,
+    });
+  }
+
+  async function deleteComment(levelId, commentId, commentUid) {
+    const u = getEffectiveUser() || getUser();
+    if (!u) throw new Error("Log in first.");
+    if ((!commentUid || u.uid !== commentUid) && !isAdmin()) {
+      throw new Error("You can only delete your own comments.");
+    }
+    await deleteJSON("/dashpoint/comments/" + sanitizeFirebaseKey(levelId) + "/" + encodeURIComponent(commentId));
+    return true;
+  }
+
+  async function reportComment(levelId, commentId) {
+    const u = getEffectiveUser() || getUser();
+    if (!u) throw new Error("Log in to report.");
+    const path = "/dashpoint/comments/" + sanitizeFirebaseKey(levelId) + "/" + encodeURIComponent(commentId);
+    const cur = await getJSON(path);
+    if (!cur) throw new Error("Comment is gone.");
+    await patchJSON(path, { flags: (cur.flags | 0) + 1 });
+    return true;
+  }
+
   var HEAT_MAX_CELLS = 3000;
   var HEAT_MAX_COUNT = 9999;
 
@@ -786,6 +836,10 @@ window.DPNet = (function () {
     downloadCloud: downloadCloud,
     submitLeaderboard: submitLeaderboard,
     getLeaderboard: getLeaderboard,
+    getComments: getComments,
+    postComment: postComment,
+    deleteComment: deleteComment,
+    reportComment: reportComment,
     heatCellKey: heatCellKey,
     mergeHeatCells: mergeHeatCells,
     getHeatmap: getHeatmap,

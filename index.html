@@ -409,6 +409,7 @@
       </div>
       <div id="profLoggedIn" style="display:none">
         <p class="hint">Signed in as <b id="profName" style="color:var(--good)"></b><span id="profTagWrap" class="acct-tag-wrap hidden"> Tag: <span id="profAcctTag"></span></span> <span id="profGuestTag" style="display:none;color:var(--gold)">(guest)</span></p>
+        <p class="hint">Rank: <span id="profRank"></span> <span id="profRankNext" style="opacity:.75"></span></p>
         <div class="row-gap"><button class="px-btn small danger" id="btnProfLogout">LOG OUT</button></div>
       </div>
 
@@ -562,6 +563,13 @@
       <div class="row" style="margin-top:14px; justify-content:center; gap:10px">
         <button class="px-btn good" id="btnLiPlay">PLAY</button>
         <button class="px-btn small" id="btnLiDownload">DOWNLOAD</button>
+      </div>
+      <hr class="sep" />
+      <div class="section-title">COMMENTS</div>
+      <div class="net-results" id="liComments" style="max-height:150px"></div>
+      <div class="row-gap" style="margin-top:8px">
+        <input class="px-input" id="liCommentInput" maxlength="200" placeholder="Say something nice…" autocomplete="off" />
+        <button class="px-btn small gold" id="btnLiComment">POST</button>
       </div>
       <div class="row-end">
         <button class="px-btn small gold" id="btnLiEdit" style="display:none">EDIT LEVEL</button>

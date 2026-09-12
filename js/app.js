@@ -589,6 +589,47 @@
     return '<span class="acct-tag" style="color:' + tag.color + ";border-color:" + tag.color + '">{' + escapeHtml(tag.label) + "}</span>";
   }
 
+  const RANKS = [
+    { min: 0, label: "Rookie", color: "#9db4d8" },
+    { min: 1, label: "Player", color: "#3ee07a" },
+    { min: 5, label: "Skilled", color: "#2ee6ff" },
+    { min: 15, label: "Veteran", color: "#ff9d2e" },
+    { min: 30, label: "Expert", color: "#ffd23c" },
+    { min: 60, label: "Master", color: "#e8c4ff" },
+    { min: 100, label: "Legend", color: "#ff4d62" },
+    { min: 200, label: "Mythic", color: "#ffffff" },
+  ];
+
+  function rankForClears(n) {
+    n = Math.max(0, n | 0);
+    let idx = 0;
+    for (let i = 0; i < RANKS.length; i++) {
+      if (n >= RANKS[i].min) idx = i;
+    }
+    return { rank: RANKS[idx], next: idx + 1 < RANKS.length ? RANKS[idx + 1] : null, clears: n };
+  }
+
+  function rankChipHtml(rank) {
+    if (!rank) return "";
+    return '<span class="rank-chip" style="color:' + rank.color + ";border-color:" + rank.color + '">[' + escapeHtml(rank.label) + "]</span>";
+  }
+
+  function clearsForUid(uid) {
+    uid = String(uid || "");
+    if (!uid) return -1;
+    const me = (MP.getUser && MP.getUser()) || (window.DashPointMP && window.DashPointMP.getUser && window.DashPointMP.getUser());
+    if (me && me.uid === uid) return Object.keys(save_.data.beaten || {}).length;
+    const u = (usersIndexCache || []).find(function (x) { return x.uid === uid; });
+    if (u && u.beatenCount != null) return u.beatenCount | 0;
+    return -1;
+  }
+
+  function rankChipForUid(uid, clearsHint) {
+    let c = clearsHint != null ? clearsHint | 0 : clearsForUid(uid);
+    if (c < 0) return "";
+    return rankChipHtml(rankForClears(c).rank);
+  }
+
   function frameAvatarHtml(skinId, frameId, imgCls) {
     const fr = findShopFrame(frameId);
     const n = (skinId | 0) - 1;
@@ -3038,6 +3079,19 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       const nc = equippedNameColor();
       pn.style.color = nc ? nc.color : "";
     }
+    const pr = el("profRank");
+    if (pr) {
+      if (u) {
+        const info = rankForClears(Object.keys(save_.data.beaten || {}).length);
+        pr.innerHTML = rankChipHtml(info.rank);
+        const nx = el("profRankNext");
+        if (nx) nx.textContent = info.next ? (info.next.min - info.clears) + " clears to " + info.next.label : "max rank!";
+      } else {
+        pr.innerHTML = "";
+        const nx = el("profRankNext");
+        if (nx) nx.textContent = "";
+      }
+    }
     const tagEl = el("profGuestTag"); if (tagEl) tagEl.style.display = guest ? "" : "none";
     const pass = el("profPassSection"); if (pass) pass.style.display = u && !guest ? "" : "none";
     syncAccountTagUI();
@@ -3073,7 +3127,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
           const nm = document.createElement("span");
           const tagId = q.tag || (q.me ? equippedTagId() : tagIdForUid(q.uid));
           const colorId = q.nameColor || (q.me ? equippedNameColorId() : nameColorForUid(q.uid));
-          nm.innerHTML = taggedNameHtml(q.name + (q.me ? " (you)" : "") + (q.slot === "host" ? " [host]" : ""), tagId, "", colorId);
+          nm.innerHTML = taggedNameHtml(q.name + (q.me ? " (you)" : "") + (q.slot === "host" ? " [host]" : ""), tagId, "", colorId) + " " + rankChipForUid(q.uid);
           nm.style.flex = "1";
           row.appendChild(dot); row.appendChild(nm);
           if (!q.me && q.online) {
@@ -3564,7 +3618,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       return;
     }
     var theirs = (levelIndexCache || []).filter(function(l){ return l.authorUid === uid; });
-    el("acctTitle").innerHTML = taggedNameHtml(String(u.name || "player").toUpperCase(), u.tag || tagIdForUid(u.uid), "", u.nameColor || nameColorForUid(u.uid));
+    el("acctTitle").innerHTML = taggedNameHtml(String(u.name || "player").toUpperCase(), u.tag || tagIdForUid(u.uid), "", u.nameColor || nameColorForUid(u.uid)) + (u.beatenCount != null ? " " + rankChipHtml(rankForClears(u.beatenCount).rank) : "");
     el("acctMade").textContent = theirs.length;
     el("acctBeaten").textContent = u.beatenCount || 0;
     el("acctDeaths").textContent = u.deaths || 0;
@@ -3617,11 +3671,12 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
   }
 
   let levelInfoMeta = null;
+  let commentLevelId = "";
+
   function openLevelInfo(sv) {
     levelInfoMeta = sv;
     const key = "net:" + (sv.id || sv.meta.id);
-    const meta = sv.meta;
-    el("liName").textContent = meta.title || "Untitled";
+    const meta = sv.meta;    el("liName").textContent = meta.title || "Untitled";
     el("liDiff").innerHTML = diffFaceImg(netDiff(meta));
     el("liAuthor").innerHTML = taggedNameHtml(meta.authorName || "—", tagIdForUid(meta.authorUid), "", nameColorForUid(meta.authorUid));
     const best = save_.data.best[key];
@@ -3635,7 +3690,104 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     try {
       el("btnLiDelete").style.display = (NET.canDeleteLevel && NET.canDeleteLevel(meta)) ? "" : "none";
     } catch(e){ el("btnLiDelete").style.display = "none"; }
+    commentLevelId = sv.id || (sv.meta && sv.meta.id) || "";
+    renderComments();
     el("modalLevelInfo").classList.add("visible");
+  }
+
+  function timeAgo(ts) {
+    const s = Math.max(0, Math.floor((Date.now() - (ts || 0)) / 1000));
+    if (s < 60) return "just now";
+    if (s < 3600) return Math.floor(s / 60) + "m ago";
+    if (s < 86400) return Math.floor(s / 3600) + "h ago";
+    return Math.floor(s / 86400) + "d ago";
+  }
+
+  async function renderComments() {
+    const box = el("liComments");
+    if (!box) return;
+    if (!commentLevelId) {
+      box.innerHTML = "";
+      return;
+    }
+    box.innerHTML = '<p class="loading-note">Loading comments…</p>';
+    let list = [];
+    try {
+      list = await NET.getComments(commentLevelId);
+    } catch (e) {
+      list = [];
+    }
+    if (commentLevelId !== (levelInfoMeta && (levelInfoMeta.id || (levelInfoMeta.meta && levelInfoMeta.meta.id)))) return;
+    box.innerHTML = "";
+    const shown = list.filter((c) => (c.flags | 0) < 3);
+    if (!shown.length) {
+      box.innerHTML = '<p class="loading-note">No comments yet. Be nice!</p>';
+      return;
+    }
+    let me = null;
+    try { me = (NET.getEffectiveUser && NET.getEffectiveUser()) || (NET.getUser && NET.getUser()); } catch (e) {}
+    const admin = !!(NET.isAdmin && NET.isAdmin());
+    shown.forEach((c) => {
+      const row = document.createElement("div");
+      row.className = "comment-row";
+      const head = document.createElement("div");
+      head.className = "comment-head";
+      head.innerHTML = taggedNameHtml(c.name || "player", tagIdForUid(c.uid), "", nameColorForUid(c.uid)) +
+        '<span class="comment-time">' + escapeHtml(timeAgo(c.ts)) + "</span>";
+      const body = document.createElement("div");
+      body.className = "comment-body";
+      body.textContent = c.text || "";
+      row.appendChild(head);
+      row.appendChild(body);
+      const acts = document.createElement("div");
+      acts.className = "comment-acts";
+      if ((me && me.uid && me.uid === c.uid) || admin) {
+        const del = document.createElement("button");
+        del.className = "px-btn tiny danger";
+        del.textContent = "DELETE";
+        del.addEventListener("click", async (ev) => {
+          ev.stopPropagation();
+          if (!confirm("Delete this comment?")) return;
+          try {
+            await NET.deleteComment(commentLevelId, c.id, c.uid);
+            renderComments();
+          } catch (err) {
+            showNotice(NET.friendly(err), true);
+          }
+        });
+        acts.appendChild(del);
+      } else if (me) {
+        const rep = document.createElement("button");
+        rep.className = "px-btn tiny";
+        rep.textContent = "REPORT";
+        rep.addEventListener("click", async (ev) => {
+          ev.stopPropagation();
+          try {
+            await NET.reportComment(commentLevelId, c.id);
+            showNotice("Reported. Thanks!", false);
+            renderComments();
+          } catch (err) {
+            showNotice(NET.friendly(err), true);
+          }
+        });
+        acts.appendChild(rep);
+      }
+      if (acts.children.length) row.appendChild(acts);
+      box.appendChild(row);
+    });
+  }
+
+  async function postLevelComment() {
+    const inp = el("liCommentInput");
+    const text = inp ? inp.value : "";
+    if (!commentLevelId) return;
+    try {
+      await NET.postComment(commentLevelId, text);
+      if (inp) inp.value = "";
+      renderComments();
+    } catch (err) {
+      showNotice(NET.friendly(err), true);
+    }
   }
   function liPlay() {
     if (!levelInfoMeta) return;
@@ -3876,6 +4028,14 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnPauseSettings").addEventListener("click", () => openModal("modalSettings"));
     el("btnPauseQuit").addEventListener("click", quitToLevels);
     el("btnLiPlay").addEventListener("click", liPlay);
+    el("btnLiComment").addEventListener("click", postLevelComment);
+    el("liCommentInput").addEventListener("keydown", function (ev) {
+      ev.stopPropagation();
+      if (ev.code === "Enter" || ev.key === "Enter") {
+        ev.preventDefault();
+        postLevelComment();
+      }
+    });
     el("btnLiDownload").addEventListener("click", function () {
       const m = levelInfoMeta;
       if (!m) return;

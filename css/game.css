@@ -160,18 +160,18 @@ canvas { image-rendering: pixelated; }
   align-items: flex-start;
   gap: 2px;
   text-align: left;
-  background: rgba(255, 210, 60, 0.08);
+  background: rgba(10, 16, 24, 0.92);
   border: 3px solid var(--gold);
-  box-shadow: 4px 4px 0 rgba(6, 12, 24, 0.35), 0 0 18px rgba(255, 210, 60, 0.18);
+  box-shadow: 4px 4px 0 rgba(6, 12, 24, 0.35), 0 0 18px rgba(255, 210, 60, 0.25);
   padding: 10px 14px;
   cursor: pointer;
   color: var(--text);
   font-family: var(--font);
 }
-.lotd:hover { filter: brightness(1.1); }
+.lotd:hover { filter: brightness(1.12); }
 .lotd-kicker { font-size: 10px; font-weight: 900; letter-spacing: 2px; color: var(--gold); }
-.lotd-title { font-size: 17px; font-weight: 900; letter-spacing: 1px; }
-.lotd-by { font-size: 11px; color: #9db4d8; letter-spacing: 1px; }
+.lotd-title { font-size: 17px; font-weight: 900; letter-spacing: 1px; color: #ffffff; text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6); }
+.lotd-by { font-size: 11px; color: #c8d8f0; letter-spacing: 1px; }
 .lotd-play { font-size: 12px; font-weight: 900; letter-spacing: 2px; color: var(--good); margin-top: 2px; }
 
 .home-foot {
@@ -221,6 +221,19 @@ canvas { image-rendering: pixelated; }
   letter-spacing: 0.5px;
   box-shadow: 2px 2px 0 rgba(0,0,0,0.35);
   vertical-align: 1px;
+}
+.rank-chip {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border: 2px solid var(--good);
+  background: var(--ink-dark);
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  box-shadow: 2px 2px 0 rgba(0,0,0,0.35);
+  vertical-align: 1px;
+  white-space: nowrap;
 }
 .n-title .acct-tag, .n-sub .acct-tag, .lb-name .acct-tag, h2 .acct-tag {
   font-size: 10px;
@@ -975,6 +988,18 @@ body.gfx-simple img, body.gfx-simple canvas { image-rendering: pixelated; }
 .net-panel-head b { letter-spacing: 2px; font-size: 15px; color: var(--cyan); }
 
 .net-results { display: flex; flex-direction: column; gap: 8px; max-height: 46vh; overflow: auto; }
+.comment-row {
+  background: var(--panel-2);
+  border: 2px solid var(--ink-dark);
+  padding: 7px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.comment-head { font-size: 12px; font-weight: 900; display: flex; gap: 8px; align-items: baseline; }
+.comment-time { font-size: 10px; color: #9db4d8; font-weight: 400; }
+.comment-body { font-size: 13px; overflow-wrap: anywhere; }
+.comment-acts { display: flex; gap: 6px; justify-content: flex-end; }
 #screen-netsearch .net-results,
 #screen-netsaved .level-list {
   max-height: none;
