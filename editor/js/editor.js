@@ -1029,6 +1029,89 @@
     if (tool !== "image") state.picDrag = null;
     if (tool !== "html") state.widgetDrag = null;
     setStatus(tool.charAt(0).toUpperCase() + tool.slice(1));
+    syncToolHint();
+  }
+
+  const TOOL_HINTS = {
+    paint: "Click or drag to paint tiles",
+    erase: "Click or drag to erase",
+    fill: "Click an enclosed area to fill it",
+    rect: "Drag to paint a rectangle",
+    line: "Drag to paint a line (Shift snaps straight)",
+    select: "Drag to select, K saves a prefab",
+    picker: "Click any tile to pick it up",
+    spawn: "Click to move the spawn point",
+    prefab: "Pick a prefab below, then click to stamp it",
+    text: "Click to stamp your text label",
+    image: "Click an image to move it, drag the handles to resize",
+    html: "Click a block to move it, right-click for layer options",
+  };
+
+  function syncToolHint() {
+    const hint = document.getElementById("statusHint");
+    if (!hint) return;
+    let text = TOOL_HINTS[state.tool] || "";
+    if ((state.tool === "paint" || state.tool === "erase") && window.DashPoint && DP.TILE_TYPES[state.tile]) {
+      text += " · " + DP.TILE_TYPES[state.tile].label;
+    }
+    hint.textContent = text;
+  }
+
+  const COLLAPSE_KEY = "dashpoint.editor.collapsed";
+
+  function collapsedSections() {
+    try {
+      const v = JSON.parse(localStorage.getItem(COLLAPSE_KEY) || "[]");
+      return Array.isArray(v) ? v : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function initCollapsiblePalette() {
+    const pal = document.querySelector(".palette");
+    if (!pal) return;
+    const collapsed = collapsedSections();
+    const titles = Array.prototype.slice.call(pal.querySelectorAll(":scope > .section-title"));
+    titles.forEach(function (title, idx) {
+      if (idx === 0) return; // Tools always stays open
+      const id = "sec-" + title.textContent.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      title.classList.add("collapsible");
+      title.setAttribute("role", "button");
+      title.setAttribute("tabindex", "0");
+      title.title = "Collapse section";
+      const body = document.createElement("div");
+      body.className = "collapsible-body";
+      let n = title.nextSibling;
+      while (n && !(n.nodeType === 1 && n.classList && n.classList.contains("section-title"))) {
+        const nx = n.nextSibling;
+        body.appendChild(n);
+        n = nx;
+      }
+      title.parentNode.insertBefore(body, title.nextSibling);
+      function apply(shut) {
+        body.classList.toggle("collapsed", shut);
+        title.classList.toggle("shut", shut);
+        title.title = shut ? "Expand section" : "Collapse section";
+      }
+      apply(collapsed.indexOf(id) !== -1);
+      function toggle() {
+        const now = collapsedSections();
+        const shut = !body.classList.contains("collapsed");
+        apply(shut);
+        const at = now.indexOf(id);
+        if (shut && at === -1) now.push(id);
+        if (!shut && at !== -1) now.splice(at, 1);
+        try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(now)); } catch (e) {}
+      }
+      title.addEventListener("click", toggle);
+      title.addEventListener("keydown", function (ev) {
+        if (ev.code === "Enter" || ev.code === "Space") {
+          ev.preventDefault();
+          toggle();
+        }
+      });
+    });
   }
 
   function setTile(id) {
@@ -1037,6 +1120,7 @@
       btn.classList.toggle("active", btn.dataset.tile === id);
     });
     if (state.tool === "spawn" || state.tool === "select" || state.tool === "picker") setTool("paint");
+    else syncToolHint();
   }
 
   function setRot(rot) {
@@ -2948,6 +3032,8 @@
   async function boot() {
     buildUI();
     bindEvents();
+    initCollapsiblePalette();
+    syncToolHint();
     try {
       state.images = await DP.loadAssets();
     } catch (err) {
