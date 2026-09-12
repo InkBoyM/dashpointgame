@@ -808,7 +808,7 @@
     if (!isFinite(z)) return cam.zoom;
     if (gfxMode() === "good") {
       const lo = isTouchMode() ? 1.5 : 2;
-      return Math.max(lo, Math.min(4, Math.round(z)));
+      return Math.max(lo, Math.min(4, Math.round(z * 100) / 100));
     }
     const lo = isTouchMode() ? 1 : 1.5;
     return Math.max(lo, Math.min(9, Math.round(z * 100) / 100));
