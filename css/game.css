@@ -396,7 +396,10 @@ canvas { image-rendering: pixelated; }
 .leaderboard .lb-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--panel); border: 2px solid var(--ink-dark); margin-bottom: 4px; font-size: 12px; }
 .leaderboard .lb-rank { width: 28px; text-align: center; font-weight: 900; color: var(--gold); }
 .leaderboard .lb-name { flex: 1; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.leaderboard .lb-time { color: var(--good); font-weight: 900; }
+.leaderboard .lb-time { color: var(--good); font-weight: 900; white-space: nowrap; }
+.leaderboard .lb-time.coins { color: var(--gold); }
+.leaderboard .lb-open { cursor: pointer; }
+.leaderboard .lb-open:hover { border-color: var(--cyan); }
 .leaderboard .lb-skin { width: 20px; height: 20px; image-rendering: pixelated; border: 1px solid var(--ink-dark); }
 .leaderboard .lb-me { border-color: var(--cyan); background: rgba(46,230,255,0.12); box-shadow: 0 0 0 1px var(--cyan); }
 .leaderboard .lb-race { cursor: pointer; }
@@ -823,9 +826,10 @@ body.gfx-ultra canvas { image-rendering: auto; }
 
 .net-acct { font-family: var(--mono); font-size: 11px; color: #9db4d8; letter-spacing: 1px; }
 .net-body { flex: 1; overflow: auto; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-.net-grid { display: flex; gap: clamp(12px, 3vw, 30px); justify-content: center; width: 100%; max-width: 900px; }
+.net-grid { display: flex; flex-wrap: wrap; gap: clamp(12px, 3vw, 30px); justify-content: center; width: 100%; max-width: 980px; }
 .net-tile {
   flex: 1;
+  min-width: 150px;
   display: flex; flex-direction: column; align-items: center; gap: 8px;
   padding: clamp(14px, 3vh, 28px) 12px;
   background: var(--panel-2);
@@ -860,7 +864,9 @@ body.gfx-ultra canvas { image-rendering: auto; }
   width: min(720px, calc(100vw - 32px));
   margin: 16px auto 12px;
 }
-.net-search-head .chips { display: flex; gap: 6px; }
+.net-search-head .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.net-lb-hint { width: min(720px, calc(100vw - 32px)); margin: 0 auto 8px; }
+.net-lb-box { width: min(720px, calc(100vw - 32px)); margin: 0 auto 20px; max-height: min(62vh, 520px); }
 .chip {
   padding: 6px 12px;
   font-family: var(--font);

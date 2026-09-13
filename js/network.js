@@ -349,14 +349,22 @@ window.DPNet = (function () {
     if (stats && Object.prototype.hasOwnProperty.call(stats, "tag")) {
       patch.tag = String(stats.tag || "").slice(0, 32);
     }
-    // Merge deaths/beatenCount via read-modify-patch to preserve cloudSave
+    if (stats && Object.prototype.hasOwnProperty.call(stats, "skin")) {
+      patch.skin = stats.skin | 0 || 1;
+    }
+    // Merge public stats via read-modify-patch to preserve cloudSave
     try {
       const cloud = (await getJSON(refPath)) || {};
-      patch.deaths = Math.max(cloud.deaths || 0, stats.deaths || 0);
-      patch.beatenCount = Math.max(cloud.beatenCount || 0, stats.beatenCount || 0);
+      patch.deaths = Math.max(cloud.deaths || 0, (stats && stats.deaths) || 0);
+      patch.beatenCount = Math.max(cloud.beatenCount || 0, (stats && stats.beatenCount) || 0);
+      patch.jumps = Math.max(cloud.jumps || 0, (stats && stats.jumps) || 0);
+      patch.coins = coinsMaxStr(cloud.coins, stats && stats.coins);
+      if (!Object.prototype.hasOwnProperty.call(patch, "skin") && cloud.skin) patch.skin = cloud.skin | 0;
     } catch(e){
-      patch.deaths = stats.deaths || 0;
-      patch.beatenCount = stats.beatenCount || 0;
+      patch.deaths = (stats && stats.deaths) || 0;
+      patch.beatenCount = (stats && stats.beatenCount) || 0;
+      patch.jumps = (stats && stats.jumps) || 0;
+      patch.coins = coinsMaxStr("0", stats && stats.coins);
     }
     await patchJSON(refPath, patch);
     return patch;
@@ -476,7 +484,14 @@ window.DPNet = (function () {
       };
     }
     await putJSON(path, toSave);
-    await syncStats({ deaths: toSave.deaths, beatenCount: Object.keys(toSave.beaten).length, tag: String(fullSave.tag || toSave.tag || "") });
+    await syncStats({
+      deaths: toSave.deaths,
+      jumps: toSave.jumps,
+      beatenCount: Object.keys(toSave.beaten || {}).length,
+      coins: toSave.coins,
+      skin: toSave.skin,
+      tag: String(fullSave.tag || toSave.tag || ""),
+    });
     return toSave;
   }
 
@@ -526,6 +541,43 @@ window.DPNet = (function () {
       list.sort(function(a,b){ return a.time - b.time; });
       return list.slice(0, limit);
     } catch(e){ return []; }
+  }
+
+  async function getCategoryLeaderboard(category, limit) {
+    limit = limit || 25;
+    const key = category === "beaten" ? "beatenCount" : category;
+    const users = await loadUsersIndex();
+    const list = [];
+    for (let i = 0; i < users.length; i++) {
+      const u = users[i];
+      if (!u || !u.uid) continue;
+      let raw;
+      if (category === "coins") {
+        raw = coinsValue(u.coins);
+        if (raw <= 0n) continue;
+      } else {
+        raw = Number(u[key]) || 0;
+        if (raw <= 0) continue;
+      }
+      list.push({
+        uid: u.uid,
+        name: u.name || "player",
+        tag: String(u.tag || "").slice(0, 32),
+        skin: (u.skin | 0) || 1,
+        value: category === "coins" ? raw.toString() : raw,
+      });
+    }
+    list.sort(function (a, b) {
+      if (category === "coins") {
+        const av = coinsValue(a.value);
+        const bv = coinsValue(b.value);
+        if (av === bv) return String(a.name || "").localeCompare(String(b.name || ""));
+        return av > bv ? -1 : 1;
+      }
+      const d = (b.value | 0) - (a.value | 0);
+      return d || String(a.name || "").localeCompare(String(b.name || ""));
+    });
+    return list.slice(0, limit);
   }
 
   const GHOST_KEY = "dashpoint.ghosts";
@@ -693,6 +745,7 @@ window.DPNet = (function () {
     downloadCloud: downloadCloud,
     submitLeaderboard: submitLeaderboard,
     getLeaderboard: getLeaderboard,
+    getCategoryLeaderboard: getCategoryLeaderboard,
     saveGhostLocal: saveGhostLocal,
     getGhostLocal: getGhostLocal,
     saveGhostCloud: saveGhostCloud,

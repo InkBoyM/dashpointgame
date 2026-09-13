@@ -438,6 +438,11 @@
           <b>SEARCH</b>
           <span>Find levels &amp; players</span>
         </button>
+        <button class="net-tile" id="netLeaderboards">
+          <img src="assets/ui/coin.png" alt="" />
+          <b>LEADERBOARDS</b>
+          <span>Money, levels, jumps, deaths</span>
+        </button>
       </div>
     </div>
   </div>
@@ -465,6 +470,24 @@
       <input type="text" id="netQuery" class="px-input" placeholder="type to search…" autocomplete="off" />
     </div>
     <div class="net-results" id="netResults"><p class="loading-note">Type something to search.</p></div>
+  </div>
+
+  <div class="screen" id="screen-netleaderboards">
+    <header class="topbar">
+      <button class="px-btn small" id="btnNetBackLb">&#9664; BACK</button>
+      <h1 class="bar-title">LEADERBOARDS</h1>
+      <span class="bar-spacer"></span>
+    </header>
+    <div class="net-search-head">
+      <div class="chips" id="netLbChips">
+        <button type="button" class="chip active" data-lb="coins">MONEY</button>
+        <button type="button" class="chip" data-lb="beaten">LEVELS</button>
+        <button type="button" class="chip" data-lb="jumps">JUMPS</button>
+        <button type="button" class="chip" data-lb="deaths">DEATHS</button>
+      </div>
+    </div>
+    <p class="hint net-lb-hint" id="netLbHint">Highest coin counts from synced players.</p>
+    <div id="netLbBox" class="leaderboard leaderboard-full net-lb-box"></div>
   </div>
 
   <div class="modal-root" id="modalAccount">
