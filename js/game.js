@@ -107,6 +107,22 @@
     cursorSelect: "assets/ui/cursor-select.png",
   };
 
+  const ULTRA_ASSET_PATHS = {
+    background: "assets/tiles/ultra/background.png",
+    brick: "assets/tiles/ultra/brick.png",
+    spike: "assets/tiles/ultra/spike.png",
+    goal: "assets/tiles/ultra/goal.png",
+    orb: "assets/tiles/ultra/orb.png",
+    pad: "assets/tiles/ultra/pad.png",
+    dash: "assets/tiles/ultra/dash.png",
+    checkpoint: "assets/tiles/ultra/checkpoint.png",
+    checkpointTouched: "assets/tiles/ultra/checkpoint-touched.png",
+    coin10: "assets/tiles/ultra/coin10.png",
+    coin50: "assets/tiles/ultra/coin50.png",
+    coin100: "assets/tiles/ultra/coin100.png",
+    coin500: "assets/tiles/ultra/coin500.png",
+  };
+
   function clamp(v, a, b) {
     return Math.max(a, Math.min(b, v));
   }
@@ -165,6 +181,14 @@
     ["coin10", "coin50", "coin100", "coin500"].forEach(function (k) {
       if (images[k]) images[k] = knockOutBlack(images[k]);
     });
+    images.ultra = {};
+    await Promise.all(
+      Object.entries(ULTRA_ASSET_PATHS).map(async function ([key, src]) {
+        try {
+          images.ultra[key] = await loadImage(src);
+        } catch (e) {}
+      })
+    );
     return images;
   }
 
@@ -2366,6 +2390,11 @@
     ctx.imageSmoothingEnabled = prevSmooth;
   }
 
+  function gfxPack(images, gfx) {
+    if (gfx === "ultra" && images && images.ultra) return Object.assign({}, images, images.ultra);
+    return images;
+  }
+
   function drawTile(ctx, images, tile, x, y, size, opts) {
     size = size || TILE;
     opts = opts || {};
@@ -2501,10 +2530,22 @@
     }
   }
 
+  function drawUltraBackdrop(ctx, w, h, img) {
+    const iw = img.naturalWidth || img.width || 1;
+    const ih = img.naturalHeight || img.height || 1;
+    const s = Math.max(w / iw, h / ih);
+    const dw = iw * s;
+    const dh = ih * s;
+    ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+    ctx.fillStyle = "rgba(4, 8, 16, 0.28)";
+    ctx.fillRect(0, 0, w, h);
+  }
+
   function drawWorld(ctx, level, images, cam, extras) {
     extras = extras || {};
-    const gfx = extras.graphics === "good" || extras.graphics === "simple" || extras.graphics === "dlls5" ? extras.graphics : "normal";
+    const gfx = extras.graphics === "good" || extras.graphics === "simple" || extras.graphics === "dlls5" || extras.graphics === "ultra" ? extras.graphics : "normal";
     const real = gfx === "dlls5";
+    const pack = gfxPack(images, gfx);
     const fx = Object.assign({ shadows: true, flashes: true, particles: true }, extras.fx || {});
     const w = ctx.canvas.width;
     const h = ctx.canvas.height;
@@ -2512,8 +2553,9 @@
     const worldW = level.cols * TILE;
     const worldH = level.rows * TILE;
 
-    ctx.imageSmoothingEnabled = false;
-    drawBackdrop(ctx, w, h, Date.now() / 1000, level.theme, gfx === "simple");
+    ctx.imageSmoothingEnabled = gfx === "ultra";
+    if (gfx === "ultra" && pack.background) drawUltraBackdrop(ctx, w, h, pack.background);
+    else drawBackdrop(ctx, w, h, Date.now() / 1000, level.theme, gfx === "simple");
 
     ctx.save();
     ctx.scale(zoom, zoom);
@@ -2522,7 +2564,7 @@
     if (gfx !== "simple") {
       drawPictures(ctx, level);
       drawWidgets(ctx, level, 0);
-      ctx.imageSmoothingEnabled = false;
+      ctx.imageSmoothingEnabled = gfx === "ultra";
     }
 
     ctx.fillStyle = "rgba(255, 42, 60, 0.16)";
@@ -2560,7 +2602,7 @@
         const tile = level.grid[r][c];
         if (tile) {
           if (extras.engine && moverCells[c + "," + r]) continue;
-          drawTile(ctx, images, tile, cellX(c, tile), cellY(r, tile), TILE, {
+          drawTile(ctx, pack, tile, cellX(c, tile), cellY(r, tile), TILE, {
             hideInvisible: !!extras.engine && !extras.hitboxes,
             c: c,
             r: r,
@@ -2578,7 +2620,7 @@
     if (movers && movers.length) {
       for (const m of movers) {
         if (m.done) continue;
-        drawTile(ctx, images, m.tile, m.x, m.y, TILE, {
+        drawTile(ctx, pack, m.tile, m.x, m.y, TILE, {
           hideInvisible: !!extras.engine && !extras.hitboxes,
           collected: extras.engine ? extras.engine.collected : null,
           collectedKey: "m:" + m.cx + "," + m.cy,
@@ -2758,6 +2800,7 @@
     }
 
     if (extras.remoteCubes && extras.remoteCubes.length) {
+      ctx.imageSmoothingEnabled = false;
       for (const rc of extras.remoteCubes) {
         const rSkinId = clamp((rc.skin | 0) || 1, 1, Math.max(1, SKINS.length));
         const rSkinImg = images.skins && images.skins[rSkinId];
@@ -2805,6 +2848,7 @@
 
     const engine = extras.engine;
     if (engine) {
+      ctx.imageSmoothingEnabled = false;
       const p = engine.player;
       const skinId = clamp((engine.skin | 0) || (extras.skin | 0) || 1, 1, Math.max(1, SKINS.length));
       const skinImg = images.skins && images.skins[skinId];

@@ -828,7 +828,7 @@
         diamond: Number(cf.diamond) || 0,
         king: Number(cf.king) || 0,
       };
-      s.graphics = s.graphics === "good" || s.graphics === "simple" || s.graphics === "dlls5" ? s.graphics : "normal";
+      s.graphics = s.graphics === "good" || s.graphics === "simple" || s.graphics === "dlls5" || s.graphics === "ultra" ? s.graphics : "normal";
       s.ghostOpacity = clampGhostOpacity(s.ghostOpacity);
       return s;
     } catch (e) {
@@ -2243,7 +2243,7 @@
 
   function gfxMode() {
     const g = save_.data && save_.data.graphics;
-    if (g === "good" || g === "simple" || g === "dlls5") return g;
+    if (g === "good" || g === "simple" || g === "dlls5" || g === "ultra") return g;
     return "normal";
   }
 
@@ -2274,6 +2274,7 @@
   function applyGraphics() {
     document.body.classList.toggle("gfx-good", gfxMode() === "good");
     document.body.classList.toggle("gfx-simple", gfxMode() === "simple");
+    document.body.classList.toggle("gfx-ultra", gfxMode() === "ultra");
     if (state.screen === "game") cam.zoom = playZoom();
   }
 
@@ -2287,6 +2288,7 @@
     if (mode === "good") hint.textContent = "Same crisp sprites as Normal, with a wider view.";
     else if (mode === "simple") hint.textContent = "Faster. Solid colors and fewer effects.";
     else if (mode === "dlls5") hint.textContent = "Realistic tiles: stone, metal, glass and gold. Skins stay the same.";
+    else if (mode === "ultra") hint.textContent = "Photoreal tiles and a photo backdrop.";
     else hint.textContent = "Default look.";
   }
 
@@ -2295,7 +2297,7 @@
     let tiles = 14;
     let lo = 3;
     let hi = 5;
-    if (mode === "good") {
+    if (mode === "good" || mode === "ultra") {
       const z = Math.round(el("view").width / (20 * TILE));
       return Math.max(2, Math.min(3, z));
     } else if (mode === "simple") {
@@ -4327,7 +4329,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     document.querySelectorAll(".gfx-opt").forEach(function (b) {
       b.addEventListener("click", function () {
         const next = b.getAttribute("data-gfx");
-        save_.data.graphics = next === "good" || next === "simple" || next === "dlls5" ? next : "normal";
+        save_.data.graphics = next === "good" || next === "simple" || next === "dlls5" || next === "ultra" ? next : "normal";
         save();
         applyGraphics();
         syncGfxUI();
@@ -4572,7 +4574,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       (ev) => {
         if (state.screen !== "game") return;
         ev.preventDefault();
-        if (gfxMode() === "good") {
+        if (gfxMode() === "good" || gfxMode() === "ultra") {
           const step = ev.deltaY > 0 ? -1 : 1;
           cam.zoom = clampZoom(cam.zoom + step);
         } else {

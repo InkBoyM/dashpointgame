@@ -881,6 +881,7 @@ body.joystick #joystick { display: block; }
 .gfx-opt.on { background: var(--good); color: #062a14; text-shadow: none; }
 .ctl-opt.on { background: var(--good); color: #062a14; text-shadow: none; }
 body.gfx-simple img, body.gfx-simple canvas { image-rendering: pixelated; }
+body.gfx-ultra canvas { image-rendering: auto; }
 .hint { color: #9db4d8; font-size: 12px; letter-spacing: 0.5px; line-height: 1.5; }
 .modal label {
   display: block;
