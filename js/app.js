@@ -708,10 +708,23 @@
     const net = window.DPNet;
     const loggedIn = !!(net && net.getUser && net.getUser());
     if (!loggedIn || !net.syncStats) return;
-    const payload = { tag: id, nameColor: equippedNameColorId(), frame: equippedFrameId() };
-    const key = id + "|" + payload.nameColor + "|" + payload.frame;
+    const payload = publicStatPayload();
+    const key = payload.tag + "|" + payload.nameColor + "|" + payload.frame;
     if (lastPublishedTag === key) return;
     net.syncStats(payload).then(function () { lastPublishedTag = key; }).catch(function () {});
+  }
+
+  function publicStatPayload() {
+    return {
+      tag: equippedTagId(),
+      nameColor: equippedNameColorId(),
+      frame: equippedFrameId(),
+      deaths: save_.data.deaths | 0,
+      jumps: save_.data.jumps | 0,
+      beatenCount: Object.keys(save_.data.beaten || {}).length,
+      coins: save_.data.coins,
+      skin: save_.data.skin | 0,
+    };
   }
 
   function syncAccountTagUI() {
@@ -1252,13 +1265,21 @@
       var skinSrc = (window.DashPointSkins && window.DashPointSkins[row.skin - 1] ? window.DashPointSkins[row.skin - 1].src : "assets/skins/skin-1.png");
       var race = canRace && !isMe;
       var attr = race ? (' data-uid="' + escapeHtml(row.uid) + '" data-name="' + escapeHtml(row.name) + '"') : "";
-      html += '<div class="lb-row' + (isMe ? " lb-me" : race ? " lb-race" : "") + '"' + attr + '><span class="lb-rank">#' + (i + 1) + '</span>' + frameAvatarHtml(row.skin, isMe ? equippedFrameId() : (row.frame || frameForUid(row.uid))) + '<span class="lb-name">' + taggedNameHtml(row.name, row.tag || (isMe ? equippedTagId() : tagIdForUid(row.uid)), isMe ? " (you)" : "", row.nameColor || (isMe ? equippedNameColorId() : nameColorForUid(row.uid))) + '</span><span class="lb-time">' + fmtTime(row.time) + "</span>" + (race ? '<span class="lb-race-hint">RACE ▶</span>' : "") + "</div>";
+      var valueHtml = opts.fmtValue ? opts.fmtValue(row) : fmtTime(row.time);
+      var rowCls = "lb-row" + (isMe ? " lb-me" : "") + (race ? " lb-race" : "") + (opts.openProfiles && row.uid ? " lb-open" : "");
+      if (opts.openProfiles && row.uid && !race) attr += ' data-uid="' + escapeHtml(row.uid) + '"';
+      html += '<div class="' + rowCls + '"' + attr + '><span class="lb-rank">#' + (i + 1) + '</span>' + frameAvatarHtml(row.skin, isMe ? equippedFrameId() : (row.frame || frameForUid(row.uid))) + '<span class="lb-name">' + taggedNameHtml(row.name, row.tag || (isMe ? equippedTagId() : tagIdForUid(row.uid)), isMe ? " (you)" : "", row.nameColor || (isMe ? equippedNameColorId() : nameColorForUid(row.uid))) + '</span><span class="lb-time' + (opts.valueClass ? " " + opts.valueClass : "") + '">' + valueHtml + "</span>" + (race ? '<span class="lb-race-hint">RACE ▶</span>' : "") + "</div>";
     }
     if (opts.extraRow) html += opts.extraRow;
     box.innerHTML = html;
     if (canRace) {
       box.querySelectorAll(".lb-race").forEach(function (r) {
         r.addEventListener("click", function () { raceGhost(r.dataset.uid, r.dataset.name); });
+      });
+    }
+    if (opts.openProfiles) {
+      box.querySelectorAll(".lb-open").forEach(function (r) {
+        r.addEventListener("click", function () { if (r.dataset.uid) openAccount(r.dataset.uid); });
       });
     }
   }
@@ -1483,7 +1504,7 @@
     if (name === "levels") renderLevels();
     if (name === "game") resizeCanvas();
     if (name === "home") renderLotd();
-    if (name === "network" || name === "netsaved" || name === "netsearch") state.netBack = name;
+    if (name === "network" || name === "netsaved" || name === "netsearch" || name === "netleaderboards") state.netBack = name;
   }
 
   function lotdDateStr(d) {
@@ -3361,6 +3382,62 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
   function showPanel(which) {
     if (which === "saved") show("netsaved");
     else if (which === "search") show("netsearch");
+    else if (which === "leaderboards") show("netleaderboards");
+  }
+
+  let netLbCat = "coins";
+  const NET_LB_HINTS = {
+    coins: "Highest coin counts from synced players.",
+    beaten: "Most official and posted levels cleared.",
+    jumps: "Highest jump counts from synced players.",
+    deaths: "Most deaths from synced players.",
+  };
+  const NET_LB_TITLES = {
+    coins: "TOP 25 — MONEY",
+    beaten: "TOP 25 — LEVELS BEAT",
+    jumps: "TOP 25 — JUMPS",
+    deaths: "TOP 25 — DEATHS",
+  };
+
+  async function renderNetLeaderboards() {
+    const box = el("netLbBox");
+    const hint = el("netLbHint");
+    const cat = netLbCat === "beaten" || netLbCat === "jumps" || netLbCat === "deaths" ? netLbCat : "coins";
+    netLbCat = cat;
+    document.querySelectorAll("#netLbChips .chip").forEach(function (b) {
+      b.classList.toggle("active", b.getAttribute("data-lb") === cat);
+    });
+    if (hint) hint.textContent = NET_LB_HINTS[cat] || "";
+    if (!box) return;
+    box.innerHTML = '<p class="loading-note">Loading leaderboard…</p>';
+    if (!window.DPNet || !DPNet.getCategoryLeaderboard) {
+      box.innerHTML = '<p class="loading-note">Online leaderboard is unavailable.</p>';
+      return;
+    }
+    try {
+      if (DPNet.getUser && DPNet.getUser() && DPNet.syncStats) {
+        try { await DPNet.syncStats(publicStatPayload()); } catch (e) {}
+      }
+      await ensureIndexes();
+      const list = await DPNet.getCategoryLeaderboard(cat, 25);
+      if (!list.length) {
+        box.innerHTML = '<p class="loading-note">No scores yet. Sync from Profile to appear here.</p>';
+        return;
+      }
+      const u = DPNet.getUser ? DPNet.getUser() : null;
+      paintLeaderboard(box, list, {
+        user: u,
+        title: NET_LB_TITLES[cat] || "TOP 25",
+        valueClass: cat === "coins" ? "coins" : "",
+        openProfiles: true,
+        fmtValue: function (row) {
+          if (cat === "coins") return fmtCoins(row.value);
+          return String(row.value | 0);
+        },
+      });
+    } catch (err) {
+      box.innerHTML = '<p class="loading-note">Could not load leaderboard.<br />' + escapeHtml(NET.friendly(err)) + "</p>";
+    }
   }
 
   function starString(n) {
@@ -4128,8 +4205,19 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       }
       renderResults();
     });
+    el("netLeaderboards").addEventListener("click", async () => {
+      showPanel("leaderboards");
+      await renderNetLeaderboards();
+    });
     el("btnNetBackSaved").addEventListener("click", () => show("network"));
     el("btnNetBackSearch").addEventListener("click", () => show("network"));
+    el("btnNetBackLb").addEventListener("click", () => show("network"));
+    document.querySelectorAll("#netLbChips .chip").forEach(function (b) {
+      b.addEventListener("click", function () {
+        netLbCat = b.getAttribute("data-lb") || "coins";
+        renderNetLeaderboards();
+      });
+    });
     el("btnBell").addEventListener("click", () => {
       openModal("modalBell");
       renderBell();
@@ -4201,7 +4289,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       }
       if (state.screen === "game") { ev.preventDefault(); if (state.paused) quitToLevels(); else pauseGame(); }
       else if (state.screen === "network") show("home");
-      else if (state.screen === "netsaved" || state.screen === "netsearch") show("network");
+      else if (state.screen === "netsaved" || state.screen === "netsearch" || state.screen === "netleaderboards") show("network");
       else if (state.screen === "levels") show("home");
       return;
     }
