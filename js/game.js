@@ -14,9 +14,15 @@
     brick: { id: "brick", solid: true, hazard: false, rotatable: false, label: "Brick" },
     ibrick: { id: "ibrick", solid: true, hazard: false, rotatable: false, hidden: true, label: "Invis block" },
     fbrick: { id: "fbrick", solid: false, hazard: false, rotatable: false, fake: true, label: "Fake brick" },
+    grass: { id: "grass", solid: true, hazard: false, rotatable: false, label: "Grassy Block" },
+    igrass: { id: "igrass", solid: true, hazard: false, rotatable: false, hidden: true, label: "Invis grass" },
+    fgrass: { id: "fgrass", solid: false, hazard: false, rotatable: false, fake: true, label: "Fake grass" },
     spike: { id: "spike", solid: false, hazard: true, rotatable: true, label: "Spike" },
     ispike: { id: "ispike", solid: false, hazard: true, rotatable: true, hidden: true, label: "Invis spike" },
     fspike: { id: "fspike", solid: false, hazard: false, rotatable: true, fake: true, label: "Fake spike" },
+    gspike: { id: "gspike", solid: false, hazard: true, rotatable: true, label: "Grassy Spike" },
+    igspike: { id: "igspike", solid: false, hazard: true, rotatable: true, hidden: true, label: "Invis grass spike" },
+    fgspike: { id: "fgspike", solid: false, hazard: false, rotatable: true, fake: true, label: "Fake grass spike" },
     goal: { id: "goal", solid: false, hazard: false, rotatable: false, label: "Goal" },
     igoal: { id: "igoal", solid: false, hazard: false, rotatable: false, hidden: true, label: "Invis goal" },
     orb: { id: "orb", solid: false, hazard: false, rotatable: false, label: "Bounce orb" },
@@ -33,11 +39,11 @@
   const COIN_VALUES = { coin10: 10, coin50: 50, coin100: 100, coin500: 500 };
 
   function isSpikeId(id) {
-    return id === "spike" || id === "ispike" || id === "fspike";
+    return id === "spike" || id === "ispike" || id === "fspike" || id === "gspike" || id === "igspike" || id === "fgspike";
   }
 
   function isBrickId(id) {
-    return id === "brick" || id === "ibrick" || id === "fbrick";
+    return id === "brick" || id === "ibrick" || id === "fbrick" || id === "grass" || id === "igrass" || id === "fgrass";
   }
 
   function isGoalId(id) {
@@ -49,11 +55,11 @@
   }
 
   function isFakeId(id) {
-    return id === "fspike" || id === "fbrick";
+    return id === "fspike" || id === "fbrick" || id === "fgspike" || id === "fgrass";
   }
 
   function isInvisibleId(id) {
-    return id === "ispike" || id === "ibrick" || id === "iorb" || id === "igoal";
+    return id === "ispike" || id === "ibrick" || id === "iorb" || id === "igoal" || id === "igspike" || id === "igrass";
   }
 
   function isCoinId(id) {
@@ -88,6 +94,8 @@
   const ASSET_PATHS = {
     background: "assets/tiles/background.png",
     brick: "assets/tiles/brick.png",
+    grass: "assets/tiles/grass.png",
+    gspike: "assets/tiles/gspike.png",
     spike: "assets/tiles/spike.png",
     goal: "assets/tiles/goal.png",
     orb: "assets/tiles/BounceOrb.png",
@@ -110,6 +118,8 @@
   const ULTRA_ASSET_PATHS = {
     background: "assets/tiles/ultra/background.png",
     brick: "assets/tiles/ultra/brick.png",
+    grass: "assets/tiles/grass.png",
+    gspike: "assets/tiles/gspike.png",
     spike: "assets/tiles/ultra/spike.png",
     goal: "assets/tiles/ultra/goal.png",
     orb: "assets/tiles/ultra/orb.png",
@@ -1751,6 +1761,7 @@
     if (tile.id === "dash") return "#ff9a1f";
     if (isGoalId(tile.id)) return "#ffd23c";
     if (tile.id === "checkpoint") return "#3ee07a";
+    if (tile.id === "grass" || tile.id === "igrass" || tile.id === "fgrass") return "#5fd68e";
     if (isBrickId(tile.id)) return "#6b86b0";
     return "#9db4d8";
   }
