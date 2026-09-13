@@ -9,7 +9,7 @@
     {x:50,y:18}
   ];
   const POS_MOBILE = [
-    {x:28,y:82},{x:68,y:68},{x:32,y:54},{x:68,y:40},{x:32,y:26},{x:58,y:8}
+    {x:28,y:78},{x:68,y:66},{x:32,y:53},{x:68,y:40},{x:32,y:27},{x:58,y:10}
   ];
   function curPOS(){ return (window.innerWidth<=700) ? POS_MOBILE : POS; }
   const F = {
@@ -339,7 +339,8 @@
     const root=qs("bossRoot"); if(!root) return;
     const touch=isTouchDevice() || document.body.classList.contains("touch");
     root.classList.toggle("touch", touch);
-    const joy = (function(){ try{ const d=getSave(); return d.touchMode==="joystick"; }catch(e){ return false; } })() || document.body.classList.contains("joystick");
+    // on mobile boss always uses joystick regardless of saved mode
+    const joy = touch ? true : ((function(){ try{ const d=getSave(); return d.touchMode==="joystick"; }catch(e){ return false; } })() || document.body.classList.contains("joystick"));
     root.classList.toggle("joy", !!joy);
   }
   function initBossTouch(){
