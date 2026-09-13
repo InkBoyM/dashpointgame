@@ -472,6 +472,7 @@
     { id: "super-rich", label: "Super Rich", cost: 10000000, color: "#ffe27a" },
     { id: "billionare", label: "Billionare", cost: 1000000000, color: "#2ee6ff" },
     { id: "trillionare", label: "Trillionare", cost: 1000000000000, color: "#ffffff" },
+    { id: "no-grass", label: "This Person does not touch grass", cost: "100000000000000", color: "#6ddf4b" },
   ];
 
   function findShopTag(id) {

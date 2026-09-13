@@ -188,7 +188,7 @@ canvas { image-rendering: pixelated; }
 }
 .home-account.hidden { display: none; }
 .home-account b { color: #12203a; }
-.acct-tag-wrap { white-space: nowrap; }
+.acct-tag-wrap { white-space: normal; }
 .acct-tag {
   display: inline-block;
   margin-left: 4px;
@@ -216,6 +216,9 @@ canvas { image-rendering: pixelated; }
   font-weight: 900;
   letter-spacing: 0.5px;
   padding: 8px 6px;
+  text-align: center;
+  line-height: 1.25;
+  white-space: normal;
 }
 
 /* ---------- TOP BAR / LEVELS ---------- */
