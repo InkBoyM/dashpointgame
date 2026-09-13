@@ -708,23 +708,10 @@
     const net = window.DPNet;
     const loggedIn = !!(net && net.getUser && net.getUser());
     if (!loggedIn || !net.syncStats) return;
-    const payload = publicStatPayload();
-    const key = payload.tag + "|" + payload.nameColor + "|" + payload.frame;
+    const payload = { tag: id, nameColor: equippedNameColorId(), frame: equippedFrameId() };
+    const key = id + "|" + payload.nameColor + "|" + payload.frame;
     if (lastPublishedTag === key) return;
     net.syncStats(payload).then(function () { lastPublishedTag = key; }).catch(function () {});
-  }
-
-  function publicStatPayload() {
-    return {
-      tag: equippedTagId(),
-      nameColor: equippedNameColorId(),
-      frame: equippedFrameId(),
-      deaths: save_.data.deaths | 0,
-      jumps: save_.data.jumps | 0,
-      beatenCount: Object.keys(save_.data.beaten || {}).length,
-      coins: save_.data.coins,
-      skin: save_.data.skin | 0,
-    };
   }
 
   function syncAccountTagUI() {
@@ -761,7 +748,7 @@
   }
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", bellSeen: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0, story: { beaten: {} } };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", bellSeen: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
   }
 
   function touchUIDefaults() {
@@ -844,8 +831,6 @@
       };
       s.graphics = s.graphics === "good" || s.graphics === "simple" || s.graphics === "dlls5" || s.graphics === "ultra" ? s.graphics : "normal";
       s.ghostOpacity = clampGhostOpacity(s.ghostOpacity);
-      s.story = s.story && typeof s.story === "object" ? s.story : { beaten: {} };
-      s.story.beaten = s.story.beaten && typeof s.story.beaten === "object" ? s.story.beaten : {};
       return s;
     } catch (e) {
       return defaultSave();
@@ -1265,21 +1250,13 @@
       var skinSrc = (window.DashPointSkins && window.DashPointSkins[row.skin - 1] ? window.DashPointSkins[row.skin - 1].src : "assets/skins/skin-1.png");
       var race = canRace && !isMe;
       var attr = race ? (' data-uid="' + escapeHtml(row.uid) + '" data-name="' + escapeHtml(row.name) + '"') : "";
-      var valueHtml = opts.fmtValue ? opts.fmtValue(row) : fmtTime(row.time);
-      var rowCls = "lb-row" + (isMe ? " lb-me" : "") + (race ? " lb-race" : "") + (opts.openProfiles && row.uid ? " lb-open" : "");
-      if (opts.openProfiles && row.uid && !race) attr += ' data-uid="' + escapeHtml(row.uid) + '"';
-      html += '<div class="' + rowCls + '"' + attr + '><span class="lb-rank">#' + (i + 1) + '</span>' + frameAvatarHtml(row.skin, isMe ? equippedFrameId() : (row.frame || frameForUid(row.uid))) + '<span class="lb-name">' + taggedNameHtml(row.name, row.tag || (isMe ? equippedTagId() : tagIdForUid(row.uid)), isMe ? " (you)" : "", row.nameColor || (isMe ? equippedNameColorId() : nameColorForUid(row.uid))) + '</span><span class="lb-time' + (opts.valueClass ? " " + opts.valueClass : "") + '">' + valueHtml + "</span>" + (race ? '<span class="lb-race-hint">RACE ▶</span>' : "") + "</div>";
+      html += '<div class="lb-row' + (isMe ? " lb-me" : race ? " lb-race" : "") + '"' + attr + '><span class="lb-rank">#' + (i + 1) + '</span>' + frameAvatarHtml(row.skin, isMe ? equippedFrameId() : (row.frame || frameForUid(row.uid))) + '<span class="lb-name">' + taggedNameHtml(row.name, row.tag || (isMe ? equippedTagId() : tagIdForUid(row.uid)), isMe ? " (you)" : "", row.nameColor || (isMe ? equippedNameColorId() : nameColorForUid(row.uid))) + '</span><span class="lb-time">' + fmtTime(row.time) + "</span>" + (race ? '<span class="lb-race-hint">RACE ▶</span>' : "") + "</div>";
     }
     if (opts.extraRow) html += opts.extraRow;
     box.innerHTML = html;
     if (canRace) {
       box.querySelectorAll(".lb-race").forEach(function (r) {
         r.addEventListener("click", function () { raceGhost(r.dataset.uid, r.dataset.name); });
-      });
-    }
-    if (opts.openProfiles) {
-      box.querySelectorAll(".lb-open").forEach(function (r) {
-        r.addEventListener("click", function () { if (r.dataset.uid) openAccount(r.dataset.uid); });
       });
     }
   }
@@ -1504,7 +1481,7 @@
     if (name === "levels") renderLevels();
     if (name === "game") resizeCanvas();
     if (name === "home") renderLotd();
-    if (name === "network" || name === "netsaved" || name === "netsearch" || name === "netleaderboards") state.netBack = name;
+    if (name === "network" || name === "netsaved" || name === "netsearch") state.netBack = name;
   }
 
   function lotdDateStr(d) {
@@ -1523,9 +1500,7 @@
 
   function lotdPick(levels, dateStr) {
     if (!levels || !levels.length) return null;
-    const pool = levels.filter((e) => e && e.file && !String(e.file).startsWith("story_"));
-    if (!pool.length) return null;
-    const sorted = pool.slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    const sorted = levels.slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
     return sorted[lotdHash("lotd:" + dateStr) % sorted.length];
   }
 
@@ -1630,7 +1605,6 @@
     }
     const order = state.levels
       .map((entry, i) => ({ entry: entry, i: i }))
-      .filter((p) => p.entry && p.entry.file && !String(p.entry.file).startsWith("story_"))
       .sort(function (a, b) {
         return (LEVEL_DIFF[a.entry.file] || 2) - (LEVEL_DIFF[b.entry.file] || 2);
       });
@@ -2435,27 +2409,6 @@
     beginPlay(entry);
   }
 
-  // --- Story Mode bridge (consumed by js/story.js) ---
-  state.storyMode = false;
-  state.storyRunFile = null;
-  window.__DPStory = {
-    playFile: function (file) {
-      const entry = state.levels.find((e) => e && e.file === file);
-      if (!entry) return false;
-      state.current = state.levels.indexOf(entry);
-      state.netEntry = null;
-      state.storyMode = true;
-      state.storyRunFile = file;
-      el("btnWinMenu").textContent = "STORY MAP";
-      el("btnWinNext").textContent = "NEXT \u9654";
-      beginPlay(entry);
-      return true;
-    },
-    exit: function () { state.storyMode = false; state.storyRunFile = null; show("story"); },
-    save: function () { try { save(); } catch (e) {} },
-    getData: function () { return save_.data; },
-  };
-
   function setStatusHud() {
     el("hudTime").textContent = (state.engine ? state.engine.time : 0).toFixed(2);
     el("hudDeaths").textContent = "deaths " + state.deaths;
@@ -2580,13 +2533,6 @@
       if (back === "netsaved") renderSavedList();
       return;
     }
-    if (state.storyMode) {
-      state.storyMode = false;
-      state.storyRunFile = null;
-      show("story");
-      if (window.__DPStory && __DPStory.refresh) __DPStory.refresh();
-      return;
-    }
     show("levels");
   }
 
@@ -2608,10 +2554,6 @@
     }
     let gained = 0;
     if (firstClear) gained = grantCoins(coinsForFile(entry.file, entry.meta), "level:" + entry.file);
-    if (state.storyMode && entry.file) {
-      const s = save_.data.story || (save_.data.story = { beaten: {} });
-      s.beaten[entry.file] = true;
-    }
     save();
     el("winText").textContent = "Time " + fmtTime(t) + " · deaths " + state.deaths + (firstClear ? " · FIRST CLEAR!" : "") + (gained ? " · +" + fmtCoins(gained) + " coins" : "");
     el("winCard").classList.add("visible");
@@ -3382,62 +3324,6 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
   function showPanel(which) {
     if (which === "saved") show("netsaved");
     else if (which === "search") show("netsearch");
-    else if (which === "leaderboards") show("netleaderboards");
-  }
-
-  let netLbCat = "coins";
-  const NET_LB_HINTS = {
-    coins: "Highest coin counts from synced players.",
-    beaten: "Most official and posted levels cleared.",
-    jumps: "Highest jump counts from synced players.",
-    deaths: "Most deaths from synced players.",
-  };
-  const NET_LB_TITLES = {
-    coins: "TOP 25 — MONEY",
-    beaten: "TOP 25 — LEVELS BEAT",
-    jumps: "TOP 25 — JUMPS",
-    deaths: "TOP 25 — DEATHS",
-  };
-
-  async function renderNetLeaderboards() {
-    const box = el("netLbBox");
-    const hint = el("netLbHint");
-    const cat = netLbCat === "beaten" || netLbCat === "jumps" || netLbCat === "deaths" ? netLbCat : "coins";
-    netLbCat = cat;
-    document.querySelectorAll("#netLbChips .chip").forEach(function (b) {
-      b.classList.toggle("active", b.getAttribute("data-lb") === cat);
-    });
-    if (hint) hint.textContent = NET_LB_HINTS[cat] || "";
-    if (!box) return;
-    box.innerHTML = '<p class="loading-note">Loading leaderboard…</p>';
-    if (!window.DPNet || !DPNet.getCategoryLeaderboard) {
-      box.innerHTML = '<p class="loading-note">Online leaderboard is unavailable.</p>';
-      return;
-    }
-    try {
-      if (DPNet.getUser && DPNet.getUser() && DPNet.syncStats) {
-        try { await DPNet.syncStats(publicStatPayload()); } catch (e) {}
-      }
-      await ensureIndexes();
-      const list = await DPNet.getCategoryLeaderboard(cat, 25);
-      if (!list.length) {
-        box.innerHTML = '<p class="loading-note">No scores yet. Sync from Profile to appear here.</p>';
-        return;
-      }
-      const u = DPNet.getUser ? DPNet.getUser() : null;
-      paintLeaderboard(box, list, {
-        user: u,
-        title: NET_LB_TITLES[cat] || "TOP 25",
-        valueClass: cat === "coins" ? "coins" : "",
-        openProfiles: true,
-        fmtValue: function (row) {
-          if (cat === "coins") return fmtCoins(row.value);
-          return String(row.value | 0);
-        },
-      });
-    } catch (err) {
-      box.innerHTML = '<p class="loading-note">Could not load leaderboard.<br />' + escapeHtml(NET.friendly(err)) + "</p>";
-    }
   }
 
   function starString(n) {
@@ -4205,19 +4091,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       }
       renderResults();
     });
-    el("netLeaderboards").addEventListener("click", async () => {
-      showPanel("leaderboards");
-      await renderNetLeaderboards();
-    });
     el("btnNetBackSaved").addEventListener("click", () => show("network"));
     el("btnNetBackSearch").addEventListener("click", () => show("network"));
-    el("btnNetBackLb").addEventListener("click", () => show("network"));
-    document.querySelectorAll("#netLbChips .chip").forEach(function (b) {
-      b.addEventListener("click", function () {
-        netLbCat = b.getAttribute("data-lb") || "coins";
-        renderNetLeaderboards();
-      });
-    });
     el("btnBell").addEventListener("click", () => {
       openModal("modalBell");
       renderBell();
@@ -4289,7 +4164,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       }
       if (state.screen === "game") { ev.preventDefault(); if (state.paused) quitToLevels(); else pauseGame(); }
       else if (state.screen === "network") show("home");
-      else if (state.screen === "netsaved" || state.screen === "netsearch" || state.screen === "netleaderboards") show("network");
+      else if (state.screen === "netsaved" || state.screen === "netsearch") show("network");
       else if (state.screen === "levels") show("home");
       return;
     }
@@ -4331,7 +4206,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     window.addEventListener("touchstart", function () {
       document.body.classList.add("touch");
     }, { passive: true });
-    el("btnPlay").addEventListener("click", () => show("play"));
+    el("btnPlay").addEventListener("click", () => show("levels"));
     el("btnSkinsHome").addEventListener("click", () => openModal("modalSkins"));
     el("btnOpenShop").addEventListener("click", () => openModal("modalShop"));
     el("btnOpenChest").addEventListener("click", () => openModal("modalChest"));
@@ -4411,20 +4286,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         quitToLevels();
         return;
       }
-      if (state.storyMode) {
-        const sOrder = ["story_w1l1.dashpoint.json","story_w1l2.dashpoint.json","story_w1l3.dashpoint.json","story_w1l4.dashpoint.json","story_w1l5.dashpoint.json"];
-        const curFile = (state.levels[state.current] && state.levels[state.current].file) || state.storyRunFile || "";
-        const curIdx = sOrder.indexOf(curFile);
-        if (curIdx >= 0 && curIdx + 1 < sOrder.length) {
-          const nxt = state.levels.find((e) => e.file === sOrder[curIdx + 1]);
-          if (nxt) { window.__DPStory.playFile(nxt.file); return; }
-        }
-        quitToLevels();
-        return;
-      }
       const order = state.levels
         .map((entry, i) => ({ entry: entry, i: i }))
-        .filter((p) => p.entry && p.entry.file && !String(p.entry.file).startsWith("story_"))
         .sort(function (a, b) {
           return localDiff(a.entry.file) - localDiff(b.entry.file);
         });
