@@ -4,7 +4,6 @@
   const ORDER = ["story_w1l1.dashpoint.json","story_w1l2.dashpoint.json","story_w1l3.dashpoint.json","story_w1l4.dashpoint.json","story_w1l5.dashpoint.json"];
   const LABELS = ["1","2","3","4","5"];
   const BOSS_FILE = "__boss__";
-  // Node positions (% of storyMap rect): x,y
   const POS = [
     {x:12,y:70},{x:30,y:54},{x:50,y:64},{x:68,y:48},{x:84,y:58},
     {x:50,y:18}
@@ -44,45 +43,25 @@
   let walkerIdx = 0;
   let walkerEl = null;
 
-  function skinAvgColor(src, cb){
-    const im=new Image(); im.crossOrigin="anonymous";
-    im.onload=function(){
-      try{
-        const c=document.createElement("canvas"); c.width=16; c.height=16;
-        const g=c.getContext("2d"); g.drawImage(im,0,0,16,16);
-        const d=g.getImageData(0,0,16,16).data;
-        let r=0,g2=0,b=0,n=0; for(let i=0;i<d.length;i+=4){ if(d[i+3]>30){ r+=d[i]; g2+=d[i+1]; b+=d[i+2]; n++; } }
-        if(n) cb("rgb("+Math.round(r/n)+","+Math.round(g2/n)+","+Math.round(b/n)+")");
-        else cb("#ffd23f");
-      }catch(e){ cb("#ffd23f"); }
-    };
-    im.onerror=function(){ cb("#ffd23f"); };
-    im.src=src;
-  }
-
   function buildMap(){
     const host=qs("storyMap"); if(!host) return;
     host.innerHTML="";
     host.style.minHeight="520px";
-    // SVG dashed path
     const svgNS="http://www.w3.org/2000/svg";
     const svg=document.createElementNS(svgNS,"svg");
     svg.setAttribute("viewBox","0 0 100 100"); svg.setAttribute("preserveAspectRatio","none");
     svg.style.cssText="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;";
     const pts = POS.map(function(p){ return p.x+","+p.y; }).join(" ");
-    // draw polyline through 0..4 then up to boss: 4->5
     const pl=document.createElementNS(svgNS,"polyline");
     pl.setAttribute("points", pts);
     pl.setAttribute("fill","none"); pl.setAttribute("stroke","rgba(255,255,255,0.55)"); pl.setAttribute("stroke-width","0.7"); pl.setAttribute("stroke-dasharray","1.2 1.2"); pl.setAttribute("stroke-linecap","round"); pl.setAttribute("stroke-linejoin","round");
     svg.appendChild(pl);
     host.appendChild(svg);
-
-    // walker
-    walkerEl=document.createElement("div");
+    walkerEl=document.createElement("img");
     walkerEl.id="storyWalker";
+    walkerEl.alt="";
+    walkerEl.style.imageRendering="pixelated";
     host.appendChild(walkerEl);
-
-    // nodes
     for(let i=0;i<6;i++){
       const isBoss=i===5;
       const nd=document.createElement("button");
@@ -101,14 +80,13 @@
         if(idx===5) openBoss();
         else {
           const file=ORDER[idx];
-          if(window.__DPStory&&__DPStory.playFile) __DPStory.playFile(file);
+          if(window.__DPStory&&__DPStory.playFile) window.__DPStory.playFile(file);
         }
       });
       host.appendChild(nd);
     }
     const hint=document.createElement("div"); hint.id="storyHint"; hint.textContent="\u2190 \u2192 move  \u00b7  ENTER / click to play";
     host.appendChild(hint);
-    // click empty area closes? no
     refreshMap();
   }
 
@@ -116,12 +94,8 @@
     if(!walkerEl) return;
     const p=POS[walkerIdx];
     walkerEl.style.left=p.x+"%"; walkerEl.style.top=p.y+"%";
-    // color from skin
     const src=currentSkinSrc();
-    // use image as background for pixel look
-    walkerEl.style.backgroundImage="url('"+src+"')";
-    walkerEl.style.backgroundColor="#ffd23f";
-    // also try sampling avg color as border tint: not needed
+    if(walkerEl.getAttribute("src")!==src) walkerEl.src=src;
   }
 
   function refreshMap(){
@@ -142,33 +116,24 @@
         else { nd.style.background="#1d4d2a"; nd.style.color="#fff"; }
       }
     });
-    // pick walkerIdx = first not beaten, or last beaten, clamped to unlocked
     let firstUnbeaten = ORDER.findIndex(function(f){ return !isBeaten(f); });
-    if(firstUnbeaten===-1) firstUnbeaten = isBossBeaten()?5:5; // all levels done -> boss
-    // if boss not unlocked, clamp to last unlocked level
+    if(firstUnbeaten===-1) firstUnbeaten = isBossBeaten()?5:5;
     let target = firstUnbeaten;
     if(target===5 && !isUnlocked(5)){
-      // find last unlocked level
       for(let i=ORDER.length-1;i>=0;i--) if(isUnlocked(i)){ target=i; break; }
     }
-    // keep walkerIdx within unlocked range; but preserve user selection if still unlocked
     if(!isUnlocked(walkerIdx)) walkerIdx=target;
-    else if(walkerIdx>target && target!==5) { /* allow staying on later node if user moved? keep */ }
-    // if walker on locked, move to target
     if(!isUnlocked(walkerIdx)) walkerIdx=target;
-    // ensure walkerIdx is unlocked
     while(walkerIdx>0 && !isUnlocked(walkerIdx)) walkerIdx--;
     positionWalker(true);
   }
 
-  // Play menu wiring
   function wirePlayMenu(){
     const a=qs("btnPlayCampaign"), b=qs("btnPlayStory"), c=qs("btnBackPlayHome"), d=qs("btnBackStoryHome");
     if(a) a.addEventListener("click", function(){ showScreen("levels"); });
     if(b) b.addEventListener("click", function(){ showScreen("story"); refreshMap(); });
     if(c) c.addEventListener("click", function(){ showScreen("home"); });
     if(d) d.addEventListener("click", function(){ showScreen("home"); });
-    // keyboard on story map
     document.addEventListener("keydown", function(ev){
       const storyVisible = qs("screen-story") && qs("screen-story").classList.contains("visible");
       const bossOpen = qs("bossRoot") && qs("bossRoot").classList.contains("open");
@@ -196,8 +161,8 @@
     });
   }
 
-  // ---------- BOSS ----------
-  let bossRaf=0, bossAC=null, bossKeys={}, bossState=null, bossEls=null, bossRunning=false;
+  let bossRaf=0, bossAC=null, bossKeys={}, bossState=null, bossEls=null, bossRunning=false, touchJoy={x:0,y:0};
+
   function beep(freq,dur,type,vol,slideTo){
     try{
       if(!bossAC) bossAC=new (window.AudioContext||window.webkitAudioContext)();
@@ -210,14 +175,16 @@
   }
   function buildBossDOM(){
     const root=qs("bossRoot"); if(!root) return;
-    root.innerHTML='<div id="bossStage"><div id="bossHills"></div><div id="bossMeadow"></div><div id="bossWrap"><img id="bossImg" alt="Bristleback"></div><div id="bossCube"></div><div id="bossHud"><div class="boss-name">BRISTLEBACK</div><div id="bossBar"><div id="bossFill"></div></div></div><div id="bossHearts"></div><div id="bossHint">WASD / arrows &mdash; move &nbsp;\u2022&nbsp; SPACE &mdash; throw grass &nbsp;\u2022&nbsp; ESC &mdash; quit</div><div id="bossBanner"><h1 id="bossBannerTitle"></h1><p id="bossBannerSub"></p></div></div>';
+    root.innerHTML='<div id="bossStage"><div id="bossHills"></div><div id="bossMeadow"></div><div id="bossWrap"><img id="bossImg" alt="Bristleback"></div><img id="bossCube" alt=""><div id="bossHud"><div class="boss-name">BRISTLEBACK</div><div id="bossBar"><div id="bossFill"></div></div></div><div id="bossHearts"></div><div id="bossHint">WASD / arrows &mdash; move &nbsp;\u2022&nbsp; SPACE / SHOOT &mdash; throw grass &nbsp;\u2022&nbsp; ESC &mdash; quit</div><div id="bossBanner"><h1 id="bossBannerTitle"></h1><p id="bossBannerSub"></p><div id="bossWorld2"></div></div><div id="bossTouch"><div id="bossJoyBase"><div id="bossJoyKnob"></div></div><button id="bossShoot" aria-label="Shoot">\u25CE</button><div id="bossBtns"><button class="bossMoveBtn" id="bossBtnUp">\u25B2</button><div style="display:flex;gap:8px"><button class="bossMoveBtn" id="bossBtnLeft">\u25C0</button><button class="bossMoveBtn" id="bossBtnDown">\u25BC</button><button class="bossMoveBtn" id="bossBtnRight">\u25B6</button></div></div></div></div>';
     qs("bossHills").style.backgroundImage='url("'+BG_HILL+'")';
     qs("bossMeadow").style.backgroundImage='url("'+BG_MEADOW+'")';
     bossEls={
       wrap:qs("bossWrap"), img:qs("bossImg"), cube:qs("bossCube"),
-      fill:qs("bossFill"), hearts:qs("bossHearts"), banner:qs("bossBanner"), bTitle:qs("bossBannerTitle"), bSub:qs("bossBannerSub")
+      fill:qs("bossFill"), hearts:qs("bossHearts"), banner:qs("bossBanner"), bTitle:qs("bossBannerTitle"), bSub:qs("bossBannerSub"), world2:qs("bossWorld2")
     };
     bossEls.banner.addEventListener("click", function(){ if(bossState&&bossState.over) resetBoss(); });
+    initBossTouch();
+    updateBossTouchVisibility();
   }
   function syncBossHud(){
     if(!bossState) return;
@@ -238,10 +205,10 @@
     bossState.over=true; bossState.win=win;
     bossEls.bTitle.textContent= win ? "BRISTLEBACK DEFEATED!" : "YOU GOT MULCHED";
     bossEls.bSub.textContent= win ? ("Cleared in "+bossState.time.toFixed(1)+"s \u2014 click or R to play again") : "The meadow claims another cube \u2014 click or R to retry";
+    if(bossEls.world2) bossEls.world2.textContent= win ? "WORLD 2 COMING SOON" : "";
     bossEls.banner.classList.add("show");
     if(win){
       beep(523,0.12,"square",0.06); beep(659,0.12,"square",0.06); setTimeout(function(){ beep(784,0.2,"square",0.06); },130);
-      // mark boss beaten in save
       try{
         const d=getSave(); if(!d.story) d.story={beaten:{}}; d.story.beaten[BOSS_FILE]=true; if(window.__DPStory&&__DPStory.save) __DPStory.save();
       }catch(e){}
@@ -251,15 +218,29 @@
   function setBossFrame(f){ if(bossEls.img.getAttribute("src")!==f) bossEls.img.setAttribute("src",f); }
   function resetBoss(){
     document.querySelectorAll(".boss-proj").forEach(function(el){ el.remove(); });
-    const W=960,H=540;
-    bossState={ over:false, win:false, time:0, player:{x:740,y:320,hp:3,ifr:0,cd:0,face:-1}, boss:{x:220,y:300,hp:10,maxhp:10,mode:"chase",t:0,cd:1.4,idleT:0,idleF:0,face:1,dying:0}, pshots:[], eshots:[] };
-    bossEls.banner.classList.remove("show"); bossEls.wrap.classList.remove("dying"); bossEls.wrap.style.opacity="1"; bossEls.wrap.style.transform="";
+    const stage=qs("bossStage");
+    const W = stage ? stage.clientWidth : 960;
+    const H = stage ? stage.clientHeight : 540;
+    // start positions proportional to stage
+    const px = W*0.77, py=H*0.59, bx=W*0.23, by=H*0.55;
+    bossState={ over:false, win:false, time:0, player:{x:px,y:py,hp:3,ifr:0,cd:0,face:-1}, boss:{x:bx,y:by,hp:10,maxhp:10,mode:"chase",t:0,cd:1.4,idleT:0,idleF:0,face:1,dying:0}, pshots:[], eshots:[] };
+    if(bossEls){
+      bossEls.banner.classList.remove("show"); bossEls.wrap.classList.remove("dying"); bossEls.wrap.style.opacity="1"; bossEls.wrap.style.transform="";
+      if(bossEls.world2) bossEls.world2.textContent="";
+    }
     syncBossHud();
-    // cube color from skin
     const src=currentSkinSrc();
-    bossEls.cube.style.backgroundImage="url('"+src+"')";
-    bossEls.cube.style.backgroundColor="#ffd23f";
-    bossEls.cube.style.backgroundSize="cover"; bossEls.cube.style.backgroundPosition="center";
+    if(bossEls && bossEls.cube){
+      if(bossEls.cube.getAttribute("src")!==src) bossEls.cube.src=src;
+      bossEls.cube.style.display="block";
+    }
+  }
+  function getBossBounds(){
+    const stage=qs("bossStage");
+    const W = stage ? stage.clientWidth : 960;
+    const H = stage ? stage.clientHeight : 540;
+    // margins proportional to original 960x540: AX0=20 AX1=920 AY0=70 AY1=500
+    return { W:W, H:H, AX0:W*0.021, AX1:W*0.958, AY0:H*0.13, AY1:H*0.925 };
   }
   function bossFrame(now){
     bossRaf=requestAnimationFrame(bossFrame);
@@ -267,47 +248,62 @@
     if(!bossRunning || !bossState || bossState.over) return;
     bossState.time+=dt;
     const P=bossState.player, B=bossState.boss;
-    const AX0=20,AX1=920,AY0=70,AY1=500, W=960,H=540;
-    let mx=((bossKeys.KeyD||bossKeys.ArrowRight)?1:0)-((bossKeys.KeyA||bossKeys.ArrowLeft)?1:0);
-    let my=((bossKeys.KeyS||bossKeys.ArrowDown)?1:0)-((bossKeys.KeyW||bossKeys.ArrowUp)?1:0);
+    const bnd=getBossBounds();
+    const AX0=bnd.AX0, AX1=bnd.AX1, AY0=bnd.AY0, AY1=bnd.AY1, W=bnd.W, H=bnd.H;
+    let kx=((bossKeys.KeyD||bossKeys.ArrowRight)?1:0)-((bossKeys.KeyA||bossKeys.ArrowLeft)?1:0);
+    let ky=((bossKeys.KeyS||bossKeys.ArrowDown)?1:0)-((bossKeys.KeyW||bossKeys.ArrowUp)?1:0);
+    // touch joystick adds
+    let mx=kx + (touchJoy.x||0);
+    let my=ky + (touchJoy.y||0);
+    // clamp touch contribution already -1..1, combine and normalize if needed
     if(mx||my){
       const ml=Math.hypot(mx,my);
-      P.x=Math.min(AX1,Math.max(AX0,P.x+(mx/ml)*300*dt));
-      P.y=Math.min(AY1,Math.max(AY0,P.y+(my/ml)*300*dt));
-      if(mx) P.face=mx>0?1:-1;
+      const nx=mx/ml, ny=my/ml;
+      // scale speed to stage size: base 300 for 960 width -> scale by W/960
+      const speed=300 * (W/960);
+      P.x=Math.min(AX1,Math.max(AX0,P.x+nx*speed*dt));
+      P.y=Math.min(AY1,Math.max(AY0,P.y+ny*speed*dt));
+      if(nx) P.face=nx>0?1:-1;
     }
     P.cd-=dt; P.ifr=Math.max(0,P.ifr-dt);
-    bossEls.cube.style.left=Math.round(P.x-18)+"px"; bossEls.cube.style.top=Math.round(P.y-18)+"px";
-    bossEls.cube.classList.toggle("ifr", P.ifr>0);
+    if(bossEls && bossEls.cube){
+      bossEls.cube.style.left=Math.round(P.x-18)+"px"; bossEls.cube.style.top=Math.round(P.y-18)+"px";
+      bossEls.cube.classList.toggle("ifr", P.ifr>0);
+    }
     if(bossKeys.Space && P.cd<=0){
       P.cd=0.32;
       const a=Math.atan2(B.y-P.y, B.x-P.x);
-      spawnShot(P.x+Math.cos(a)*24, P.y+Math.sin(a)*24, Math.cos(a)*560, Math.sin(a)*560, true);
+      const shootSpeed=560*(W/960);
+      spawnShot(P.x+Math.cos(a)*24, P.y+Math.sin(a)*24, Math.cos(a)*shootSpeed, Math.sin(a)*shootSpeed, true);
       beep(800,0.06,"square",0.035,1250);
     }
-    B.face= P.x>=B.x ? 1 : -1;
-    bossEls.wrap.style.transform="scaleX("+B.face+")";
-    if(B.mode==="dying"){
-      B.dying+=dt; bossEls.wrap.style.opacity=String(Math.max(0,1-B.dying/1.2));
-      if(B.dying>1.3) endBoss(true);
-    } else if(B.mode==="chase"){
-      B.cd-=dt;
-      const d=dist(P.x,P.y,B.x,B.y);
-      if(d>170){ B.x+=((P.x-B.x)/d)*115*dt; B.y+=((P.y-B.y)/d)*115*dt; }
-      B.idleT+=dt; if(B.idleT>0.3){ B.idleT=0; B.idleF^=1; }
-      setBossFrame(B.idleF?F.idle2:F.idle1);
-      if(B.cd<=0){ B.mode="windup"; B.t=0; setBossFrame(F.windup); }
-    } else if(B.mode==="windup"){
-      B.t+=dt; if(B.t>0.45){ B.mode="throwf"; B.t=0; setBossFrame(F.throwf); const a2=Math.atan2(P.y-B.y,P.x-B.x); spawnShot(B.x+B.face*55, B.y-10, Math.cos(a2)*330, Math.sin(a2)*330, false); beep(500,0.09,"square",0.045,950); }
-    } else if(B.mode==="throwf"){ B.t+=dt; if(B.t>0.2){ B.mode="recover"; B.t=0; setBossFrame(F.recover); } }
-    else if(B.mode==="recover"){ B.t+=dt; if(B.t>0.5){ B.mode="chase"; B.t=0; B.cd=1.2+Math.random()*0.7; } }
-    B.x=Math.min(AX1,Math.max(AX0,B.x)); B.y=Math.min(AY1,Math.max(AY0,B.y));
-    bossEls.wrap.style.left=Math.round(B.x-64)+"px"; bossEls.wrap.style.top=Math.round(B.y-64)+"px";
+    if(B){
+      B.face= P.x>=B.x ? 1 : -1;
+      bossEls.wrap.style.transform="scaleX("+B.face+")";
+      if(B.mode==="dying"){
+        B.dying+=dt; bossEls.wrap.style.opacity=String(Math.max(0,1-B.dying/1.2));
+        if(B.dying>1.3) endBoss(true);
+      } else if(B.mode==="chase"){
+        B.cd-=dt;
+        const d=dist(P.x,P.y,B.x,B.y);
+        const chaseThresh=170*(W/960);
+        const chaseSpeed=115*(W/960);
+        if(d>chaseThresh){ B.x+=((P.x-B.x)/d)*chaseSpeed*dt; B.y+=((P.y-B.y)/d)*chaseSpeed*dt; }
+        B.idleT+=dt; if(B.idleT>0.3){ B.idleT=0; B.idleF^=1; }
+        setBossFrame(B.idleF?F.idle2:F.idle1);
+        if(B.cd<=0){ B.mode="windup"; B.t=0; setBossFrame(F.windup); }
+      } else if(B.mode==="windup"){
+        B.t+=dt; if(B.t>0.45){ B.mode="throwf"; B.t=0; setBossFrame(F.throwf); const a2=Math.atan2(P.y-B.y,P.x-B.x); const eSpeed=330*(W/960); spawnShot(B.x+B.face*55, B.y-10, Math.cos(a2)*eSpeed, Math.sin(a2)*eSpeed, false); beep(500,0.09,"square",0.045,950); }
+      } else if(B.mode==="throwf"){ B.t+=dt; if(B.t>0.2){ B.mode="recover"; B.t=0; setBossFrame(F.recover); } }
+      else if(B.mode==="recover"){ B.t+=dt; if(B.t>0.5){ B.mode="chase"; B.t=0; B.cd=1.2+Math.random()*0.7; } }
+      B.x=Math.min(AX1,Math.max(AX0,B.x)); B.y=Math.min(AY1,Math.max(AY0,B.y));
+      bossEls.wrap.style.left=Math.round(B.x-64)+"px"; bossEls.wrap.style.top=Math.round(B.y-64)+"px";
+    }
     for(let i=bossState.pshots.length-1;i>=0;i--){
       const s=bossState.pshots[i]; s.t+=dt; s.x+=s.vx*dt; s.y+=s.vy*dt;
       s.el.style.left=Math.round(s.x-22)+"px"; s.el.style.top=Math.round(s.y-22)+"px";
       s.el.setAttribute("src",(Math.floor(s.t/0.07)%2)?F.p2:F.p1);
-      if(dist(s.x,s.y,B.x,B.y)<42+10 && B.mode!=="dying"){
+      if(B && dist(s.x,s.y,B.x,B.y)<42+10 && B.mode!=="dying"){
         B.hp--; const ka=Math.atan2(B.y-P.y,B.x-P.x); B.x=Math.min(AX1,Math.max(AX0,B.x+Math.cos(ka)*26)); B.y=Math.min(AY1,Math.max(AY0,B.y+Math.sin(ka)*26));
         flashBoss(bossEls.img,"flash",120); beep(200,0.12,"sawtooth",0.06,80); syncBossHud();
         s.el.remove(); bossState.pshots.splice(i,1);
@@ -327,26 +323,106 @@
       }
       if(e.x<-60||e.x>W+60||e.y<-60||e.y>H+60){ e.el.remove(); bossState.eshots.splice(j,1); }
     }
-    if(B.mode!=="dying" && P.ifr<=0 && dist(P.x,P.y,B.x,B.y)<42+16){
+    if(B && B.mode!=="dying" && P.ifr<=0 && dist(P.x,P.y,B.x,B.y)<42+16){
       P.hp--; P.ifr=1.2; const ba=Math.atan2(P.y-B.y,P.x-B.x); P.x=Math.min(AX1,Math.max(AX0,P.x+Math.cos(ba)*70)); P.y=Math.min(AY1,Math.max(AY0,P.y+Math.sin(ba)*70));
       flashBoss(bossEls.cube,"hurt",180); beep(150,0.2,"sawtooth",0.07,60); syncBossHud(); if(P.hp<=0) endBoss(false);
     }
   }
+
+  function isTouchDevice(){ try{ return (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) || ("ontouchstart" in window); }catch(e){ return false; } }
+  function updateBossTouchVisibility(){
+    const root=qs("bossRoot"); if(!root) return;
+    const touch=isTouchDevice() || document.body.classList.contains("touch");
+    root.classList.toggle("touch", touch);
+    const joy = (function(){ try{ const d=getSave(); return d.touchMode==="joystick"; }catch(e){ return false; } })() || document.body.classList.contains("joystick");
+    root.classList.toggle("joy", !!joy);
+  }
+  function initBossTouch(){
+    updateBossTouchVisibility();
+    const base=qs("bossJoyBase"), knob=qs("bossJoyKnob"), shoot=qs("bossShoot");
+    const btnUp=qs("bossBtnUp"), btnLeft=qs("bossBtnLeft"), btnDown=qs("bossBtnDown"), btnRight=qs("bossBtnRight");
+    if(!base) return;
+    let activeId=null;
+    function setJoy(dx,dy){
+      const r=55;
+      let len=Math.hypot(dx,dy);
+      if(len>r) { dx=dx/len*r; dy=dy/len*r; len=r; }
+      knob.style.left="calc(50% + "+dx+"px)";
+      knob.style.top="calc(50% + "+dy+"px)";
+      touchJoy.x = dx/r;
+      touchJoy.y = dy/r;
+      if(len<8){ touchJoy.x=0; touchJoy.y=0; }
+    }
+    function resetJoy(){ knob.style.left="50%"; knob.style.top="50%"; touchJoy.x=0; touchJoy.y=0; activeId=null; }
+    base.addEventListener("pointerdown", function(ev){
+      ev.preventDefault();
+      activeId=ev.pointerId;
+      base.setPointerCapture(activeId);
+      const rect=base.getBoundingClientRect();
+      const cx=rect.left+rect.width/2, cy=rect.top+rect.height/2;
+      setJoy(ev.clientX-cx, ev.clientY-cy);
+    });
+    base.addEventListener("pointermove", function(ev){
+      if(activeId===null || ev.pointerId!==activeId) return;
+      const rect=base.getBoundingClientRect();
+      const cx=rect.left+rect.width/2, cy=rect.top+rect.height/2;
+      setJoy(ev.clientX-cx, ev.clientY-cy);
+    });
+    function endJoy(ev){
+      if(activeId!==null && ev.pointerId===activeId) resetJoy();
+    }
+    base.addEventListener("pointerup", endJoy);
+    base.addEventListener("pointercancel", endJoy);
+    base.addEventListener("lostpointercapture", resetJoy);
+
+    function bindShoot(el){
+      if(!el) return;
+      el.addEventListener("pointerdown", function(ev){ ev.preventDefault(); bossKeys.Space=true; el.classList.add("on"); });
+      const up=function(ev){ bossKeys.Space=false; el.classList.remove("on"); };
+      el.addEventListener("pointerup", up);
+      el.addEventListener("pointercancel", up);
+      el.addEventListener("pointerleave", up);
+    }
+    bindShoot(shoot);
+
+    function bindBtn(el, code){
+      if(!el) return;
+      el.addEventListener("pointerdown", function(ev){ ev.preventDefault(); bossKeys[code]=true; el.classList.add("on"); });
+      const up=function(){ bossKeys[code]=false; el.classList.remove("on"); };
+      el.addEventListener("pointerup", up);
+      el.addEventListener("pointercancel", up);
+      el.addEventListener("pointerleave", up);
+      el.addEventListener("lostpointercapture", up);
+    }
+    bindBtn(btnUp, "ArrowUp");
+    bindBtn(btnLeft, "ArrowLeft");
+    bindBtn(btnDown, "ArrowDown");
+    bindBtn(btnRight, "ArrowRight");
+    // also allow touch on bossBtns shoot? bossShoot already handles
+
+    // update on mode change
+    const obs=new MutationObserver(updateBossTouchVisibility);
+    try{ obs.observe(document.body, {attributes:true, attributeFilter:["class"]}); }catch(e){}
+    window.addEventListener("resize", updateBossTouchVisibility);
+    // also poll touchMode changes via interval? not needed
+    document.addEventListener("touchstart", updateBossTouchVisibility, {passive:true});
+  }
+
   function openBoss(){
     const root=qs("bossRoot"); if(!root) return;
     buildBossDOM(); resetBoss();
     root.classList.add("open"); bossRunning=true;
     if(!bossRaf) bossRaf=requestAnimationFrame(bossFrame);
-    // trap keys for boss
-    bossKeys={};
+    bossKeys={}; touchJoy={x:0,y:0};
+    updateBossTouchVisibility();
   }
   function closeBoss(){
     const root=qs("bossRoot"); if(root) root.classList.remove("open");
     bossRunning=false;
     document.querySelectorAll(".boss-proj").forEach(function(el){ el.remove(); });
     if(bossState) bossState.over=true;
+    touchJoy={x:0,y:0};
   }
-  // boss key listeners
   window.addEventListener("keydown", function(ev){
     const open = qs("bossRoot") && qs("bossRoot").classList.contains("open");
     if(!open) return;
@@ -357,10 +433,7 @@
   });
   window.addEventListener("keyup", function(ev){ bossKeys[ev.code]=false; });
 
-  // expose refresh for app.js __DPStory bridge to call after win
   window.__DPStory = window.__DPStory || {};
-  const prevRefresh = window.__DPStory.refresh;
-  // we hook into existing __DPStory object defined by app.js — extend it
   function ensureDPStory(){
     if(!window.__DPStory) window.__DPStory={};
     if(!window.__DPStory.refresh) window.__DPStory.refresh = function(){ refreshMap(); };
@@ -368,9 +441,6 @@
       const orig=window.__DPStory.refresh;
       window.__DPStory.refresh=function(){ try{orig();}catch(e){} refreshMap(); };
     }
-    // also wrap save hook to refresh map on story beaten
-    const origSave = window.__DPStory.save;
-    // save already exists
   }
 
   function init(){
@@ -378,16 +448,13 @@
     buildMap();
     buildBossDOM();
     ensureDPStory();
-    // also expose openBoss for testing
     window.__DPStory.openBoss = openBoss;
     window.__DPStory.closeBoss = closeBoss;
-    // patch __DPStory refresh after app.js has set it (it already set it before we loaded if script order is after app.js — we are after, so extend)
     if(window.__DPStory && !window.__DPStory._storyPatched){
       window.__DPStory._storyPatched=true;
       const origRefresh = window.__DPStory.refresh;
       window.__DPStory.refresh = function(){ try{ if(origRefresh) origRefresh(); }catch(e){} refreshMap(); };
     }
-    // clicking bossRoot background closes? only banner does — keep stage
   }
   if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", init);
   else init();

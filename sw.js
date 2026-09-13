@@ -7,7 +7,7 @@
  * so this file never needs to change for content updates.
  * Cross-origin requests (Firebase, CDNs) always go straight to network.
  */
-const CACHE = "dashpoint-v1";
+const CACHE = "dashpoint-v2";
 const CORE = [
   "./",
   "index.html",
@@ -19,6 +19,8 @@ const CORE = [
   "js/skins.js",
   "js/levels-data.js",
   "js/story.js",
+  "assets/tiles/grass.png",
+  "assets/tiles/gspike.png",
 ];
 
 self.addEventListener("install", (ev) => {

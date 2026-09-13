@@ -1623,20 +1623,20 @@ body.gfx-good .wheel-clip img {
 .story-node-label { position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: 900; letter-spacing: 1px; white-space: nowrap; color: #eafff0; text-shadow: 2px 2px 0 rgba(0,0,0,0.6); pointer-events: none; }
 .story-node-boss { width: 86px; height: 86px; font-size: 28px; background: #2a0f1a !important; border-color: #7a1020; }
 .story-node-boss.cleared { border-color: #7a1020; box-shadow: inset 2px 2px 0 rgba(255,255,255,0.1), 4px 4px 0 rgba(0,0,0,0.5), 0 0 18px rgba(255,90,90,0.35); }
-#storyWalker { position: absolute; width: 36px; height: 36px; border: 3px solid #7a5b00; border-radius: 7px; pointer-events: none; z-index: 3; transform: translate(-50%, -50%); box-shadow: 3px 3px 0 rgba(0,0,0,0.35); transition: left 0.28s ease, top 0.28s ease; background-size: cover; background-position: center; image-rendering: pixelated; }
+#storyWalker { position: absolute; width: 36px; height: 36px; pointer-events: none; z-index: 3; transform: translate(-50%, -50%); transition: left 0.28s ease, top 0.28s ease; image-rendering: pixelated; border: none; background: none; border-radius: 0; box-shadow: none; }
 #storyHint { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: 900; letter-spacing: 1px; color: #eafff0; text-shadow: 1px 1px 0 #1d4d2a; background: rgba(0,0,0,0.4); padding: 6px 12px; border: 2px solid rgba(255,255,255,0.2); pointer-events: none; }
 
 /* ---------- BOSS OVERLAY ---------- */
 #bossRoot { position: fixed; inset: 0; display: none; z-index: 60; align-items: center; justify-content: center; background: rgba(6,12,24,0.82); }
 #bossRoot.open { display: flex; }
-#bossStage { position: relative; width: min(960px, calc(100vw - 16px)); height: min(540px, calc(100vh - 16px)); overflow: hidden; border: 4px solid #1d4d2a; border-radius: 8px; background: linear-gradient(#3f9df2 0%, #8fd8ff 55%, #17452e 130%); box-shadow: 10px 10px 0 rgba(0,0,0,0.5); }
+#bossStage { position: relative; width: 100vw; height: 100vh; max-width: 100vw; max-height: 100vh; overflow: hidden; border: none; border-radius: 0; background: linear-gradient(#3f9df2 0%, #8fd8ff 55%, #17452e 130%); box-shadow: none; }
 #bossHills { position: absolute; left: 0; right: 0; bottom: 150px; height: 400px; background-size: cover; background-position: bottom; }
 #bossMeadow { position: absolute; left: 0; right: 0; bottom: 0; height: 190px; background-size: cover; background-position: bottom; }
 #bossWrap { position: absolute; width: 128px; height: 128px; }
 #bossWrap.dying { transition: transform 1.2s ease-in, opacity 1.2s; }
 #bossImg { width: 128px; height: 128px; image-rendering: pixelated; }
 #bossImg.flash { filter: brightness(2.2) saturate(0.4); }
-#bossCube { position: absolute; width: 36px; height: 36px; border: 3px solid #7a5b00; border-radius: 7px; }
+#bossCube { position: absolute; width: 36px; height: 36px; border: none; background: none; border-radius: 0; image-rendering: pixelated; }
 #bossCube.ifr { animation: bossBlink 0.12s steps(2) infinite; }
 #bossCube.hurt { filter: brightness(2); }
 @keyframes bossBlink { 50% { opacity: 0.25; } }
@@ -1651,4 +1651,20 @@ body.gfx-good .wheel-clip img {
 #bossBanner.show { display: flex; }
 #bossBanner h1 { color: #ffd23f; font-size: clamp(22px, 4vw, 44px); letter-spacing: 4px; text-shadow: 3px 3px 0 #1d4d2a; margin-bottom: 10px; text-align: center; }
 #bossBanner p { color: #eafff0; font-size: 16px; text-align: center; padding: 0 16px; }
+#bossWorld2 { color: #a8ffbf; font-size: clamp(16px, 3vw, 28px); letter-spacing: 3px; text-shadow: 2px 2px 0 #1d4d2a; margin-top: 10px; font-weight: 900; }
+/* Boss mobile */
+#bossTouch { position: absolute; inset: 0; pointer-events: none; display: none; z-index: 4; }
+#bossRoot.touch #bossTouch { display: block; }
+#bossJoyBase { position: absolute; left: 24px; bottom: 24px; width: 110px; height: 110px; border-radius: 50%; border: 3px solid rgba(255,255,255,0.35); background: rgba(10,16,24,0.35); pointer-events: auto; touch-action: none; }
+#bossJoyKnob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; border-radius: 50%; background: rgba(255,210,60,0.85); border: 3px solid var(--ink-dark); transform: translate(-50%, -50%); pointer-events: none; }
+#bossShoot { position: absolute; right: 24px; bottom: 24px; width: 80px; height: 80px; border-radius: 50%; border: 3px solid var(--gold); background: rgba(10,16,24,0.55); color: var(--gold); display: grid; place-items: center; font-size: 28px; font-weight: 900; pointer-events: auto; touch-action: none; user-select: none; }
+#bossShoot.on { background: rgba(255,210,60,0.35); transform: scale(0.94); }
+#bossBtns { position: absolute; left: 14px; bottom: 14px; display: none; gap: 8px; pointer-events: auto; flex-wrap: wrap; width: 180px; }
+#bossRoot.touch:not(.joy) #bossBtns { display: flex; }
+#bossRoot.touch.joy #bossJoyBase, #bossRoot.touch.joy #bossShoot { display: block; }
+#bossRoot.touch:not(.joy) #bossJoyBase { display: none; }
+.bossMoveBtn { width: 56px; height: 56px; border-radius: 50%; border: 3px solid var(--ink-dark); background: rgba(10,16,24,0.55); color: var(--text); display: grid; place-items: center; font-size: 22px; touch-action: none; user-select: none; }
+.bossMoveBtn.on { background: rgba(255,210,60,0.35); }
+#bossBtnUp { margin-left: 62px; }
+#bossBtnLeft, #bossBtnRight, #bossBtnDown { margin: 0; }
 
