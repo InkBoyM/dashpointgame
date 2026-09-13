@@ -7,7 +7,7 @@
  * so this file never needs to change for content updates.
  * Cross-origin requests (Firebase, CDNs) always go straight to network.
  */
-const CACHE = "dashpoint-v4";
+const CACHE = "dashpoint-v5";
 const CORE = [
   "./",
   "index.html",

@@ -420,6 +420,7 @@
     if(!bossRaf) bossRaf=requestAnimationFrame(bossFrame);
     bossKeys={}; touchJoy={x:0,y:0};
     updateBossTouchVisibility();
+    try{ const f=qs("hudFps"); if(f) f.classList.add("hidden"); }catch(e){}
   }
   function closeBoss(){
     const root=qs("bossRoot"); if(root) root.classList.remove("open");
@@ -427,6 +428,7 @@
     document.querySelectorAll(".boss-proj").forEach(function(el){ el.remove(); });
     if(bossState) bossState.over=true;
     touchJoy={x:0,y:0};
+    try{ const f=qs("hudFps"); if(f) f.classList.remove("hidden"); }catch(e){}
   }
   window.addEventListener("keydown", function(ev){
     const open = qs("bossRoot") && qs("bossRoot").classList.contains("open");

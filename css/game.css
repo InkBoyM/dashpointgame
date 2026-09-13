@@ -1636,8 +1636,8 @@ body.gfx-good .wheel-clip img {
 #bossRoot { position: fixed; inset: 0; display: none; z-index: 60; align-items: center; justify-content: center; background: rgba(6,12,24,0.82); }
 #bossRoot.open { display: flex; }
 #bossStage { position: relative; width: 100vw; height: 100vh; max-width: 100vw; max-height: 100vh; overflow: hidden; border: none; border-radius: 0; background: linear-gradient(#3f9df2 0%, #8fd8ff 55%, #17452e 130%); box-shadow: none; }
-#bossHills { position: absolute; left: 0; right: 0; bottom: 18vh; height: 52vh; min-height: 280px; max-height: 420px; background-size: cover; background-position: bottom center; }
-#bossMeadow { position: absolute; left: 0; right: 0; bottom: 0; height: 22vh; min-height: 140px; max-height: 220px; background-size: cover; background-position: bottom center; }
+#bossHills { position: absolute; left: 0; right: 0; bottom: 150px; height: 400px; background-size: cover; background-position: bottom center; }
+#bossMeadow { position: absolute; left: 0; right: 0; bottom: 0; height: 190px; background-size: cover; background-position: bottom center; }
 #bossWrap { position: absolute; width: 128px; height: 128px; }
 #bossWrap.dying { transition: transform 1.2s ease-in, opacity 1.2s; }
 #bossImg { width: 128px; height: 128px; image-rendering: pixelated; }
