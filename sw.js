@@ -18,6 +18,7 @@ const CORE = [
   "js/mp.js",
   "js/skins.js",
   "js/levels-data.js",
+  "js/story.js",
 ];
 
 self.addEventListener("install", (ev) => {

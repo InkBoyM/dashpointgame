@@ -748,7 +748,7 @@
   }
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", bellSeen: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", bellSeen: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0, story: { beaten: {} } };
   }
 
   function touchUIDefaults() {
@@ -831,6 +831,8 @@
       };
       s.graphics = s.graphics === "good" || s.graphics === "simple" || s.graphics === "dlls5" || s.graphics === "ultra" ? s.graphics : "normal";
       s.ghostOpacity = clampGhostOpacity(s.ghostOpacity);
+      s.story = s.story && typeof s.story === "object" ? s.story : { beaten: {} };
+      s.story.beaten = s.story.beaten && typeof s.story.beaten === "object" ? s.story.beaten : {};
       return s;
     } catch (e) {
       return defaultSave();
@@ -1500,7 +1502,9 @@
 
   function lotdPick(levels, dateStr) {
     if (!levels || !levels.length) return null;
-    const sorted = levels.slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    const pool = levels.filter((e) => e && e.file && !String(e.file).startsWith("story_"));
+    if (!pool.length) return null;
+    const sorted = pool.slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
     return sorted[lotdHash("lotd:" + dateStr) % sorted.length];
   }
 
@@ -1605,6 +1609,7 @@
     }
     const order = state.levels
       .map((entry, i) => ({ entry: entry, i: i }))
+      .filter((p) => p.entry && p.entry.file && !String(p.entry.file).startsWith("story_"))
       .sort(function (a, b) {
         return (LEVEL_DIFF[a.entry.file] || 2) - (LEVEL_DIFF[b.entry.file] || 2);
       });
@@ -2409,6 +2414,27 @@
     beginPlay(entry);
   }
 
+  // --- Story Mode bridge (consumed by js/story.js) ---
+  state.storyMode = false;
+  state.storyRunFile = null;
+  window.__DPStory = {
+    playFile: function (file) {
+      const entry = state.levels.find((e) => e && e.file === file);
+      if (!entry) return false;
+      state.current = state.levels.indexOf(entry);
+      state.netEntry = null;
+      state.storyMode = true;
+      state.storyRunFile = file;
+      el("btnWinMenu").textContent = "STORY MAP";
+      el("btnWinNext").textContent = "NEXT \u9654";
+      beginPlay(entry);
+      return true;
+    },
+    exit: function () { state.storyMode = false; state.storyRunFile = null; show("story"); },
+    save: function () { try { save(); } catch (e) {} },
+    getData: function () { return save_.data; },
+  };
+
   function setStatusHud() {
     el("hudTime").textContent = (state.engine ? state.engine.time : 0).toFixed(2);
     el("hudDeaths").textContent = "deaths " + state.deaths;
@@ -2533,6 +2559,13 @@
       if (back === "netsaved") renderSavedList();
       return;
     }
+    if (state.storyMode) {
+      state.storyMode = false;
+      state.storyRunFile = null;
+      show("story");
+      if (window.__DPStory && __DPStory.refresh) __DPStory.refresh();
+      return;
+    }
     show("levels");
   }
 
@@ -2554,6 +2587,10 @@
     }
     let gained = 0;
     if (firstClear) gained = grantCoins(coinsForFile(entry.file, entry.meta), "level:" + entry.file);
+    if (state.storyMode && entry.file) {
+      const s = save_.data.story || (save_.data.story = { beaten: {} });
+      s.beaten[entry.file] = true;
+    }
     save();
     el("winText").textContent = "Time " + fmtTime(t) + " · deaths " + state.deaths + (firstClear ? " · FIRST CLEAR!" : "") + (gained ? " · +" + fmtCoins(gained) + " coins" : "");
     el("winCard").classList.add("visible");
@@ -4206,7 +4243,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     window.addEventListener("touchstart", function () {
       document.body.classList.add("touch");
     }, { passive: true });
-    el("btnPlay").addEventListener("click", () => show("levels"));
+    el("btnPlay").addEventListener("click", () => show("play"));
     el("btnSkinsHome").addEventListener("click", () => openModal("modalSkins"));
     el("btnOpenShop").addEventListener("click", () => openModal("modalShop"));
     el("btnOpenChest").addEventListener("click", () => openModal("modalChest"));
@@ -4286,8 +4323,20 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         quitToLevels();
         return;
       }
+      if (state.storyMode) {
+        const sOrder = ["story_w1l1.dashpoint.json","story_w1l2.dashpoint.json","story_w1l3.dashpoint.json","story_w1l4.dashpoint.json","story_w1l5.dashpoint.json"];
+        const curFile = (state.levels[state.current] && state.levels[state.current].file) || state.storyRunFile || "";
+        const curIdx = sOrder.indexOf(curFile);
+        if (curIdx >= 0 && curIdx + 1 < sOrder.length) {
+          const nxt = state.levels.find((e) => e.file === sOrder[curIdx + 1]);
+          if (nxt) { window.__DPStory.playFile(nxt.file); return; }
+        }
+        quitToLevels();
+        return;
+      }
       const order = state.levels
         .map((entry, i) => ({ entry: entry, i: i }))
+        .filter((p) => p.entry && p.entry.file && !String(p.entry.file).startsWith("story_"))
         .sort(function (a, b) {
           return localDiff(a.entry.file) - localDiff(b.entry.file);
         });
