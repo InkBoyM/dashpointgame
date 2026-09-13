@@ -2437,6 +2437,8 @@
       if (tile.id === "checkpoint") {
         const touched = opts.touched && opts.c != null && opts.touched.has(opts.c + "," + opts.r);
         realImg = realTileImage(touched ? "checkpoint_touched" : "checkpoint");
+      } else if (tile.id === "grass" || tile.id === "igrass" || tile.id === "fgrass" || tile.id === "gspike" || tile.id === "igspike" || tile.id === "fgspike") {
+        // grass tiles use their own art even in dlls5
       } else if (isBrickId(tile.id)) realImg = realTileImage("brick");
       else if (isSpikeId(tile.id)) realImg = realTileImage("spike");
       else if (isOrbId(tile.id)) realImg = realTileImage("orb");
@@ -2448,6 +2450,10 @@
       if (tile.id === "checkpoint") {
         const touched = opts.touched && opts.c != null && opts.touched.has(opts.c + "," + opts.r);
         img = touched ? images.checkpointTouched : images.checkpoint;
+      } else if (tile.id === "grass" || tile.id === "igrass" || tile.id === "fgrass") {
+        img = images.grass;
+      } else if (tile.id === "gspike" || tile.id === "igspike" || tile.id === "fgspike") {
+        img = images.gspike;
       } else if (isBrickId(tile.id)) {
         img = images.brick;
       } else if (isSpikeId(tile.id)) {
