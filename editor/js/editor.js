@@ -273,6 +273,7 @@
     pan: { on: false, lastX: 0, lastY: 0, space: false },
     stroke: null,
     selection: null,
+    pathSel: null,
     selectedPictureId: null,
     picDrag: null,
     selectedWidgetId: null,
@@ -365,7 +366,9 @@
     state.picDrag = null;
     state.selectedWidgetId = null;
     state.widgetDrag = null;
+    selPlat();
     syncInspector();
+    syncPathUI();
     markDirty(true);
   }
 
@@ -1045,6 +1048,7 @@
     text: "Click to stamp your text label",
     image: "Click an image to move it, drag the handles to resize",
     html: "Click a block to move it, right-click for layer options",
+    path: "Click a platform, then click tiles to add stops (right-click removes)",
   };
 
   function syncToolHint() {
@@ -1119,7 +1123,7 @@
     document.querySelectorAll(".tile-btn").forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.tile === id);
     });
-    if (state.tool === "spawn" || state.tool === "select" || state.tool === "picker") setTool("paint");
+    if (state.tool === "spawn" || state.tool === "select" || state.tool === "picker" || state.tool === "path") setTool("paint");
     else syncToolHint();
   }
 
@@ -1183,11 +1187,217 @@
     if (tile === null) {
       if (!prev) return false;
       state.level.set(c, r, null);
+      removePlatAt(c, r);
       return true;
     }
     if (tilesEqual(prev, tile)) return false;
     state.level.set(c, r, tile);
     return true;
+  }
+
+  // ---- Moving-platform routes (Path tool) ----
+  function platAt(c, r) {
+    const list = state.level.platforms || [];
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].c === c && list[i].r === r) return list[i];
+    }
+    return null;
+  }
+
+  function selPlat() {
+    if (!state.pathSel) return null;
+    const p = platAt(state.pathSel.c, state.pathSel.r);
+    if (!p) state.pathSel = null;
+    return p;
+  }
+
+  function removePlatAt(c, r) {
+    const list = state.level.platforms || [];
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i].c === c && list[i].r === r) list.splice(i, 1);
+    }
+    if (state.pathSel && state.pathSel.c === c && state.pathSel.r === r) state.pathSel = null;
+    syncPathUI();
+  }
+
+  function pathRemoveLast() {
+    const sel = selPlat();
+    if (!sel) {
+      setStatus("Path: click a platform tile first");
+      return;
+    }
+    if (!sel.path.length) {
+      setStatus("Route is already empty — erase the tile to drop it");
+      return;
+    }
+    pushUndo();
+    sel.path.pop();
+    markDirty(true);
+    syncPathUI();
+    setStatus("Removed stop (" + sel.path.length + " left)");
+  }
+
+  function pathClick(cell, ev) {
+    if (ev.button === 2 || ev.button === "right") {
+      pathRemoveLast();
+      return true;
+    }
+    const t = cell.inside ? state.level.get(cell.c, cell.r) : null;
+    if (t && t.id === "platform") {
+      let p = platAt(cell.c, cell.r);
+      if (!p) {
+        pushUndo();
+        state.level.platforms.push({ c: cell.c, r: cell.r, path: [], speed: 3, loop: true });
+        markDirty(true);
+        setStatus("Platform route started — click tiles to add stops");
+      } else {
+        setStatus("Platform " + cell.c + "," + cell.r + " selected (" + p.path.length + " stops)");
+      }
+      state.pathSel = { c: cell.c, r: cell.r };
+      syncPathUI();
+      return true;
+    }
+    const sel = selPlat();
+    if (!sel) {
+      setStatus("Path: click a platform tile first");
+      return true;
+    }
+    if (!cell.inside) {
+      setStatus("Stop is outside the level");
+      return true;
+    }
+    if (sel.path.length >= 8) {
+      setStatus("Max 8 stops per platform");
+      return true;
+    }
+    const dc = cell.c - sel.c;
+    const dr = cell.r - sel.r;
+    if (!dc && !dr) {
+      setStatus("That's the platform itself — pick another tile");
+      return true;
+    }
+    for (const q of sel.path) {
+      if (q[0] === dc && q[1] === dr) {
+        setStatus("Stop already added");
+        return true;
+      }
+    }
+    pushUndo();
+    sel.path.push([dc, dr]);
+    markDirty(true);
+    syncPathUI();
+    setStatus("Stop " + sel.path.length + " added at " + cell.c + "," + cell.r);
+    return true;
+  }
+
+  function syncPathUI() {
+    const st = document.getElementById("pathStatus");
+    const sp = document.getElementById("pathSpeed");
+    const vs = document.getElementById("vPathSpeed");
+    const lp = document.getElementById("pathLoop");
+    const sel = selPlat();
+    const n = (state.level.platforms || []).length;
+    if (st) {
+      st.textContent = sel
+        ? "Platform " + sel.c + "," + sel.r + " · " + sel.path.length + " stop(s) · " + (sel.loop === false ? "ping-pong" : "loop")
+        : n
+          ? n + " route(s) — pick the Path tool and click a platform to edit"
+          : "Pick the Path tool (Y), paint a platform, then click it.";
+    }
+    if (sp && document.activeElement !== sp) sp.value = String(sel ? sel.speed : 3);
+    if (vs) vs.textContent = String(sel ? sel.speed : (sp ? sp.value : 3));
+    if (lp && document.activeElement !== lp) lp.checked = sel ? sel.loop !== false : true;
+  }
+
+  function bindPathPanel() {
+    const sp = document.getElementById("pathSpeed");
+    const vs = document.getElementById("vPathSpeed");
+    const lp = document.getElementById("pathLoop");
+    const bu = document.getElementById("btnPathUndo");
+    const bc = document.getElementById("btnPathClear");
+    if (!sp || !lp || !bu || !bc) return;
+    let armed = false;
+    sp.addEventListener("input", () => {
+      const sel = selPlat();
+      if (!sel) return;
+      if (!armed) {
+        pushUndo();
+        armed = true;
+      }
+      sel.speed = DP.clamp(parseInt(sp.value, 10) || 3, 1, 20);
+      markDirty(true);
+      if (vs) vs.textContent = String(sel.speed);
+    });
+    sp.addEventListener("change", () => {
+      armed = false;
+      syncPathUI();
+    });
+    lp.addEventListener("change", () => {
+      const sel = selPlat();
+      if (!sel) {
+        syncPathUI();
+        return;
+      }
+      pushUndo();
+      sel.loop = !!lp.checked;
+      markDirty(true);
+      syncPathUI();
+      setStatus("Route " + (sel.loop ? "loops" : "ping-pongs"));
+    });
+    bu.addEventListener("click", () => {
+      if (state.playing) return;
+      pathRemoveLast();
+    });
+    bc.addEventListener("click", () => {
+      const sel = selPlat();
+      if (state.playing || !sel || !sel.path.length) return;
+      pushUndo();
+      sel.path.length = 0;
+      markDirty(true);
+      syncPathUI();
+      setStatus("Stops cleared");
+    });
+    syncPathUI();
+  }
+
+  function drawPathOverlay() {
+    const list = state.level.platforms || [];
+    if (!list.length) return;
+    const S = TILE;
+    ctx.save();
+    ctx.scale(state.cam.zoom, state.cam.zoom);
+    ctx.translate(-state.cam.x, -state.cam.y);
+    for (const p of list) {
+      const sel = !!state.pathSel && state.pathSel.c === p.c && state.pathSel.r === p.r;
+      const pts = (p.path || []).map((q) => [(p.c + q[0]) * S + S / 2, (p.r + q[1]) * S + S / 2]);
+      ctx.strokeStyle = sel ? "rgba(255,210,60,0.95)" : "rgba(46,230,255,0.7)";
+      ctx.lineWidth = 2 / state.cam.zoom;
+      try {
+        ctx.setLineDash([5 / state.cam.zoom, 4 / state.cam.zoom]);
+      } catch (e) {}
+      ctx.beginPath();
+      ctx.moveTo(p.c * S + S / 2, p.r * S + S / 2);
+      for (const q of pts) ctx.lineTo(q[0], q[1]);
+      if (p.loop !== false && pts.length) ctx.closePath();
+      ctx.stroke();
+      try {
+        ctx.setLineDash([]);
+      } catch (e) {}
+      ctx.fillStyle = sel ? "#ffd23c" : "#2ee6ff";
+      ctx.fillRect(p.c * S + 3, p.r * S + 3, 6, 6);
+      for (let i = 0; i < pts.length; i++) {
+        ctx.beginPath();
+        ctx.arc(pts[i][0], pts[i][1], 5, 0, Math.PI * 2);
+        ctx.fillStyle = sel ? "#ffd23c" : "#2ee6ff";
+        ctx.fill();
+        ctx.fillStyle = "#0a1628";
+        ctx.font = "bold 7px Consolas, monospace";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(String(i + 1), pts[i][0], pts[i][1]);
+      }
+    }
+    ctx.restore();
   }
 
   function stampPrefab(origin, list) {
@@ -1594,6 +1804,22 @@
         scale: t.scale,
       });
     });
+    // platform routes follow their origin tile when moved
+    (state.level.platforms || []).forEach((p) => {
+      if (p.c >= b.c0 && p.c <= b.c1 && p.r >= b.r0 && p.r <= b.r1) {
+        const nc = p.c + dc;
+        const nr = p.r + dr;
+        if (state.level.inBounds(nc, nr)) {
+          p.c = nc;
+          p.r = nr;
+        }
+      }
+    });
+    if (state.pathSel) {
+      const kept = platAt(state.pathSel.c, state.pathSel.r);
+      if (!kept) state.pathSel = null;
+      syncPathUI();
+    }
     state.selection = {
       c0: b.c0 + dc,
       r0: b.r0 + dr,
@@ -1610,6 +1836,10 @@
       state.pan.on = true;
       state.pan.lastX = ev.clientX;
       state.pan.lastY = ev.clientY;
+      return;
+    }
+    if (state.tool === "path") {
+      pathClick(cell, ev);
       return;
     }
     const world = screenToWorld(ev.clientX, ev.clientY);
@@ -1863,6 +2093,7 @@
     setStat("cFSpike", v.counts.fspike);
     setStat("cIOrb", v.counts.iorb);
     setStat("cIGoal", v.counts.igoal);
+    setStat("cPlat", v.counts.platform);
     setStat("cCoins", (v.counts.coin10 || 0) + (v.counts.coin50 || 0) + (v.counts.coin100 || 0) + (v.counts.coin500 || 0));
     syncThemeUI();
     document.getElementById("cText").textContent = v.counts.labels;
@@ -1882,6 +2113,7 @@
     const tags = (state.level.meta && Array.isArray(state.level.meta.tags)) ? state.level.meta.tags : [];
     const tagEl = document.getElementById("cTags");
     if (tagEl) tagEl.textContent = tags.length ? tags.join(", ") : "—";
+    syncPathUI();
   }
 
   function exportLevel() {
@@ -1913,11 +2145,13 @@
     pushUndo();
     state.level = level;
     state.selection = null;
+    state.pathSel = null;
     state.selectedPictureId = null;
     state.picDrag = null;
     state.selectedWidgetId = null;
     state.widgetDrag = null;
     syncInspector();
+    syncPathUI();
     focusOn(level.spawn.c, level.spawn.r, editorZoom());
     markDirty(true);
     setStatus("Imported “" + level.name + "”");
@@ -1978,8 +2212,10 @@
     state.undo = [];
     state.redo = [];
     state.selection = null;
+    state.pathSel = null;
     stopPlay();
     syncInspector();
+    syncPathUI();
     focusOn(state.level.spawn.c, state.level.spawn.r, editorZoom());
     markDirty(true);
     setStatus("New level");
@@ -1999,8 +2235,10 @@
     state.undo = [];
     state.redo = [];
     state.selection = null;
+    state.pathSel = null;
     stopPlay();
     syncInspector();
+    syncPathUI();
     focusOn(state.level.spawn.c, state.level.spawn.r, editorZoom());
     markDirty(true);
     setStatus("AI built “" + state.level.name + "” — playtest it");
@@ -2277,6 +2515,7 @@
       else if (state.tool === "paint") ghost = [{ c: state.hover.c, r: state.hover.r, id: state.tile, rot: state.rot }];
       else if (state.tool === "erase") ghost = [{ c: state.hover.c, r: state.hover.r, id: "erase" }];
       else if (state.tool === "spawn") ghost = [];
+      else if (state.tool === "path") ghost = [];
     }
 
     DP.drawWorld(ctx, state.engine ? state.engine.level : state.level, state.images, state.cam, {
@@ -2302,6 +2541,7 @@
     });
     drawPictureChrome(ctx);
     drawWidgetChrome(ctx);
+    if (!state.playing) drawPathOverlay();
     try {
       const widgetBox = document.getElementById("widgetLayer");
       if (widgetBox) {
@@ -2537,6 +2777,9 @@
         state.selectedPictureId = null;
       } else if (state.selectedWidgetId) {
         state.selectedWidgetId = null;
+      } else if (state.pathSel) {
+        state.pathSel = null;
+        syncPathUI();
       }
       closeWidgetMenu();
       return;
@@ -2625,6 +2868,7 @@
     if (ev.code === "KeyT") setTool("text");
     if (ev.code === "KeyM") setTool("image");
     if (ev.code === "KeyU") setTool("html");
+    if (ev.code === "KeyY") setTool("path");
     if (ev.code === "Digit1") setTile("brick");
     if (ev.code === "Digit2") setTile("spike");
     if (ev.code === "Digit4") setTile("ispike");
@@ -2647,6 +2891,8 @@
         pushUndo();
         removeWidget(state.selectedWidgetId);
         setStatus("Deleted HTML block");
+      } else if (state.tool === "path" && selPlat()) {
+        pathRemoveLast();
       } else if (state.selection) deleteSelection();
       else if (textAt(state.hover.c, state.hover.r)) {
         pushUndo();
@@ -2800,6 +3046,7 @@
     document.querySelectorAll(".tile-btn").forEach((btn) => {
       btn.addEventListener("click", () => setTile(btn.dataset.tile));
     });
+    bindPathPanel();
 
     els.name.addEventListener("input", () => {
       state.level.name = els.name.value.slice(0, 48);
@@ -2934,7 +3181,10 @@
         for (let c = 0; c < state.level.cols; c++) state.level.grid[r][c] = null;
       }
       state.level.triggers = [];
+      state.level.platforms = [];
+      state.pathSel = null;
       syncInspector();
+      syncPathUI();
     });
     document.getElementById("btnHelp").addEventListener("click", () => openModal("modalHelp"));
     document.getElementById("btnSettings").addEventListener("click", () => openModal("modalSettings"));

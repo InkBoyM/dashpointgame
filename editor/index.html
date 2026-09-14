@@ -50,6 +50,7 @@
         <button class="tool" data-tool="text" title="Text (T)"><span>Text</span><b class="k">T</b></button>
         <button class="tool" data-tool="image" title="Images (M)"><span>Image</span><b class="k">M</b></button>
         <button class="tool" data-tool="html" title="HTML blocks (U)"><span>Html</span><b class="k">U</b></button>
+        <button class="tool" data-tool="path" title="Platform path (Y)"><span>Path</span><b class="k">Y</b></button>
       </div>
 
       <div class="section-title">Tiles</div>
@@ -130,7 +131,7 @@
           <img src="assets/tiles/slopeR.png" alt="" />
           <span>Slope \</span>
         </button>
-        <button class="tile-btn" data-tile="platform" title="Moving platform — solid; loops waypoints via the platforms list (see Help)">
+        <button class="tile-btn" data-tile="platform" title="Moving platform — solid; use the Path tool (Y) to give it a route">
           <img src="assets/tiles/platform.png" alt="" />
           <span>Plat</span>
         </button>
@@ -155,6 +156,19 @@
           <span>Lava</span>
         </button>
       </div>
+
+      <div class="section-title" style="margin-top:14px">Platform path</div>
+      <p class="hint" id="pathStatus">Pick the Path tool (Y), paint a platform, then click it.</p>
+      <label>Speed <span id="vPathSpeed">3</span></label>
+      <input type="range" id="pathSpeed" min="1" max="20" step="1" value="3" />
+      <label class="row" style="margin-top:6px; gap:8px; text-transform:none; letter-spacing:0; font-size:12px">
+        <input type="checkbox" id="pathLoop" checked /> Loop route (off = ping-pong)
+      </label>
+      <div class="row" style="margin-top:6px">
+        <button class="mini grow" id="btnPathUndo">Undo stop</button>
+        <button class="mini grow" id="btnPathClear">Clear stops</button>
+      </div>
+      <p class="hint">Path tool: click a platform to select it, click tiles to add stops (max 8), right-click removes the last stop. Erasing the platform tile deletes its route. Playtest to watch it ride.</p>
 
       <div class="section-title" style="margin-top:14px">Level text</div>
       <input id="textDraft" class="level-name" style="width:100%; margin-bottom:8px" maxlength="64" spellcheck="false" value="JUMP!" placeholder="Type a label" />
@@ -283,6 +297,7 @@
       <div class="stat">Orbs <b id="cOrb">0</b></div>
       <div class="stat">Pads <b id="cPad">0</b></div>
       <div class="stat">Dashes <b id="cDash">0</b></div>
+      <div class="stat">Moving <b id="cPlat">0</b></div>
       <div class="stat">Goals <b id="cGoal">0</b></div>
       <div class="stat">Fake blk <b id="cFBrick">0</b></div>
       <div class="stat">Fake spk <b id="cFSpike">0</b></div>
@@ -321,7 +336,7 @@
       <div class="help-grid">
         <b>B / E / F</b><span>Paint, erase, fill</span>
         <b>R / L / V</b><span>Rectangle, line, select</span>
-        <b>I / P / G / T / M / U</b><span>Eyedropper, spawn, prefab, text, images, html</span>
+        <b>I / P / G / T / M / U / Y</b><span>Eyedropper, spawn, prefab, text, images, html, platform path</span>
         <b>1 2 3 4 5 6 7 8</b><span>Brick, spike, goal, invis spike, orb, pad, dash, invis block</span>
         <b>[ ] wheel</b><span>Rotate spike</span>
         <b>Right click</b><span>Eyedropper (or erase with right-drag); on HTML: layer menu</span>
