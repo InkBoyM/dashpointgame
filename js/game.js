@@ -71,6 +71,31 @@
   }
 
   const SKINS = window.DashPointSkins || [];
+  const SKIN_BY_ID = {};
+  for (const s of SKINS) SKIN_BY_ID[s.id] = s;
+
+  // Draws a skin at (dx, dy, size). Animated skins provide anim:{src,frames,fps}
+  // as a horizontal strip; menus keep using the static src. Returns true if drawn.
+  function hasSkinImage(images, skinId) {
+    return !!((images.skins && images.skins[skinId]) || (images.skinAnims && images.skinAnims[skinId]));
+  }
+  function drawSkinImage(c, images, skinId, dx, dy, size, now) {
+    const def = SKIN_BY_ID[skinId];
+    const strip = images.skinAnims && images.skinAnims[skinId];
+    const frames = (def && def.anim && def.anim.frames) | 0;
+    if (strip && frames > 1) {
+      const fps = (def.anim.fps | 0) || 6;
+      const sw = strip.naturalWidth || strip.width || frames * TILE;
+      const sh = strip.naturalHeight || strip.height || TILE;
+      const fw = Math.max(1, Math.round(sw / frames));
+      const f = Math.floor(((now === undefined ? performance.now() : now) / 1000) * fps) % frames;
+      c.drawImage(strip, f * fw, 0, fw, sh, dx, dy, size, size);
+      return true;
+    }
+    const img = images.skins && images.skins[skinId];
+    if (img) c.drawImage(img, dx, dy, size, size);
+    return !!img;
+  }
 
   const DEFAULT_GAMEPLAY = {
     moveSpeed: 320,
@@ -187,6 +212,14 @@
     images.skins = [];
     for (const skin of SKINS) {
       images.skins[skin.id] = await loadImage(skin.src);
+    }
+    images.skinAnims = [];
+    for (const skin of SKINS) {
+      if (skin.anim && skin.anim.src) {
+        try {
+          images.skinAnims[skin.id] = await loadImage(skin.anim.src);
+        } catch (e) {}
+      }
     }
     ["coin10", "coin50", "coin100", "coin500"].forEach(function (k) {
       if (images[k]) images[k] = knockOutBlack(images[k]);
@@ -2745,10 +2778,9 @@
       ctx.strokeStyle = "rgba(46, 230, 255, 0.95)";
       ctx.lineWidth = 2 / zoom;
       ctx.strokeRect(sp.c * TILE + 3, sp.r * TILE + 3, TILE - 6, TILE - 6);
-      const skinImg = images.skins && images.skins[extras.skin || 1];
-      if (skinImg && !extras.engine) {
+      if (!extras.engine) {
         ctx.globalAlpha = 0.85;
-        ctx.drawImage(skinImg, sp.c * TILE, sp.r * TILE, TILE, TILE);
+        drawSkinImage(ctx, images, extras.skin || 1, sp.c * TILE, sp.r * TILE, TILE);
         ctx.globalAlpha = 1;
       }
       ctx.fillStyle = "rgba(46, 230, 255, 0.95)";
@@ -2820,16 +2852,15 @@
       ctx.imageSmoothingEnabled = false;
       for (const rc of extras.remoteCubes) {
         const rSkinId = clamp((rc.skin | 0) || 1, 1, Math.max(1, SKINS.length));
-        const rSkinImg = images.skins && images.skins[rSkinId];
         const rdx = Math.round(rc.x + PLAYER_W / 2 - TILE / 2);
         const rdy = Math.round(rc.y + PLAYER_H - TILE);
         ctx.save();
         if (typeof rc.alpha === "number") ctx.globalAlpha = rc.alpha;
         else if (rc.dead) ctx.globalAlpha = 0.45;
-        if (rSkinImg) {
+        if (hasSkinImage(images, rSkinId)) {
           ctx.translate(rdx + TILE / 2, rdy + TILE / 2);
           ctx.rotate(((rc.rot || 0) * Math.PI) / 180);
-          ctx.drawImage(rSkinImg, -TILE / 2, -TILE / 2, TILE, TILE);
+          drawSkinImage(ctx, images, rSkinId, -TILE / 2, -TILE / 2, TILE);
         } else {
           ctx.fillStyle = "#ffd23c";
           ctx.fillRect(rc.x, rc.y, PLAYER_W, PLAYER_H);
@@ -2868,7 +2899,6 @@
       ctx.imageSmoothingEnabled = false;
       const p = engine.player;
       const skinId = clamp((engine.skin | 0) || (extras.skin | 0) || 1, 1, Math.max(1, SKINS.length));
-      const skinImg = images.skins && images.skins[skinId];
       const dx = Math.round(p.x + p.w / 2 - TILE / 2);
       const dy = Math.round(p.y + p.h - TILE);
       if (fx.shadows && gfx !== "simple" && p.onGround && !engine.dead && !engine.won) {
@@ -2899,11 +2929,11 @@
         }
         ctx.globalAlpha = 1;
       }
-      if (skinImg) {
+      if (hasSkinImage(images, skinId)) {
         ctx.save();
         ctx.translate(dx + TILE / 2, dy + TILE / 2);
         ctx.rotate((p.rot * Math.PI) / 180);
-        ctx.drawImage(skinImg, -TILE / 2, -TILE / 2, TILE, TILE);
+        drawSkinImage(ctx, images, skinId, -TILE / 2, -TILE / 2, TILE);
         ctx.restore();
       } else {
         ctx.fillStyle = "#fff";
