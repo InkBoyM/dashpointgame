@@ -110,6 +110,7 @@
     triplekey: { keys: 3 },
     thebestskinever: { skin: 29 },
     discord: { skin: 35 },
+    nerd: { skin: 37 },
   };
 
   function coinIcon(cls) {
