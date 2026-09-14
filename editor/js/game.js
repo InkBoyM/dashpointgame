@@ -14,9 +14,15 @@
     brick: { id: "brick", solid: true, hazard: false, rotatable: false, label: "Brick" },
     ibrick: { id: "ibrick", solid: true, hazard: false, rotatable: false, hidden: true, label: "Invis block" },
     fbrick: { id: "fbrick", solid: false, hazard: false, rotatable: false, fake: true, label: "Fake brick" },
+    grass: { id: "grass", solid: true, hazard: false, rotatable: false, label: "Grassy Block" },
+    igrass: { id: "igrass", solid: true, hazard: false, rotatable: false, hidden: true, label: "Invis grass" },
+    fgrass: { id: "fgrass", solid: false, hazard: false, rotatable: false, fake: true, label: "Fake grass" },
     spike: { id: "spike", solid: false, hazard: true, rotatable: true, label: "Spike" },
     ispike: { id: "ispike", solid: false, hazard: true, rotatable: true, hidden: true, label: "Invis spike" },
     fspike: { id: "fspike", solid: false, hazard: false, rotatable: true, fake: true, label: "Fake spike" },
+    gspike: { id: "gspike", solid: false, hazard: true, rotatable: true, label: "Grassy Spike" },
+    igspike: { id: "igspike", solid: false, hazard: true, rotatable: true, hidden: true, label: "Invis grass spike" },
+    fgspike: { id: "fgspike", solid: false, hazard: false, rotatable: true, fake: true, label: "Fake grass spike" },
     goal: { id: "goal", solid: false, hazard: false, rotatable: false, label: "Goal" },
     igoal: { id: "igoal", solid: false, hazard: false, rotatable: false, hidden: true, label: "Invis goal" },
     orb: { id: "orb", solid: false, hazard: false, rotatable: false, label: "Bounce orb" },
@@ -24,6 +30,14 @@
     pad: { id: "pad", solid: false, hazard: false, rotatable: false, label: "Bounce pad" },
     dash: { id: "dash", solid: false, hazard: false, rotatable: false, label: "Dash" },
     checkpoint: { id: "checkpoint", solid: false, hazard: false, rotatable: false, label: "Checkpoint" },
+    slopeL: { id: "slopeL", solid: true, hazard: false, rotatable: false, slope: "L", label: "Slope /" },
+    slopeR: { id: "slopeR", solid: true, hazard: false, rotatable: false, slope: "R", label: "Slope \\" },
+    platform: { id: "platform", solid: true, hazard: false, rotatable: false, label: "Moving platform" },
+    portalA: { id: "portalA", solid: false, hazard: false, rotatable: false, label: "Portal A (blue)" },
+    portalB: { id: "portalB", solid: false, hazard: false, rotatable: false, label: "Portal B (orange)" },
+    gravOrb: { id: "gravOrb", solid: false, hazard: false, rotatable: false, label: "Gravity orb" },
+    water: { id: "water", solid: false, hazard: false, rotatable: false, liquid: "water", label: "Water" },
+    lava: { id: "lava", solid: false, hazard: false, rotatable: false, liquid: "lava", label: "Lava" },
     coin10: { id: "coin10", solid: false, hazard: false, rotatable: false, label: "Coin +10" },
     coin50: { id: "coin50", solid: false, hazard: false, rotatable: false, label: "Coin +50" },
     coin100: { id: "coin100", solid: false, hazard: false, rotatable: false, label: "Coin +100" },
@@ -33,11 +47,11 @@
   const COIN_VALUES = { coin10: 10, coin50: 50, coin100: 100, coin500: 500 };
 
   function isSpikeId(id) {
-    return id === "spike" || id === "ispike" || id === "fspike";
+    return id === "spike" || id === "ispike" || id === "fspike" || id === "gspike" || id === "igspike" || id === "fgspike";
   }
 
   function isBrickId(id) {
-    return id === "brick" || id === "ibrick" || id === "fbrick";
+    return id === "brick" || id === "ibrick" || id === "fbrick" || id === "grass" || id === "igrass" || id === "fgrass";
   }
 
   function isGoalId(id) {
@@ -48,12 +62,40 @@
     return id === "orb" || id === "iorb";
   }
 
+  function isSlopeId(id) {
+    return id === "slopeL" || id === "slopeR";
+  }
+
+  function isPlatformId(id) {
+    return id === "platform";
+  }
+
+  function isPortalId(id) {
+    return id === "portalA" || id === "portalB";
+  }
+
+  function isGravOrbId(id) {
+    return id === "gravOrb";
+  }
+
+  function isWaterId(id) {
+    return id === "water";
+  }
+
+  function isLavaId(id) {
+    return id === "lava";
+  }
+
+  function isLiquidId(id) {
+    return id === "water" || id === "lava";
+  }
+
   function isFakeId(id) {
-    return id === "fspike" || id === "fbrick";
+    return id === "fspike" || id === "fbrick" || id === "fgspike" || id === "fgrass";
   }
 
   function isInvisibleId(id) {
-    return id === "ispike" || id === "ibrick" || id === "iorb" || id === "igoal";
+    return id === "ispike" || id === "ibrick" || id === "iorb" || id === "igoal" || id === "igspike" || id === "igrass";
   }
 
   function isCoinId(id) {
@@ -65,6 +107,56 @@
   }
 
   const SKINS = window.DashPointSkins || [];
+  const SKIN_BY_ID = {};
+  for (const s of SKINS) SKIN_BY_ID[s.id] = s;
+
+  // Draws a skin at (dx, dy, size). Animated skins provide anim:{src,frames,fps}
+  // as a horizontal strip; menus keep using the static src. Returns true if drawn.
+  function hasSkinImage(images, skinId) {
+    const gif = images.skinGifs && images.skinGifs[skinId];
+    return !!(
+      (gif && gif.frames && gif.frames.length) ||
+      (images.skins && images.skins[skinId]) ||
+      (images.skinAnims && images.skinAnims[skinId])
+    );
+  }
+  function gifFrameAt(anim, now) {
+    if (!anim || !anim.frames || !anim.frames.length) return null;
+    const total = anim.totalMs || 0;
+    if (!total) return anim.frames[0];
+    let t = (now === undefined ? performance.now() : now) % total;
+    if (t < 0) t += total;
+    for (let i = 0; i < anim.delays.length; i++) {
+      t -= anim.delays[i];
+      if (t < 0) return anim.frames[i];
+    }
+    return anim.frames[anim.frames.length - 1];
+  }
+  function drawSkinImage(c, images, skinId, dx, dy, size, now) {
+    const gif = images.skinGifs && images.skinGifs[skinId];
+    if (gif && gif.frames && gif.frames.length) {
+      const frame = gifFrameAt(gif, now);
+      if (frame) {
+        c.drawImage(frame, dx, dy, size, size);
+        return true;
+      }
+    }
+    const def = SKIN_BY_ID[skinId];
+    const strip = images.skinAnims && images.skinAnims[skinId];
+    const frames = (def && def.anim && def.anim.frames) | 0;
+    if (strip && frames > 1) {
+      const fps = (def.anim.fps | 0) || 6;
+      const sw = strip.naturalWidth || strip.width || frames * TILE;
+      const sh = strip.naturalHeight || strip.height || TILE;
+      const fw = Math.max(1, Math.round(sw / frames));
+      const f = Math.floor(((now === undefined ? performance.now() : now) / 1000) * fps) % frames;
+      c.drawImage(strip, f * fw, 0, fw, sh, dx, dy, size, size);
+      return true;
+    }
+    const img = images.skins && images.skins[skinId];
+    if (img) c.drawImage(img, dx, dy, size, size);
+    return !!img;
+  }
 
   const DEFAULT_GAMEPLAY = {
     moveSpeed: 320,
@@ -88,6 +180,8 @@
   const ASSET_PATHS = {
     background: "assets/tiles/background.png",
     brick: "assets/tiles/brick.png",
+    grass: "assets/tiles/grass.png",
+    gspike: "assets/tiles/gspike.png",
     spike: "assets/tiles/spike.png",
     goal: "assets/tiles/goal.png",
     orb: "assets/tiles/BounceOrb.png",
@@ -95,6 +189,16 @@
     dash: "assets/tiles/DashIcon.png",
     checkpoint: "assets/tiles/checkpoint.png",
     checkpointTouched: "assets/tiles/checkpoint-touched.png",
+    slopeL: "assets/tiles/slopeL.png",
+    slopeR: "assets/tiles/slopeR.png",
+    platform: "assets/tiles/platform.png",
+    portalA: "assets/tiles/portalA.png",
+    portalB: "assets/tiles/portalB.png",
+    gravOrb: "assets/tiles/gravOrb.png",
+    water: "assets/tiles/water.png",
+    waterStrip: "assets/tiles/water-strip.png",
+    lava: "assets/tiles/lava.png",
+    lavaStrip: "assets/tiles/lava-strip.png",
     coin10: "assets/tiles/coin10.png",
     coin50: "assets/tiles/coin50.png",
     coin100: "assets/tiles/coin100.png",
@@ -105,6 +209,34 @@
     character: "assets/ui/character.png",
     cursorHover: "assets/ui/cursor-hover.png",
     cursorSelect: "assets/ui/cursor-select.png",
+  };
+
+  const ULTRA_ASSET_PATHS = {
+    background: "assets/tiles/ultra/background.png",
+    brick: "assets/tiles/ultra/brick.png",
+    grass: "assets/tiles/grass.png",
+    gspike: "assets/tiles/gspike.png",
+    spike: "assets/tiles/ultra/spike.png",
+    goal: "assets/tiles/ultra/goal.png",
+    orb: "assets/tiles/ultra/orb.png",
+    pad: "assets/tiles/ultra/pad.png",
+    dash: "assets/tiles/ultra/dash.png",
+    checkpoint: "assets/tiles/ultra/checkpoint.png",
+    checkpointTouched: "assets/tiles/ultra/checkpoint-touched.png",
+    slopeL: "assets/tiles/slopeL.png",
+    slopeR: "assets/tiles/slopeR.png",
+    platform: "assets/tiles/platform.png",
+    portalA: "assets/tiles/portalA.png",
+    portalB: "assets/tiles/portalB.png",
+    gravOrb: "assets/tiles/gravOrb.png",
+    water: "assets/tiles/water.png",
+    waterStrip: "assets/tiles/water-strip.png",
+    lava: "assets/tiles/lava.png",
+    lavaStrip: "assets/tiles/lava-strip.png",
+    coin10: "assets/tiles/ultra/coin10.png",
+    coin50: "assets/tiles/ultra/coin50.png",
+    coin100: "assets/tiles/ultra/coin100.png",
+    coin500: "assets/tiles/ultra/coin500.png",
   };
 
   function clamp(v, a, b) {
@@ -150,6 +282,249 @@
     });
   }
 
+  function gifReadSubBlocks(data, p) {
+    const chunks = [];
+    let n;
+    while (p.i < data.length && (n = data[p.i++])) {
+      chunks.push(data.subarray(p.i, p.i + n));
+      p.i += n;
+    }
+    let len = 0;
+    for (let i = 0; i < chunks.length; i++) len += chunks[i].length;
+    const out = new Uint8Array(len);
+    let o = 0;
+    for (let i = 0; i < chunks.length; i++) {
+      out.set(chunks[i], o);
+      o += chunks[i].length;
+    }
+    return out;
+  }
+
+  function gifSkipSubBlocks(data, p) {
+    let n;
+    while (p.i < data.length && (n = data[p.i++])) p.i += n;
+  }
+
+  function gifLzw(minCode, bytes) {
+    const clear = 1 << minCode;
+    const eoi = clear + 1;
+    let codeSize = minCode + 1;
+    let nextCode = eoi + 1;
+    let prev = -1;
+    const dict = [];
+    const out = [];
+    let acc = 0;
+    let bits = 0;
+    let bi = 0;
+    function reset() {
+      codeSize = minCode + 1;
+      nextCode = eoi + 1;
+      prev = -1;
+    }
+    function readCode() {
+      while (bits < codeSize && bi < bytes.length) {
+        acc |= bytes[bi++] << bits;
+        bits += 8;
+      }
+      if (bits < codeSize) return -1;
+      const c = acc & ((1 << codeSize) - 1);
+      acc >>= codeSize;
+      bits -= codeSize;
+      return c;
+    }
+    reset();
+    while (true) {
+      const code = readCode();
+      if (code < 0 || code === eoi) break;
+      if (code === clear) {
+        reset();
+        continue;
+      }
+      let seq;
+      if (code < nextCode) seq = code < clear ? [code] : dict[code].slice();
+      else if (code === nextCode && prev >= 0) {
+        seq = (prev < clear ? [prev] : dict[prev].slice());
+        seq.push(seq[0]);
+      } else break;
+      for (let i = 0; i < seq.length; i++) out.push(seq[i]);
+      if (prev >= 0 && nextCode < 4096) {
+        const add = prev < clear ? [prev] : dict[prev].slice();
+        add.push(seq[0]);
+        dict[nextCode] = add;
+        nextCode++;
+        if (nextCode === 1 << codeSize && codeSize < 12) codeSize++;
+      }
+      prev = code;
+    }
+    return out;
+  }
+
+  function decodeGifBytes(buffer) {
+    const data = new Uint8Array(buffer);
+    if (data.length < 13) return null;
+    const p = { i: 6 };
+    const u8 = function () { return data[p.i++]; };
+    const u16 = function () {
+      const v = data[p.i] | (data[p.i + 1] << 8);
+      p.i += 2;
+      return v;
+    };
+    const width = u16();
+    const height = u16();
+    const packed = u8();
+    u8();
+    u8();
+    let gct = null;
+    if (packed & 0x80) {
+      const n = 2 << (packed & 7);
+      gct = data.subarray(p.i, p.i + n * 3);
+      p.i += n * 3;
+    }
+    const work = document.createElement("canvas");
+    work.width = width;
+    work.height = height;
+    const wctx = work.getContext("2d", { willReadFrequently: true });
+    if (!wctx) return null;
+    wctx.imageSmoothingEnabled = false;
+    const frames = [];
+    const delays = [];
+    let delay = 10;
+    let tIdx = -1;
+    let disposal = 0;
+    let restore = null;
+
+    function snap() {
+      const c = document.createElement("canvas");
+      c.width = width;
+      c.height = height;
+      const x = c.getContext("2d");
+      x.imageSmoothingEnabled = false;
+      x.drawImage(work, 0, 0);
+      return c;
+    }
+
+    while (p.i < data.length) {
+      const b = u8();
+      if (b === 0x3b) break;
+      if (b === 0x21) {
+        const label = u8();
+        if (label === 0xf9) {
+          u8();
+          const flags = u8();
+          delay = u16();
+          if (delay < 2) delay = 10;
+          const ti = u8();
+          u8();
+          tIdx = flags & 1 ? ti : -1;
+          disposal = (flags >> 2) & 7;
+        } else {
+          gifSkipSubBlocks(data, p);
+        }
+        continue;
+      }
+      if (b !== 0x2c) break;
+      const left = u16();
+      const top = u16();
+      const fw = u16();
+      const fh = u16();
+      const ip = u8();
+      let ct = gct;
+      if (ip & 0x80) {
+        const n = 2 << (ip & 7);
+        ct = data.subarray(p.i, p.i + n * 3);
+        p.i += n * 3;
+      }
+      if (!ct) break;
+      const minCode = u8();
+      const idx = gifLzw(minCode, gifReadSubBlocks(data, p));
+      if (disposal === 3) restore = snap();
+      const img = wctx.createImageData(fw, fh);
+      const px = img.data;
+      const rows = [];
+      if (ip & 0x40) {
+        for (let r = 0; r < fh; r += 8) rows.push(r);
+        for (let r = 4; r < fh; r += 8) rows.push(r);
+        for (let r = 2; r < fh; r += 4) rows.push(r);
+        for (let r = 1; r < fh; r += 2) rows.push(r);
+      } else {
+        for (let r = 0; r < fh; r++) rows.push(r);
+      }
+      let k = 0;
+      for (let ri = 0; ri < rows.length; ri++) {
+        const y = rows[ri];
+        for (let x = 0; x < fw; x++) {
+          const ci = idx[k++];
+          if (ci === undefined || ci === tIdx) continue;
+          const po = (y * fw + x) * 4;
+          const co = ci * 3;
+          px[po] = ct[co];
+          px[po + 1] = ct[co + 1];
+          px[po + 2] = ct[co + 2];
+          px[po + 3] = 255;
+        }
+      }
+      const tmp = document.createElement("canvas");
+      tmp.width = fw;
+      tmp.height = fh;
+      tmp.getContext("2d").putImageData(img, 0, 0);
+      wctx.drawImage(tmp, left, top);
+      frames.push(snap());
+      delays.push(delay * 10);
+      if (disposal === 2) wctx.clearRect(left, top, fw, fh);
+      else if (disposal === 3 && restore) {
+        wctx.clearRect(0, 0, width, height);
+        wctx.drawImage(restore, 0, 0);
+      }
+      delay = 10;
+      tIdx = -1;
+      disposal = 0;
+    }
+    if (!frames.length) return null;
+    let totalMs = 0;
+    for (let i = 0; i < delays.length; i++) totalMs += delays[i];
+    return { frames: frames, delays: delays, totalMs: totalMs || frames.length * 100 };
+  }
+
+  async function decodeGifAnim(src) {
+    try {
+      const res = await fetch(src);
+      if (!res.ok) return null;
+      const buffer = await res.arrayBuffer();
+      if (typeof ImageDecoder === "function") {
+        try {
+          const decoder = new ImageDecoder({ data: buffer, type: "image/gif" });
+          if (decoder.tracks && decoder.tracks.ready) await decoder.tracks.ready;
+          const track = decoder.tracks && decoder.tracks.selectedTrack;
+          const n = track && track.frameCount ? track.frameCount : 0;
+          const frames = [];
+          const delays = [];
+          for (let i = 0; i < n; i++) {
+            const result = await decoder.decode({ frameIndex: i });
+            const bmp = result.image;
+            const c = document.createElement("canvas");
+            c.width = bmp.displayWidth || bmp.width;
+            c.height = bmp.displayHeight || bmp.height;
+            const x = c.getContext("2d");
+            x.imageSmoothingEnabled = false;
+            x.drawImage(bmp, 0, 0);
+            if (bmp.close) bmp.close();
+            frames.push(c);
+            delays.push(Math.max(20, Math.round((result.duration || 100000) / 1000)));
+          }
+          if (decoder.close) decoder.close();
+          if (frames.length) {
+            let totalMs = 0;
+            for (let i = 0; i < delays.length; i++) totalMs += delays[i];
+            return { frames: frames, delays: delays, totalMs: totalMs || frames.length * 100 };
+          }
+        } catch (e) {}
+      }
+      return decodeGifBytes(buffer);
+    } catch (e) {
+      return null;
+    }
+  }
+
   async function loadAssets() {
     const images = {};
     const entries = Object.entries(ASSET_PATHS);
@@ -159,18 +534,34 @@
       })
     );
     images.skins = [];
+    images.skinGifs = [];
     for (const skin of SKINS) {
       const img = await loadImage(skin.src);
-      if (/\.gif$/i.test(skin.src) && img && document.body) {
-        img.className = "skin-gif-hold";
-        img.setAttribute("aria-hidden", "true");
-        document.body.appendChild(img);
-      }
       images.skins[skin.id] = img;
+      if (/\.gif$/i.test(skin.src)) {
+        const anim = await decodeGifAnim(skin.src);
+        if (anim) images.skinGifs[skin.id] = anim;
+      }
+    }
+    images.skinAnims = [];
+    for (const skin of SKINS) {
+      if (skin.anim && skin.anim.src) {
+        try {
+          images.skinAnims[skin.id] = await loadImage(skin.anim.src);
+        } catch (e) {}
+      }
     }
     ["coin10", "coin50", "coin100", "coin500"].forEach(function (k) {
       if (images[k]) images[k] = knockOutBlack(images[k]);
     });
+    images.ultra = {};
+    await Promise.all(
+      Object.entries(ULTRA_ASSET_PATHS).map(async function ([key, src]) {
+        try {
+          images.ultra[key] = await loadImage(src);
+        } catch (e) {}
+      })
+    );
     return images;
   }
 
@@ -849,6 +1240,48 @@
       .filter(Boolean);
   }
 
+  // Moving platforms: { c, r, path: [[dc,dr],...], speed, loop }
+  // path offsets are in tiles relative to (c,r). loop=true cycles
+  // around the waypoints forever; loop=false ping-pongs. Empty path
+  // (or missing entry) = static solid platform tile.
+  function sanitizePlatforms(raw) {
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .map((t) => {
+        if (!t || typeof t !== "object") return null;
+        const path = [];
+        if (Array.isArray(t.path)) {
+          for (const a of t.path.slice(0, 8)) {
+            if (Array.isArray(a)) {
+              path.push([
+                clamp(a[0] | 0, -200, 200),
+                clamp(a[1] | 0, -200, 200),
+              ]);
+            }
+          }
+        }
+        return {
+          c: t.c | 0,
+          r: t.r | 0,
+          path: path,
+          speed: clamp(Number(t.speed) || 3, 1, 20),
+          loop: t.loop === false ? false : true,
+        };
+      })
+      .filter(Boolean)
+      .slice(0, 64);
+  }
+
+  // 45° slope surface: world Y of the walkable face at world X.
+  // slopeL (/) rises to the right, slopeR (\) rises to the left.
+  function slopeSurfaceY(c, r, id, tile, x) {
+    const tx = c * TILE + tileOx(tile);
+    const ty = r * TILE + tileOy(tile);
+    const lx = clamp(x - tx, 0, TILE);
+    if (id === "slopeL") return ty + (TILE - lx);
+    return ty + lx;
+  }
+
   class Level {
     constructor(opts) {
       opts = opts || {};
@@ -864,6 +1297,7 @@
       this.pictures = asList(opts.pictures).map(sanitizePicture).filter(Boolean).slice(0, MAX_PICTURES);
       this.widgets = asList(opts.widgets).map(sanitizeWidget).filter(Boolean).slice(0, MAX_WIDGETS);
       this.triggers = sanitizeTriggers(opts.triggers);
+      this.platforms = sanitizePlatforms(opts.platforms);
       this.song = sanitizeSong(opts.song);
       this.meta = Object.assign(
         {
@@ -911,7 +1345,7 @@
     }
 
     counts() {
-      const out = { brick: 0, ibrick: 0, fbrick: 0, spike: 0, ispike: 0, fspike: 0, goal: 0, igoal: 0, orb: 0, iorb: 0, pad: 0, dash: 0, coin10: 0, coin50: 0, coin100: 0, coin500: 0, empty: 0, labels: 0, pictures: 0, widgets: 0 };
+      const out = { brick: 0, ibrick: 0, fbrick: 0, spike: 0, ispike: 0, fspike: 0, goal: 0, igoal: 0, orb: 0, iorb: 0, pad: 0, dash: 0, coin10: 0, coin50: 0, coin100: 0, coin500: 0, slopeL: 0, slopeR: 0, platform: 0, portalA: 0, portalB: 0, gravOrb: 0, water: 0, lava: 0, empty: 0, labels: 0, pictures: 0, widgets: 0 };
       for (let r = 0; r < this.rows; r++) {
         for (let c = 0; c < this.cols; c++) {
           const t = this.grid[r][c];
@@ -1002,6 +1436,11 @@
         t.areas = (t.areas || []).map((a) => [a[0] + shiftC, a[1] + shiftR]);
       });
       this.triggers = (this.triggers || []).filter((t) => this.inBounds(t.tc, t.tr));
+      (this.platforms || []).forEach((t) => {
+        t.c += shiftC;
+        t.r += shiftR;
+      });
+      this.platforms = (this.platforms || []).filter((t) => this.inBounds(t.c, t.r));
       return {
         left: shiftC,
         right: actualRight,
@@ -1056,6 +1495,7 @@
         })),
         gameplay: Object.assign({}, this.gameplay),
         triggers: JSON.parse(JSON.stringify(this.triggers)),
+        platforms: JSON.parse(JSON.stringify(this.platforms || [])),
         song: this.song || "",
         theme: Object.assign({}, this.theme),
         meta: Object.assign({}, this.meta, { updatedAt: new Date().toISOString() }),
@@ -1086,6 +1526,7 @@
         pictures: asList(data.pictures),
         widgets: asList(data.widgets),
         triggers: data.triggers,
+        platforms: data.platforms,
         song: data.song,
       });
       const tiles = Array.isArray(data.tiles) ? data.tiles : [];
@@ -1118,6 +1559,13 @@
 
   const PLAYER_W = 24;
   const PLAYER_H = 24;
+
+  const TRAILS = {
+    sparkle: { rate: 40, life: [0.3, 0.6], size: [2, 4], vx: [-20, 20], vy: [-30, -70], colors: ["#ffffff", "#ffd23c", "#fff3c2"], grav: 60, drag: 1.5 },
+    bubbles: { rate: 22, life: [0.5, 1.0], size: [2, 5], vx: [-15, 15], vy: [-60, -110], colors: ["#2ee6ff", "#9beaff", "#ffffff"], grav: -40, drag: 1.2, ring: true },
+    fire: { rate: 55, life: [0.25, 0.5], size: [3, 6], vx: [-25, 25], vy: [-40, -100], colors: ["#ff5a1a", "#ff9d2e", "#ffd23c"], grav: -120, drag: 1.8 },
+    rainbow: { rate: 50, life: [0.35, 0.7], size: [2, 5], vx: [-30, 30], vy: [-20, -60], colors: ["#ffffff"], grav: 30, drag: 1.5, rainbow: true },
+  };
 
   function solidBox(c, r, tile) {
     return { x: cellX(c, tile), y: cellY(r, tile), w: TILE, h: TILE };
@@ -1175,15 +1623,21 @@
     constructor(level, opts) {
       this.source = level;
       this.skin = clamp((opts && opts.skin) | 0, 1, Math.max(1, SKINS.length));
+      this.trail = (opts && opts.trail) || "";
+      if (!TRAILS[this.trail]) this.trail = "";
+      this.trailParts = [];
+      this.trailTick = 0;
+      this.trailHue = 0;
       this.touched = new Set();
       this.collected = new Set();
       this.checkpoint = null;
+      this.pendingJumps = 0;
       this.pendingCoinGrant = 0;
       this.reset();
     }
 
-    reset() {
-      const keepTime = this.checkpoint ? this.time : 0;
+    reset(opts) {
+      const keepTime = ((opts && opts.keepTime) || this.checkpoint) ? (this.time || 0) : 0;
       this.level = this.source.clone();
       let p;
       if (this.checkpoint) {
@@ -1220,8 +1674,18 @@
       this.orbFlash = 0;
       this.padFlash = 0;
       this.dashFlash = 0;
+      this.portalFlash = 0;
+      this.gravFlash = 0;
+      this.gravDir = 1;
+      this.portalCd = 0;
+      this.inWater = false;
+      this.groundSlope = null;
+      this.wasSlope = null;
       this.finished = false;
       this.movers = [];
+      this.plats = [];
+      this.trailParts = [];
+      this.trailTick = 0;
       const triggers = this.level.triggers || [];
       for (const tg of triggers) {
         let ty = tg.tr;
@@ -1249,6 +1713,41 @@
         });
         this.level.set(tg.tc, ty, null);
       }
+      // Looping waypoint platforms: lift the platform tile out of the
+      // grid and drive it along its path. How to author: place a
+      // "platform" tile, then add a platforms entry:
+      // { c, r, path: [[dx,dy],[dx,dy]...], speed: 3, loop: true }
+      // path offsets are tiles from (c,r). loop=true cycles the route,
+      // loop=false ping-pongs. See sanitizePlatforms.
+      const platDefs = this.level.platforms || [];
+      for (const def of platDefs) {
+        let tile = this.level.get(def.c, def.r);
+        if (!tile || tile.id !== "platform") {
+          // tolerate: search 1 below (platform sitting on floor edge)
+          tile = this.level.get(def.c, def.r + 1);
+          if (!tile || tile.id !== "platform") continue;
+          def.r = def.r + 1;
+        }
+        const ox = def.c * TILE + tileOx(tile);
+        const oy = def.r * TILE + tileOy(tile);
+        const pts = [{ x: ox, y: oy }];
+        for (const off of def.path || []) {
+          pts.push({ x: (def.c + off[0]) * TILE, y: (def.r + off[1]) * TILE });
+        }
+        this.plats.push({
+          def: def,
+          tile: packTile(tile),
+          pts: pts,
+          seg: 0,
+          dir: 1,
+          x: ox,
+          y: oy,
+          speed: (def.speed || 3) * 120,
+        });
+        this.level.set(def.c, def.r, null);
+      }
+      // Standalone platform tiles with no platforms entry stay put as
+      // static solid ground (handled by normal tile collision).
     }
 
     clearCheckpoint() {
@@ -1291,14 +1790,20 @@
       for (const { tile, c, r } of hits) {
         const type = TILE_TYPES[tile.id];
         if (!type || !type.solid) continue;
+        if (isSlopeId(tile.id)) continue; // slopes use resolveSlopes, not AABB
         solids.push(solidBox(c, r, tile));
       }
       for (const m of this.movers || []) {
         if (m.done) continue;
         const type = TILE_TYPES[m.tile.id];
         if (!type || !type.solid) continue;
+        if (isSlopeId(m.tile.id)) continue;
         solids.push({ x: m.x, y: m.y, w: TILE, h: TILE });
       }
+      for (const pl of this.plats || []) {
+        solids.push({ x: pl.x, y: pl.y, w: TILE, h: TILE });
+      }
+      const gravDown = (this.gravDir || 1) > 0;
       for (const s of solids) {
         if (!aabbOverlap(box, s)) continue;
         if (axis === "x") {
@@ -1312,24 +1817,174 @@
           p.vx = 0;
           box.x = p.x;
         } else {
-          if (p.vy > 0) {
-            p.y = s.y - p.h;
-            p.onGround = true;
-          } else if (p.vy < 0) {
-            p.y = s.y + s.h;
-          } else {
-            const dt = box.y + box.h - s.y;
-            const db = s.y + s.h - box.y;
-            if (dt < db) {
+          if (gravDown) {
+            if (p.vy > 0) {
               p.y = s.y - p.h;
               p.onGround = true;
-            } else {
+            } else if (p.vy < 0) {
               p.y = s.y + s.h;
+            } else {
+              const dt = box.y + box.h - s.y;
+              const db = s.y + s.h - box.y;
+              if (dt < db) {
+                p.y = s.y - p.h;
+                p.onGround = true;
+              } else {
+                p.y = s.y + s.h;
+              }
+            }
+          } else {
+            // flipped gravity: the ceiling is the floor
+            if (p.vy < 0) {
+              p.y = s.y + s.h;
+              p.onGround = true;
+            } else if (p.vy > 0) {
+              p.y = s.y - p.h;
+            } else {
+              const dt = box.y + box.h - s.y;
+              const db = s.y + s.h - box.y;
+              if (db < dt) {
+                p.y = s.y + s.h;
+                p.onGround = true;
+              } else {
+                p.y = s.y - p.h;
+              }
             }
           }
           p.vy = 0;
           box.y = p.y;
         }
+      }
+    }
+
+    resolveSlopes() {
+      // 45° slopes: snap feet to the diagonal face, slide downhill
+      // when idle, and let speed carry into a launch off the lip
+      // (handled in update via wasSlope).
+      const p = this.player;
+      if (this.dead || this.won) return;
+      if ((this.gravDir || 1) < 0) return; // slopes are ground-only for now
+      if (p.vy < -50) return; // moving up fast: don't stick
+      const box = this.playerBox();
+      const hits = this.nearbyTiles(box.x, box.y, box.w, box.h, 2);
+      const cx = p.x + p.w / 2;
+      let best = null;
+      for (const { tile, c, r } of hits) {
+        if (!isSlopeId(tile.id)) continue;
+        const tx = c * TILE + tileOx(tile);
+        if (cx < tx - 2 || cx > tx + TILE + 2) continue;
+        const surf = slopeSurfaceY(c, r, tile.id, tile, cx);
+        const feet = p.y + p.h;
+        // land when feet penetrate the face but the head is above it
+        if (feet >= surf - 2 && feet <= surf + TILE && p.y < surf) {
+          if (!best || surf < best.surf) best = { surf: surf, id: tile.id };
+        }
+      }
+      // moving waypoint platforms with slope tiles behave the same
+      for (const m of this.movers || []) {
+        if (m.done || !isSlopeId(m.tile.id)) continue;
+        const mc = m.x / TILE;
+        const mr = m.y / TILE;
+        const tx = m.x;
+        if (cx < tx - 2 || cx > tx + TILE + 2) continue;
+        const lx = clamp(cx - tx, 0, TILE);
+        const surf = (m.tile.id === "slopeL" ? m.y + (TILE - lx) : m.y + lx);
+        const feet = p.y + p.h;
+        if (feet >= surf - 2 && feet <= surf + TILE && p.y < surf) {
+          if (!best || surf < best.surf) best = { surf: surf, id: m.tile.id };
+        }
+      }
+      if (best && p.vy >= 0) {
+        p.y = best.surf - p.h;
+        p.vy = 0;
+        p.onGround = true;
+        this.groundSlope = best.id;
+      }
+    }
+
+    updatePlats(dt) {
+      if (!this.plats || !this.plats.length || this.dead || this.won) return;
+      const p = this.player;
+      const pb = { x: p.x, y: p.y, w: p.w, h: p.h };
+      for (const pl of this.plats) {
+        if (!pl.pts || pl.pts.length < 2) continue;
+        let target = pl.pts[pl.seg + pl.dir];
+        if (!target) {
+          if (pl.def.loop) {
+            // cycle: last -> first
+            target = pl.pts[0];
+            const dx0 = target.x - pl.x;
+            const dy0 = target.y - pl.y;
+            const d0 = Math.hypot(dx0, dy0);
+            if (d0 < 1) {
+              pl.seg = 0;
+              pl.dir = 1;
+              continue;
+            }
+          } else {
+            pl.dir *= -1;
+            target = pl.pts[pl.seg + pl.dir];
+            if (!target) continue;
+          }
+        }
+        const dx = target.x - pl.x;
+        const dy = target.y - pl.y;
+        const dist = Math.hypot(dx, dy);
+        const step = pl.speed * dt;
+        let nx = pl.x;
+        let ny = pl.y;
+        if (dist <= step) {
+          nx = target.x;
+          ny = target.y;
+          pl.seg += pl.dir;
+          if (pl.def.loop) {
+            if (pl.seg >= pl.pts.length - 1) {
+              // head back to start to close the loop
+              pl.seg = pl.pts.length - 1;
+              pl.dir = -99; // sentinel: next target is pts[0]
+            } else if (pl.dir === -99) {
+              pl.seg = 0;
+              pl.dir = 1;
+            }
+          } else {
+            if (pl.seg >= pl.pts.length - 1) {
+              pl.seg = pl.pts.length - 1;
+              pl.dir = -1;
+            } else if (pl.seg < 0) {
+              pl.seg = 0;
+              pl.dir = 1;
+            }
+          }
+        } else if (dist > 0) {
+          nx = pl.x + (dx / dist) * step;
+          ny = pl.y + (dy / dist) * step;
+        }
+        const mdx = nx - pl.x;
+        const mdy = ny - pl.y;
+        if (mdx || mdy) {
+          // carry the cube when standing on top (6px grace)
+          const ride = { x: pl.x, y: pl.y - 6, w: TILE, h: TILE + 6 };
+          if (aabbOverlap(pb, ride)) {
+            p.x += mdx;
+            p.y += mdy;
+            pb.x = p.x;
+            pb.y = p.y;
+          } else {
+            // shove the cube out if the platform runs into it sideways
+            const platBox = { x: nx, y: ny, w: TILE, h: TILE };
+            if (aabbOverlap(pb, platBox)) {
+              if (Math.abs(mdx) >= Math.abs(mdy)) {
+                p.x = mdx > 0 ? nx - p.w : nx + TILE;
+                pb.x = p.x;
+              } else {
+                p.y = mdy > 0 ? ny - p.h : ny + TILE;
+                pb.y = p.y;
+              }
+            }
+          }
+        }
+        pl.x = nx;
+        pl.y = ny;
       }
     }
 
@@ -1396,6 +2051,13 @@
         if (type && type.hazard) {
           if (aabbOverlap(box, spikeBox(c, r, tile.rot || 0, tile))) {
             this.kill("spike");
+            return;
+          }
+        } else if (isLavaId(tile.id)) {
+          // lava: insta-die on any real touch (6px forgiveness)
+          const lb = { x: cellX(c, tile) + 6, y: cellY(r, tile) + 8, w: TILE - 12, h: TILE - 8 };
+          if (aabbOverlap(box, lb)) {
+            this.kill("lava");
             return;
           }
         } else if (isGoalId(tile.id)) {
@@ -1476,7 +2138,7 @@
         this.orbTouch = 0.12;
         if (this.buffer > 0 && !this.dead && !this.won) {
           const g = this.level.gameplay;
-          p.vy = -g.jumpForce * 1.15;
+          p.vy = -g.jumpForce * 1.15 * (this.gravDir || 1);
           p.jumping = true;
           p.onGround = false;
           this.buffer = 0;
@@ -1499,8 +2161,8 @@
         if (!aabbOverlap(box, b)) continue;
         if (this.padFlash > 0 || this.dead || this.won) return;
         const g = this.level.gameplay;
-        p.vy = -g.jumpForce * 1.45;
-        p.vy = Math.max(p.vy, -g.maxFall * 1.6);
+        p.vy = -g.jumpForce * 1.45 * (this.gravDir || 1);
+        p.vy = (this.gravDir || 1) > 0 ? Math.max(p.vy, -g.maxFall * 1.6) : Math.min(p.vy, g.maxFall * 1.6);
         p.jumping = true;
         p.onGround = false;
         this.buffer = 0;
@@ -1534,6 +2196,85 @@
       }
     }
 
+    checkPortals() {
+      // Portal pair: touch A -> appear at B (and reverse), velocity kept.
+      // Pairs match by type: nearest opposite portal wins. Cooldown
+      // stops instant bounce-back.
+      if (this.dead || this.won || this.portalCd > 0) return;
+      const p = this.player;
+      const box = this.playerBox();
+      const hits = this.nearbyTiles(box.x, box.y, box.w, box.h, 2);
+      let touched = null;
+      for (const { tile, c, r } of hits) {
+        if (!isPortalId(tile.id)) continue;
+        if (aabbOverlap(box, dashBox(c, r, tile))) {
+          touched = { tile: tile, c: c, r: r };
+          break;
+        }
+      }
+      if (!touched) return;
+      const want = touched.tile.id === "portalA" ? "portalB" : "portalA";
+      let best = null;
+      let bestD = Infinity;
+      this.level.forEachTile((t, c, r) => {
+        if (t.id !== want) return;
+        if (c === touched.c && r === touched.r) return;
+        const d = Math.abs(c - touched.c) + Math.abs(r - touched.r);
+        if (d < bestD) {
+          bestD = d;
+          best = { c: c, r: r, tile: t };
+        }
+      });
+      if (!best) return;
+      p.x = best.c * TILE + tileOx(best.tile) + (TILE - p.w) / 2;
+      p.y = best.r * TILE + tileOy(best.tile) + (TILE - p.h) / 2;
+      this.portalCd = 0.5;
+      this.portalFlash = 0.3;
+    }
+
+    checkGravOrbs() {
+      // Gravity orb: press jump while touching to flip up/down.
+      const p = this.player;
+      const box = this.playerBox();
+      const hits = this.nearbyTiles(box.x, box.y, box.w, box.h, 2);
+      const orbs = hits.filter(({ tile }) => isGravOrbId(tile.id)).map(({ c, r, tile }) => orbBox(c, r, tile));
+      for (const b of orbs) {
+        if (!aabbOverlap(box, b)) continue;
+        if (this.buffer > 0 && !this.dead && !this.won) {
+          this.gravDir = (this.gravDir || 1) > 0 ? -1 : 1;
+          p.vy = 0;
+          p.onGround = false;
+          p.jumping = false;
+          this.buffer = 0;
+          this.coyote = 0;
+          this.gravFlash = 0.3;
+        }
+        return;
+      }
+    }
+
+    checkLiquids() {
+      // Water: slow sink + buoyancy/swim. Lava: handled in
+      // checkTriggers (insta-die). Sets this.inWater for physics.
+      if (this.dead || this.won) {
+        this.inWater = false;
+        return;
+      }
+      const box = this.playerBox();
+      const hits = this.nearbyTiles(box.x, box.y, box.w, box.h, 2);
+      const cx = box.x + box.w / 2;
+      const cy = box.y + box.h / 2;
+      this.inWater = false;
+      for (const { tile, c, r } of hits) {
+        if (tile.id !== "water") continue;
+        const wb = { x: cellX(c, tile) + 3, y: cellY(r, tile) + 10, w: TILE - 6, h: TILE - 10 };
+        if (cx >= wb.x && cx <= wb.x + wb.w && cy >= wb.y && cy <= wb.y + wb.h) {
+          this.inWater = true;
+          break;
+        }
+      }
+    }
+
     kill(reason) {
       if (this.dead || this.won) return;
       this.dead = true;
@@ -1557,6 +2298,9 @@
       if (this.orbFlash > 0) this.orbFlash = Math.max(0, this.orbFlash - dt);
       if (this.padFlash > 0) this.padFlash = Math.max(0, this.padFlash - dt);
       if (this.dashFlash > 0) this.dashFlash = Math.max(0, this.dashFlash - dt);
+      if (this.portalFlash > 0) this.portalFlash = Math.max(0, this.portalFlash - dt);
+      if (this.gravFlash > 0) this.gravFlash = Math.max(0, this.gravFlash - dt);
+      if (this.portalCd > 0) this.portalCd = Math.max(0, this.portalCd - dt);
 
       if (this.dead) {
         this.deathTimer += dt;
@@ -1592,38 +2336,85 @@
         p.vx += wish * accel * dt;
         p.vx = clamp(p.vx, -g.moveSpeed, g.moveSpeed);
       } else if (p.onGround) {
-        const mag = Math.abs(p.vx);
-        const next = mag - g.friction * dt;
-        p.vx = next <= 0 ? 0 : Math.sign(p.vx) * next;
+        if (this.groundSlope) {
+          // slide downhill on 45° slopes when no input:
+          // slopeL (/) falls left, slopeR (\) falls right
+          const dir = this.groundSlope === "slopeL" ? -1 : 1;
+          p.vx += dir * 1400 * dt;
+          p.vx = clamp(p.vx, -g.moveSpeed, g.moveSpeed);
+        } else {
+          const mag = Math.abs(p.vx);
+          const next = mag - g.friction * dt;
+          p.vx = next <= 0 ? 0 : Math.sign(p.vx) * next;
+        }
       } else {
         p.vx *= 1 - Math.min(1, 1.6 * dt);
       }
 
-      p.vy += g.gravity * dt;
-      if (p.vy > g.maxFall) p.vy = g.maxFall;
+      const gd = this.gravDir || 1;
+      this.checkLiquids();
+      if (this.inWater) {
+        // slow sink + buoyancy: weak gravity, capped fall, swim on hold
+        p.vy += g.gravity * 0.32 * dt;
+        if (jumpDown) p.vy -= g.gravity * 1.15 * dt;
+        const cap = 170;
+        if (p.vy > cap) p.vy = cap;
+        if (p.vy < -300) p.vy = -300;
+        p.vx *= 1 - Math.min(1, 2.2 * dt);
+      } else {
+        p.vy += g.gravity * gd * dt;
+        if (gd > 0) {
+          if (p.vy > g.maxFall) p.vy = g.maxFall;
+        } else {
+          if (p.vy < -g.maxFall) p.vy = -g.maxFall;
+        }
+      }
 
       if (p.onGround) this.coyote = g.coyoteMs / 1000;
       else this.coyote = Math.max(0, this.coyote - dt);
 
       if (this.buffer > 0 && this.coyote > 0) {
-        p.vy = -g.jumpForce;
+        p.vy = -g.jumpForce * gd;
+        if (this.inWater) p.vy *= 0.62;
+        // slope launch: jumping while running up a 45° face keeps
+        // the run-up as an angled boost
+        if (this.groundSlope) p.vx *= 1.08;
         p.onGround = false;
         this.coyote = 0;
         this.buffer = 0;
         p.jumping = true;
+        this.pendingJumps = (this.pendingJumps || 0) + 1;
       }
 
-      if (p.jumping && !jumpDown && p.vy < 0) {
-        p.vy *= g.jumpCut;
-        p.jumping = false;
+      if (gd > 0) {
+        if (p.jumping && !jumpDown && p.vy < 0) {
+          p.vy *= g.jumpCut;
+          p.jumping = false;
+        }
+        if (p.vy >= 0) p.jumping = false;
+      } else {
+        if (p.jumping && !jumpDown && p.vy > 0) {
+          p.vy *= g.jumpCut;
+          p.jumping = false;
+        }
+        if (p.vy <= 0) p.jumping = false;
       }
-      if (p.vy >= 0) p.jumping = false;
 
+      this.wasSlope = this.groundSlope;
+      const wasVx = p.vx;
       p.onGround = false;
+      this.groundSlope = null;
       p.x += p.vx * dt;
       this.resolveAxis("x");
       p.y += p.vy * dt;
       this.resolveAxis("y");
+      this.resolveSlopes();
+      if (!p.onGround && this.wasSlope && this.portalCd <= 0) {
+        // ran off a slope lip at speed: convert run-up into launch
+        // angle instead of just dropping flat
+        if (this.wasSlope === "slopeL" && wasVx > 220) p.vy = Math.min(p.vy, -wasVx * 0.42);
+        else if (this.wasSlope === "slopeR" && wasVx < -220) p.vy = Math.min(p.vy, wasVx * 0.42);
+      }
 
       if (p.x < 0) {
         p.x = 0;
@@ -1642,13 +2433,778 @@
       if (!p.onGround) p.rot += p.facing * 220 * dt;
 
       this.checkOrbs();
+      this.checkGravOrbs();
       this.checkPads();
       this.checkDashes();
+      this.checkPortals();
       this.checkCheckpoints();
       this.checkCoins();
       this.updateMovers(dt);
+      this.updatePlats(dt);
       this.checkTriggers();
+      this.tickTrail(dt);
     }
+
+    tickTrail(dt) {
+      const parts = this.trailParts;
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const q = parts[i];
+        q.life -= dt;
+        if (q.life <= 0) {
+          parts.splice(i, 1);
+          continue;
+        }
+        q.vy += (q.grav || 0) * dt;
+        const dr = Math.max(0, 1 - (q.drag || 0) * dt);
+        q.vx *= dr;
+        q.x += q.vx * dt;
+        q.y += q.vy * dt;
+      }
+      const spec = TRAILS[this.trail];
+      if (!spec) return;
+      const p = this.player;
+      const moving = Math.abs(p.vx) > 30 || Math.abs(p.vy) > 60 || !p.onGround;
+      if (!moving) return;
+      this.trailTick += dt;
+      const interval = 1 / (spec.rate || 30);
+      while (this.trailTick >= interval) {
+        this.trailTick -= interval;
+        if (parts.length >= 220) return;
+        const r = Math.random;
+        const life = spec.life[0] + r() * (spec.life[1] - spec.life[0]);
+        let color = spec.colors[(r() * spec.colors.length) | 0];
+        if (spec.rainbow) {
+          this.trailHue = (this.trailHue + 24) % 360;
+          color = "hsl(" + ((this.trailHue | 0) % 360) + ",100%,62%)";
+        }
+        parts.push({
+          x: p.x + p.w / 2 - Math.sign(p.vx || p.facing || 1) * 8 + (r() - 0.5) * p.w,
+          y: p.y + p.h - r() * 8,
+          vx: (spec.vx ? spec.vx[0] + r() * (spec.vx[1] - spec.vx[0]) : 0) - (p.vx || 0) * 0.15,
+          vy: spec.vy ? spec.vy[0] + r() * (spec.vy[1] - spec.vy[0]) : 0,
+          life: life,
+          max: life,
+          size: spec.size[0] + r() * (spec.size[1] - spec.size[0]),
+          color: color,
+          grav: spec.grav || 0,
+          drag: spec.drag || 0,
+          ring: !!spec.ring,
+        });
+      }
+    }
+  }
+
+  function spikePoly(ctx, x, y, size, rot) {
+    ctx.translate(x + size / 2, y + size / 2);
+    ctx.rotate(((rot || 0) * Math.PI) / 180);
+    ctx.beginPath();
+    ctx.moveTo(0, -size * 0.46);
+    ctx.lineTo(size * 0.44, size * 0.42);
+    ctx.lineTo(-size * 0.44, size * 0.42);
+    ctx.closePath();
+  }
+
+  function simpleTileColor(tile) {
+    if (isSpikeId(tile.id)) return "#ff4d62";
+    if (isOrbId(tile.id)) return "#3ee07a";
+    if (isGravOrbId(tile.id)) return "#b45cff";
+    if (tile.id === "pad") return "#2ee6ff";
+    if (tile.id === "dash") return "#ff9a1f";
+    if (isPortalId(tile.id)) return tile.id === "portalA" ? "#2e7bff" : "#ff7b2e";
+    if (isGoalId(tile.id)) return "#ffd23c";
+    if (tile.id === "checkpoint") return "#3ee07a";
+    if (tile.id === "water") return "#3e8cff";
+    if (tile.id === "lava") return "#ff4d1a";
+    if (tile.id === "platform") return "#aab4c8";
+    if (isSlopeId(tile.id)) return "#7d92b5";
+    if (tile.id === "grass" || tile.id === "igrass" || tile.id === "fgrass") return "#5fd68e";
+    if (isBrickId(tile.id)) return "#6b86b0";
+    return "#9db4d8";
+  }
+
+  function drawSimpleTile(ctx, tile, x, y, size, opts) {
+    opts = opts || {};
+    const rot = isSpikeId(tile.id) ? tile.rot || 0 : 0;
+    ctx.save();
+    if (isInvisibleId(tile.id)) ctx.globalAlpha *= 0.35;
+    ctx.fillStyle = simpleTileColor(tile);
+    if (isSpikeId(tile.id)) {
+      spikePoly(ctx, x, y, size, rot);
+      ctx.fill();
+    } else if (isSlopeId(tile.id)) {
+      // 45° triangle: slopeL (/) fills bottom-right, slopeR (\) bottom-left
+      ctx.beginPath();
+      if (tile.id === "slopeL") {
+        ctx.moveTo(x, y + size);
+        ctx.lineTo(x + size, y + size);
+        ctx.lineTo(x + size, y);
+      } else {
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y + size);
+        ctx.lineTo(x + size, y + size);
+      }
+      ctx.closePath();
+      ctx.fill();
+    } else if (isOrbId(tile.id) || isGravOrbId(tile.id) || isCoinId(tile.id)) {
+      ctx.beginPath();
+      ctx.arc(x + size / 2, y + size / 2, size * 0.38, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (isPortalId(tile.id)) {
+      ctx.beginPath();
+      ctx.ellipse(x + size / 2, y + size / 2, size * 0.3, size * 0.42, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (tile.id === "water" || tile.id === "lava") {
+      ctx.fillRect(x + 1, y + size * 0.3, size - 2, size * 0.7 - 1);
+    } else if (tile.id === "pad") {
+      ctx.fillRect(x + 2, y + size * 0.58, size - 4, size * 0.32);
+    } else {
+      ctx.fillRect(x + 1, y + 1, size - 2, size - 2);
+    }
+    ctx.restore();
+  }
+
+  // ---- DLLS 5 realistic tile textures (pre-rendered once, cached) ----
+  const REAL_SS = 4;
+  const realTileCache = {};
+
+  function realHash(i, s) {
+    let h = (Math.imul(i + 1, 374761393) + Math.imul(s, 668265263)) | 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  }
+
+  function realSpeckle(g, S, n, seed) {
+    for (let i = 0; i < n; i++) {
+      const rx = realHash(i, seed) * S;
+      const ry = realHash(i, seed + 101) * S;
+      const r = realHash(i, seed + 202);
+      g.fillStyle = r > 0.5 ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.12)";
+      const s2 = 1 + ((r * 3) | 0);
+      g.fillRect(rx, ry, s2, s2);
+    }
+  }
+
+  // Fine photographic grain over a rect.
+  function realGrain(g, x, y, w, h, n, seed, alpha) {
+    for (let i = 0; i < n; i++) {
+      const r = realHash(i, seed);
+      const r2 = realHash(i, seed + 311);
+      g.fillStyle = r > 0.5 ? "rgba(255,255,255," + alpha + ")" : "rgba(0,0,0," + alpha * 1.6 + ")";
+      g.fillRect(x + r2 * w, y + realHash(i, seed + 512) * h, 1.5, 1.5);
+    }
+  }
+
+  // Soft darkened corners for depth.
+  function realVignette(g, S, alpha) {
+    const v = g.createRadialGradient(S / 2, S / 2, S * 0.32, S / 2, S / 2, S * 0.75);
+    v.addColorStop(0, "rgba(0,0,0,0)");
+    v.addColorStop(1, "rgba(0,0,0," + alpha + ")");
+    g.fillStyle = v;
+    g.fillRect(0, 0, S, S);
+  }
+
+  function realRivet(g, x, y, r) {
+    const rg = g.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
+    rg.addColorStop(0, "#e8eef6");
+    rg.addColorStop(0.6, "#8a95a8");
+    rg.addColorStop(1, "#2b3342");
+    g.fillStyle = rg;
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fill();
+  }
+
+  const REAL_PAINT = {
+    brick(g, S) {
+      const u = S / 32;
+      // Four stone blocks with individual tones.
+      const courses = [
+        { x: 0, w: S / 2, tone: 0 },
+        { x: S / 2, w: S / 2, tone: 1 },
+        { x: -S / 4, w: S / 2, tone: 2 },
+        { x: S / 4, w: S / 2, tone: 3 },
+        { x: (3 * S) / 4, w: S / 2, tone: 0 },
+      ];
+      const tones = [
+        ["#525f82", "#3d4763", "#252c42"],
+        ["#49536f", "#37415c", "#20263a"],
+        ["#565f7e", "#404a66", "#262d44"],
+      ];
+      g.fillStyle = "#10141f";
+      g.fillRect(0, 0, S, S);
+      for (let i = 0; i < courses.length; i++) {
+        const c = courses[i];
+        const y0 = i < 2 ? 0 : S / 2;
+        const t = tones[(c.tone + i) % 3];
+        const bg = g.createLinearGradient(0, y0, 0, y0 + S / 2);
+        bg.addColorStop(0, t[0]);
+        bg.addColorStop(0.55, t[1]);
+        bg.addColorStop(1, t[2]);
+        g.fillStyle = bg;
+        const bx = Math.max(2, c.x + 2), bw = Math.min(S - 2, c.x + c.w - 2) - bx;
+        if (bw <= 0) continue;
+        g.fillRect(bx, y0 + 2, bw, S / 2 - 4);
+        // top bevel light, bottom inner shade
+        g.fillStyle = "rgba(255,255,255,0.20)";
+        g.fillRect(bx, y0 + 2, bw, 2 * u);
+        g.fillStyle = "rgba(0,0,0,0.30)";
+        g.fillRect(bx, y0 + S / 2 - 2 - 3 * u, bw, 3 * u);
+      }
+      // mortar cross lines
+      g.fillStyle = "#0d1119";
+      g.fillRect(0, S / 2 - u, S, 2 * u);
+      // cracks
+      g.strokeStyle = "rgba(8,10,16,0.8)";
+      g.lineWidth = 1.5;
+      for (let i = 0; i < 3; i++) {
+        let cx = realHash(i, 77) * S, cy = realHash(i, 78) * S;
+        g.beginPath();
+        g.moveTo(cx, cy);
+        for (let k = 0; k < 3; k++) {
+          cx += (realHash(i * 3 + k, 79) - 0.5) * S * 0.16;
+          cy += realHash(i * 3 + k, 80) * S * 0.1;
+          g.lineTo(cx, cy);
+        }
+        g.stroke();
+      }
+      realSpeckle(g, S, 130, 7);
+      realGrain(g, 0, 0, S, S, 130, 707, 0.05);
+      realVignette(g, S, 0.22);
+      g.strokeStyle = "#0b0e16";
+      g.lineWidth = 3;
+      g.strokeRect(1.5, 1.5, S - 3, S - 3);
+    },
+    spike(g, S) {
+      // base plate with brushed streaks
+      const plate = g.createLinearGradient(0, S * 0.74, 0, S);
+      plate.addColorStop(0, "#646f82");
+      plate.addColorStop(0.5, "#3d4657");
+      plate.addColorStop(1, "#232a38");
+      g.fillStyle = plate;
+      g.fillRect(S * 0.05, S * 0.76, S * 0.9, S * 0.2);
+      for (let i = 0; i < 8; i++) {
+        const yy = S * 0.78 + realHash(i, 91) * S * 0.16;
+        g.fillStyle = i % 2 ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.14)";
+        g.fillRect(S * 0.06, yy, S * 0.88, 1.5);
+      }
+      g.strokeStyle = "#121722";
+      g.lineWidth = 2.5;
+      g.strokeRect(S * 0.05, S * 0.76, S * 0.9, S * 0.2);
+      realRivet(g, S * 0.2, S * 0.86, S * 0.045);
+      realRivet(g, S * 0.8, S * 0.86, S * 0.045);
+      // blade shadow on plate
+      g.fillStyle = "rgba(0,0,0,0.4)";
+      g.beginPath();
+      g.moveTo(S * 0.3, S * 0.78);
+      g.lineTo(S * 0.5, S * 0.7);
+      g.lineTo(S * 0.7, S * 0.78);
+      g.closePath();
+      g.fill();
+      // blade: polished steel bands
+      const bx0 = S * 0.14, bx1 = S * 0.86, by = S * 0.78, apex = S * 0.05;
+      const steel = g.createLinearGradient(bx0, 0, bx1, 0);
+      steel.addColorStop(0, "#4e5a70");
+      steel.addColorStop(0.3, "#9aa5b8");
+      steel.addColorStop(0.46, "#eef3f9");
+      steel.addColorStop(0.54, "#fbfdff");
+      steel.addColorStop(0.7, "#98a3b6");
+      steel.addColorStop(1, "#495364");
+      g.fillStyle = steel;
+      g.beginPath();
+      g.moveTo(bx0, by);
+      g.lineTo(S * 0.5, apex);
+      g.lineTo(bx1, by);
+      g.closePath();
+      g.fill();
+      // brushed vertical streaks clipped to blade
+      g.save();
+      g.clip();
+      for (let i = 0; i < 12; i++) {
+        const sx = bx0 + (i / 11) * (bx1 - bx0);
+        g.fillStyle = i % 2 ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.08)";
+        g.fillRect(sx, apex, (bx1 - bx0) / 12, by - apex);
+      }
+      // diagonal specular sweep
+      const spec = g.createLinearGradient(bx0, by, S * 0.55, apex);
+      spec.addColorStop(0, "rgba(255,255,255,0)");
+      spec.addColorStop(0.5, "rgba(255,255,255,0.5)");
+      spec.addColorStop(1, "rgba(255,255,255,0)");
+      g.fillStyle = spec;
+      g.beginPath();
+      g.moveTo(bx0 + S * 0.04, by);
+      g.lineTo(S * 0.5, apex);
+      g.lineTo(S * 0.5 + S * 0.1, apex + S * 0.1);
+      g.lineTo(bx0 + S * 0.14, by);
+      g.closePath();
+      g.fill();
+      g.restore();
+      g.strokeStyle = "#161c28";
+      g.lineWidth = 3;
+      g.beginPath();
+      g.moveTo(bx0, by);
+      g.lineTo(S * 0.5, apex);
+      g.lineTo(bx1, by);
+      g.stroke();
+      // apex glint
+      g.fillStyle = "rgba(255,255,255,0.95)";
+      g.beginPath();
+      g.arc(S * 0.5, apex + S * 0.02, S * 0.018, 0, Math.PI * 2);
+      g.fill();
+    },
+    orb(g, S) {
+      const cx = S / 2, cy = S / 2, r = S * 0.3;
+      // halo
+      const glow = g.createRadialGradient(cx, cy, r * 0.3, cx, cy, S * 0.52);
+      glow.addColorStop(0, "rgba(62,224,122,0.45)");
+      glow.addColorStop(0.6, "rgba(62,224,122,0.14)");
+      glow.addColorStop(1, "rgba(62,224,122,0)");
+      g.fillStyle = glow;
+      g.fillRect(0, 0, S, S);
+      // glass body
+      const glass = g.createRadialGradient(cx - r * 0.35, cy - r * 0.42, r * 0.08, cx, cy, r);
+      glass.addColorStop(0, "#f4fff8");
+      glass.addColorStop(0.35, "#8ff0b4");
+      glass.addColorStop(0.72, "#1d9e52");
+      glass.addColorStop(1, "#07381b");
+      g.fillStyle = glass;
+      g.beginPath();
+      g.arc(cx, cy, r, 0, Math.PI * 2);
+      g.fill();
+      // inner swirl
+      g.strokeStyle = "rgba(234,255,246,0.5)";
+      g.lineWidth = S * 0.02;
+      g.beginPath();
+      g.arc(cx + r * 0.08, cy + r * 0.1, r * 0.52, Math.PI * 0.15, Math.PI * 0.85);
+      g.stroke();
+      // rim light: bright upper-left, dark lower-right
+      g.strokeStyle = "rgba(240,255,246,0.85)";
+      g.lineWidth = S * 0.022;
+      g.beginPath();
+      g.arc(cx, cy, r - S * 0.012, Math.PI * 0.95, Math.PI * 1.7);
+      g.stroke();
+      g.strokeStyle = "rgba(4,30,15,0.9)";
+      g.lineWidth = S * 0.03;
+      g.beginPath();
+      g.arc(cx, cy, r - S * 0.015, Math.PI * 0.1, Math.PI * 0.6);
+      g.stroke();
+      // speculars
+      g.fillStyle = "rgba(255,255,255,0.95)";
+      g.beginPath();
+      g.ellipse(cx - r * 0.36, cy - r * 0.42, r * 0.15, r * 0.1, -0.5, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = "rgba(255,255,255,0.55)";
+      g.beginPath();
+      g.arc(cx + r * 0.3, cy + r * 0.34, r * 0.06, 0, Math.PI * 2);
+      g.fill();
+      // micro bubbles trapped inside
+      g.fillStyle = "rgba(255,255,255,0.35)";
+      for (let i = 0; i < 4; i++) {
+        const a = realHash(i, 121) * Math.PI * 2;
+        const d = r * (0.3 + realHash(i, 122) * 0.4);
+        g.beginPath();
+        g.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d, 1.5 + realHash(i, 123) * 2, 0, Math.PI * 2);
+        g.fill();
+      }
+    },
+    pad(g, S) {
+      // steel base with brushed streaks
+      const base = g.createLinearGradient(0, S * 0.5, 0, S);
+      base.addColorStop(0, "#525c70");
+      base.addColorStop(0.5, "#333b4c");
+      base.addColorStop(1, "#1d2330");
+      g.fillStyle = base;
+      g.fillRect(S * 0.08, S * 0.52, S * 0.84, S * 0.42);
+      for (let i = 0; i < 6; i++) {
+        const yy = S * 0.55 + realHash(i, 131) * S * 0.36;
+        g.fillStyle = i % 2 ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.16)";
+        g.fillRect(S * 0.09, yy, S * 0.82, 1.5);
+      }
+      g.strokeStyle = "#10141d";
+      g.lineWidth = 2.5;
+      g.strokeRect(S * 0.08, S * 0.52, S * 0.84, S * 0.42);
+      realRivet(g, S * 0.15, S * 0.88, S * 0.04);
+      realRivet(g, S * 0.85, S * 0.88, S * 0.04);
+      // glowing side slits
+      g.fillStyle = "rgba(255,157,46,0.85)";
+      g.fillRect(S * 0.08, S * 0.62, S * 0.03, S * 0.2);
+      g.fillRect(S * 0.89, S * 0.62, S * 0.03, S * 0.2);
+      // springboard
+      const board = g.createLinearGradient(0, S * 0.2, 0, S * 0.5);
+      board.addColorStop(0, "#ffd98c");
+      board.addColorStop(0.45, "#ff9d2e");
+      board.addColorStop(1, "#a84a08");
+      g.fillStyle = board;
+      g.fillRect(S * 0.05, S * 0.24, S * 0.9, S * 0.26);
+      // chevrons with dark outline
+      for (let i = 0; i < 3; i++) {
+        const cxp = S * (0.25 + i * 0.25);
+        g.beginPath();
+        g.moveTo(cxp - S * 0.075, S * 0.455);
+        g.lineTo(cxp, S * 0.295);
+        g.lineTo(cxp + S * 0.075, S * 0.455);
+        g.lineTo(cxp + S * 0.075, S * 0.4);
+        g.lineTo(cxp, S * 0.25);
+        g.lineTo(cxp - S * 0.075, S * 0.4);
+        g.closePath();
+        g.fillStyle = "#5e2c05";
+        g.fill();
+        g.save();
+        g.translate(0, -S * 0.012);
+        g.fillStyle = "#ffe27a";
+        g.fill();
+        g.restore();
+      }
+      // glass top strip
+      g.fillStyle = "rgba(255,255,255,0.4)";
+      g.fillRect(S * 0.05, S * 0.24, S * 0.9, S * 0.035);
+      g.strokeStyle = "#4a2204";
+      g.lineWidth = 2.5;
+      g.strokeRect(S * 0.05, S * 0.24, S * 0.9, S * 0.26);
+    },
+    dash(g, S) {
+      // dark plate with circuit traces
+      const plate = g.createLinearGradient(0, 0, 0, S);
+      plate.addColorStop(0, "#1e2a46");
+      plate.addColorStop(1, "#090f22");
+      g.fillStyle = plate;
+      const m = S * 0.06;
+      g.beginPath();
+      if (g.roundRect) g.roundRect(m, m, S - 2 * m, S - 2 * m, S * 0.12);
+      else g.rect(m, m, S - 2 * m, S - 2 * m);
+      g.fill();
+      g.save();
+      g.clip();
+      g.strokeStyle = "rgba(46,230,255,0.16)";
+      g.lineWidth = 1.5;
+      for (let i = 0; i < 4; i++) {
+        const yy = S * (0.14 + i * 0.2);
+        g.beginPath();
+        g.moveTo(m, yy);
+        g.lineTo(m + S * 0.2, yy);
+        g.lineTo(m + S * 0.26, yy + S * 0.06);
+        g.lineTo(m + S * 0.5, yy + S * 0.06);
+        g.stroke();
+      }
+      realGrain(g, m, m, S - 2 * m, S - 2 * m, 60, 909, 0.05);
+      g.restore();
+      g.strokeStyle = "#0e3a44";
+      g.lineWidth = 2.5;
+      g.beginPath();
+      if (g.roundRect) g.roundRect(m, m, S - 2 * m, S - 2 * m, S * 0.12);
+      else g.rect(m, m, S - 2 * m, S - 2 * m);
+      g.stroke();
+      // energy chevrons: halo + core
+      function chev(ox, alpha, lw, col) {
+        g.strokeStyle = col.replace("A", alpha);
+        g.lineWidth = lw;
+        g.lineCap = "round";
+        g.lineJoin = "round";
+        g.beginPath();
+        g.moveTo(S * 0.3 + ox, S * 0.26);
+        g.lineTo(S * 0.62 + ox, S * 0.5);
+        g.lineTo(S * 0.3 + ox, S * 0.74);
+        g.stroke();
+      }
+      chev(-S * 0.13, "0.35", S * 0.06, "rgba(46,230,255,A)");
+      chev(0, 0.3, S * 0.15, "rgba(46,230,255,A)");
+      chev(0, 0.9, S * 0.07, "rgba(160,245,255,A)");
+      g.strokeStyle = "#f2feff";
+      g.lineWidth = S * 0.032;
+      g.beginPath();
+      g.moveTo(S * 0.3, S * 0.26);
+      g.lineTo(S * 0.62, S * 0.5);
+      g.lineTo(S * 0.3, S * 0.74);
+      g.stroke();
+    },
+    goal(g, S) {
+      // chiseled stone frame
+      const frame = g.createLinearGradient(0, 0, S, S);
+      frame.addColorStop(0, "#5e687e");
+      frame.addColorStop(0.5, "#3a4358");
+      frame.addColorStop(1, "#222839");
+      g.fillStyle = frame;
+      g.fillRect(0, 0, S, S);
+      g.fillStyle = "rgba(255,255,255,0.14)";
+      g.fillRect(0, 0, S, S * 0.05);
+      g.fillRect(0, 0, S * 0.05, S);
+      g.fillStyle = "rgba(0,0,0,0.3)";
+      g.fillRect(0, S * 0.95, S, S * 0.05);
+      g.fillRect(S * 0.95, 0, S * 0.05, S);
+      realSpeckle(g, S, 60, 31);
+      // portal with swirling light
+      const px = S * 0.17, py = S * 0.09, pw = S * 0.66, ph = S * 0.82;
+      const portal = g.createLinearGradient(0, py, 0, py + ph);
+      portal.addColorStop(0, "#fff8dc");
+      portal.addColorStop(0.4, "#ffdf6b");
+      portal.addColorStop(0.75, "#e09c08");
+      portal.addColorStop(1, "#6e4400");
+      g.fillStyle = portal;
+      g.fillRect(px, py, pw, ph);
+      g.save();
+      g.beginPath();
+      g.rect(px, py, pw, ph);
+      g.clip();
+      for (let i = 0; i < 4; i++) {
+        const yy = py + ph * (0.12 + i * 0.22);
+        g.fillStyle = i % 2 ? "rgba(255,255,255,0.28)" : "rgba(120,70,0,0.22)";
+        g.beginPath();
+        g.moveTo(px, yy);
+        for (let x = 0; x <= pw; x += pw / 8) {
+          g.lineTo(px + x, yy + Math.sin(x / pw * Math.PI * 2 + i) * ph * 0.03);
+        }
+        for (let x = pw; x >= 0; x -= pw / 8) {
+          g.lineTo(px + x, yy + ph * 0.05 + Math.sin(x / pw * Math.PI * 2 + i) * ph * 0.03);
+        }
+        g.closePath();
+        g.fill();
+      }
+      // bright core
+      const core = g.createRadialGradient(px + pw / 2, py + ph * 0.42, 1, px + pw / 2, py + ph * 0.42, pw * 0.42);
+      core.addColorStop(0, "rgba(255,255,255,0.85)");
+      core.addColorStop(1, "rgba(255,255,255,0)");
+      g.fillStyle = core;
+      g.fillRect(px, py, pw, ph);
+      g.restore();
+      g.strokeStyle = "#2e2004";
+      g.lineWidth = 3;
+      g.strokeRect(px, py, pw, ph);
+      g.strokeStyle = "rgba(255,240,190,0.7)";
+      g.lineWidth = 1.5;
+      g.strokeRect(px + 3, py + 3, pw - 6, ph - 6);
+      // rising embers
+      for (let i = 0; i < 7; i++) {
+        const sx = px + realHash(i, 51) * pw;
+        const sy = py + realHash(i, 77) * ph;
+        const a = 0.4 + realHash(i, 78) * 0.5;
+        g.fillStyle = "rgba(255,252,240," + a.toFixed(2) + ")";
+        const sz = 1.5 + realHash(i, 79) * 2.5;
+        g.fillRect(sx, sy, sz, sz);
+      }
+    },
+    checkpoint(g, S) {
+      realCheckpoint(g, S, false);
+    },
+    checkpoint_touched(g, S) {
+      realCheckpoint(g, S, true);
+    },
+  };
+
+  function realCheckpoint(g, S, lit) {
+    // ground socket
+    const sock = g.createLinearGradient(0, S * 0.84, 0, S);
+    sock.addColorStop(0, "#5a6478");
+    sock.addColorStop(1, "#232a38");
+    g.fillStyle = sock;
+    g.fillRect(S * 0.32, S * 0.84, S * 0.36, S * 0.13);
+    g.strokeStyle = "#11151d";
+    g.lineWidth = 2;
+    g.strokeRect(S * 0.32, S * 0.84, S * 0.36, S * 0.13);
+    // pole with machined bands
+    const pole = g.createLinearGradient(S * 0.44, 0, S * 0.56, 0);
+    pole.addColorStop(0, "#697386");
+    pole.addColorStop(0.35, "#e6ecf4");
+    pole.addColorStop(0.6, "#aeb7c6");
+    pole.addColorStop(1, "#3d4658");
+    g.fillStyle = pole;
+    g.fillRect(S * 0.44, S * 0.12, S * 0.12, S * 0.74);
+    g.fillStyle = "rgba(0,0,0,0.25)";
+    for (let i = 0; i < 4; i++) {
+      g.fillRect(S * 0.44, S * (0.2 + i * 0.17), S * 0.12, S * 0.02);
+    }
+    // lamp
+    if (lit) {
+      const halo = g.createRadialGradient(S * 0.5, S * 0.08, 1, S * 0.5, S * 0.08, S * 0.17);
+      halo.addColorStop(0, "rgba(62,224,122,0.85)");
+      halo.addColorStop(1, "rgba(62,224,122,0)");
+      g.fillStyle = halo;
+      g.fillRect(S * 0.3, 0, S * 0.4, S * 0.3);
+    }
+    const lamp = g.createRadialGradient(S * 0.48, S * 0.06, 0.5, S * 0.5, S * 0.08, S * 0.06);
+    lamp.addColorStop(0, lit ? "#eafff2" : "#c3cad6");
+    lamp.addColorStop(1, lit ? "#1d9e52" : "#4a5468");
+    g.fillStyle = lamp;
+    g.beginPath();
+    g.arc(S * 0.5, S * 0.08, S * 0.055, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = lit ? "#0a3a1e" : "#222a38";
+    g.lineWidth = 1.5;
+    g.stroke();
+    // flag with fold shading
+    const fy0 = S * 0.2, fy1 = S * 0.44, fx1 = S * 0.88;
+    const flag = g.createLinearGradient(0, fy0, 0, fy1);
+    if (lit) {
+      flag.addColorStop(0, "#8ff0b4");
+      flag.addColorStop(0.5, "#3ee07a");
+      flag.addColorStop(1, "#147a3c");
+    } else {
+      flag.addColorStop(0, "#aab3c4");
+      flag.addColorStop(0.5, "#7e889c");
+      flag.addColorStop(1, "#4c5568");
+    }
+    g.fillStyle = flag;
+    g.beginPath();
+    g.moveTo(S * 0.56, fy0);
+    g.lineTo(fx1, (fy0 + fy1) / 2);
+    g.lineTo(S * 0.56, fy1);
+    g.closePath();
+    g.fill();
+    g.strokeStyle = lit ? "#0a3a1e" : "#2a3140";
+    g.lineWidth = 2;
+    g.stroke();
+    // fold crease
+    g.strokeStyle = lit ? "rgba(6,45,22,0.55)" : "rgba(20,26,38,0.55)";
+    g.lineWidth = 1.5;
+    g.beginPath();
+    g.moveTo(S * 0.68, fy0 + S * 0.02);
+    g.lineTo(S * 0.68, fy1 - S * 0.02);
+    g.stroke();
+    if (lit) {
+      g.strokeStyle = "rgba(234,255,246,0.85)";
+      g.lineWidth = 1.5;
+      g.beginPath();
+      g.moveTo(S * 0.58, fy0 + S * 0.015);
+      g.lineTo(S * 0.82, (fy0 + fy1) / 2);
+      g.stroke();
+    }
+  }
+
+  function realTileImage(kind) {
+    if (realTileCache[kind] !== undefined) return realTileCache[kind];
+    let c = null;
+    try {
+      const S = TILE * REAL_SS;
+      c = document.createElement("canvas");
+      c.width = S;
+      c.height = S;
+      const g = c.getContext("2d");
+      if (!g || !REAL_PAINT[kind]) c = null;
+      else REAL_PAINT[kind](g, S);
+    } catch (e) {
+      c = null;
+    }
+    realTileCache[kind] = c;
+    return c;
+  }
+
+  function realCoinRim(value) {
+    if (value >= 500) return "#e8ecf4";
+    if (value >= 100) return "#ffd23c";
+    if (value >= 50) return "#cfd8e6";
+    return "#b0783c";
+  }
+
+  function drawRealCoin(ctx, tile, x, y, size, bob) {
+    const dy = y + (bob || 0);
+    const cx = x + size / 2;
+    const cy = dy + size / 2;
+    const r = size * 0.42;
+    const value = coinValue(tile.id);
+    const rim = realCoinRim(value);
+    const prevSmooth = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = true;
+    ctx.save();
+    // drop shadow
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + r * 0.95, r * 0.7, r * 0.16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // face
+    const face = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.35, r * 0.1, cx, cy, r);
+    face.addColorStop(0, "#fff8de");
+    face.addColorStop(0.55, "#f7c416");
+    face.addColorStop(0.85, "#c88d06");
+    face.addColorStop(1, "#7a5200");
+    ctx.fillStyle = face;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    // reeded edge
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.clip();
+    for (let i = 0; i < 28; i++) {
+      const a = (i / 28) * Math.PI * 2;
+      const x0 = cx + Math.cos(a) * r * 0.97;
+      const y0 = cy + Math.sin(a) * r * 0.97;
+      ctx.strokeStyle = i % 2 ? "rgba(0,0,0,0.4)" : "rgba(255,255,255,0.5)";
+      ctx.lineWidth = Math.max(1, size * 0.02);
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * r * 0.86, cy + Math.sin(a) * r * 0.86);
+      ctx.lineTo(x0, y0);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.strokeStyle = rim;
+    ctx.lineWidth = Math.max(1.5, size * 0.07);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - ctx.lineWidth / 2, 0, Math.PI * 2);
+    ctx.stroke();
+    // embossed inner ring
+    ctx.strokeStyle = "rgba(122,82,0,0.8)";
+    ctx.lineWidth = Math.max(1, size * 0.025);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.68, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(255,255,255,0.45)";
+    ctx.lineWidth = Math.max(1, size * 0.015);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.68 - 1.5, 0, Math.PI * 2);
+    ctx.stroke();
+    // embossed value
+    const label = String(value);
+    ctx.font = "900 " + Math.max(8, size * (label.length > 2 ? 0.26 : 0.34)) + "px Consolas, monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "rgba(122,82,0,0.9)";
+    ctx.fillText(label, cx + 1, cy + 1.5);
+    ctx.fillStyle = "#ffe98c";
+    ctx.fillText(label, cx, cy);
+    ctx.textAlign = "start";
+    ctx.textBaseline = "alphabetic";
+    // shine sweep
+    ctx.strokeStyle = "rgba(255,255,255,0.85)";
+    ctx.lineWidth = Math.max(1.5, size * 0.06);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.8, Math.PI * 1.02, Math.PI * 1.42);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.beginPath();
+    ctx.arc(cx - r * 0.34, cy - r * 0.4, Math.max(1, size * 0.035), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.imageSmoothingEnabled = prevSmooth;
+  }
+
+  function gfxPack(images, gfx) {
+    if (gfx === "ultra" && images && images.ultra) return Object.assign({}, images, images.ultra);
+    return images;
+  }
+
+  // Animated liquid frame: water-strip.png / lava-strip.png hold 4
+  // frames side-by-side (128x32). Falls back to the static sprite.
+  function drawLiquidStrip(ctx, images, kind, x, y, size) {
+    const strip = images && (kind === "water" ? images.waterStrip || images.waterstrip : images.lavaStrip || images.lavastrip);
+    const fallback = images && images[kind];
+    let frame = 0;
+    try {
+      frame = Math.floor(Date.now() / 280) % 4;
+    } catch (e) {}
+    if (strip && (strip.naturalWidth || strip.width)) {
+      const sw = strip.naturalWidth || strip.width || 128;
+      const sh = strip.naturalHeight || strip.height || 32;
+      const fw = sw / 4;
+      try {
+        ctx.drawImage(strip, frame * fw, 0, fw, sh, x, y, size, size);
+        return true;
+      } catch (e) {}
+    }
+    if (fallback) {
+      ctx.drawImage(fallback, x, y, size, size);
+      return true;
+    }
+    return false;
   }
 
   function drawTile(ctx, images, tile, x, y, size, opts) {
@@ -1660,31 +3216,88 @@
         const key = opts.collectedKey || (opts.c != null ? opts.c + "," + opts.r : "");
         if (key && opts.collected.has(key)) return;
       }
-      const bob = opts.bob ? Math.sin(Date.now() / 220 + (opts.c || 0) * 1.7 + (opts.r || 0) * 2.1) * 2.5 : 0;
+      const bob = opts.graphics !== "simple" && opts.bob ? Math.sin(Date.now() / 220 + (opts.c || 0) * 1.7 + (opts.r || 0) * 2.1) * 2.5 : 0;
+      if (opts.graphics === "simple") {
+        drawSimpleTile(ctx, tile, x, y + bob, size, opts);
+        return;
+      }
+      if (opts.real) {
+        drawRealCoin(ctx, tile, x, y, size, bob);
+        return;
+      }
       drawCoinGraphic(ctx, images, tile, x, y, size, bob);
       return;
     }
-    let img;
-    if (tile.id === "checkpoint") {
-      const touched = opts.touched && opts.c != null && opts.touched.has(opts.c + "," + opts.r);
-      img = touched ? images.checkpointTouched : images.checkpoint;
-    } else if (isBrickId(tile.id)) {
-      img = images.brick;
-    } else if (isSpikeId(tile.id)) {
-      img = images.spike;
-    } else if (isOrbId(tile.id)) {
-      img = images.orb;
-    } else if (tile.id === "pad") {
-      img = images.pad;
-    } else if (tile.id === "dash") {
-      img = images.dash;
-    } else if (isGoalId(tile.id)) {
-      img = images.goal;
+    if (opts.graphics === "simple") {
+      drawSimpleTile(ctx, tile, x, y, size, opts);
+      return;
     }
-    if (!img) return;
+    if (tile.id === "water" || tile.id === "lava") {
+      if (drawLiquidStrip(ctx, images, tile.id, x, y, size)) return;
+      drawSimpleTile(ctx, tile, x, y, size, opts);
+      return;
+    }
+    let img;
+    let realImg = null;
+    if (opts.real) {
+      if (tile.id === "checkpoint") {
+        const touched = opts.touched && opts.c != null && opts.touched.has(opts.c + "," + opts.r);
+        realImg = realTileImage(touched ? "checkpoint_touched" : "checkpoint");
+      } else if (tile.id === "grass" || tile.id === "igrass" || tile.id === "fgrass" || tile.id === "gspike" || tile.id === "igspike" || tile.id === "fgspike") {
+        // grass tiles use their own art even in dlls5
+      } else if (isBrickId(tile.id)) realImg = realTileImage("brick");
+      else if (isSpikeId(tile.id)) realImg = realTileImage("spike");
+      else if (isOrbId(tile.id)) realImg = realTileImage("orb");
+      else if (tile.id === "pad") realImg = realTileImage("pad");
+      else if (tile.id === "dash") realImg = realTileImage("dash");
+      else if (isGoalId(tile.id)) realImg = realTileImage("goal");
+    }
+    if (!realImg) {
+      if (tile.id === "checkpoint") {
+        const touched = opts.touched && opts.c != null && opts.touched.has(opts.c + "," + opts.r);
+        img = touched ? images.checkpointTouched : images.checkpoint;
+      } else if (tile.id === "grass" || tile.id === "igrass" || tile.id === "fgrass") {
+        img = images.grass;
+      } else if (tile.id === "gspike" || tile.id === "igspike" || tile.id === "fgspike") {
+        img = images.gspike;
+      } else if (isBrickId(tile.id)) {
+        img = images.brick;
+      } else if (isSpikeId(tile.id)) {
+        img = images.spike;
+      } else if (isOrbId(tile.id)) {
+        img = images.orb;
+      } else if (isGravOrbId(tile.id)) {
+        img = images.gravOrb;
+      } else if (isPortalId(tile.id)) {
+        img = images[tile.id];
+      } else if (isSlopeId(tile.id)) {
+        img = images[tile.id];
+      } else if (tile.id === "platform") {
+        img = images.platform;
+      } else if (tile.id === "pad") {
+        img = images.pad;
+      } else if (tile.id === "dash") {
+        img = images.dash;
+      } else if (isGoalId(tile.id)) {
+        img = images.goal;
+      }
+    } else {
+      img = realImg;
+    }
+    if (!img) {
+      if (isSlopeId(tile.id) || isPortalId(tile.id) || isGravOrbId(tile.id) || tile.id === "platform" || tile.id === "water" || tile.id === "lava") {
+        drawSimpleTile(ctx, tile, x, y, size, opts);
+      }
+      return;
+    }
     const rot = isSpikeId(tile.id) ? tile.rot || 0 : 0;
     ctx.save();
     if (isInvisibleId(tile.id)) ctx.globalAlpha *= 0.4;
+    const prevSmooth = ctx.imageSmoothingEnabled;
+    if (realImg) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+    }
     if (rot) {
       ctx.translate(x + size / 2, y + size / 2);
       ctx.rotate((rot * Math.PI) / 180);
@@ -1692,6 +3305,7 @@
     } else {
       ctx.drawImage(img, x, y, size, size);
     }
+    if (realImg) ctx.imageSmoothingEnabled = prevSmooth;
     ctx.restore();
     if (!opts.hideInvisible && isInvisibleId(tile.id)) {
       ctx.save();
@@ -1722,8 +3336,13 @@
     }
   }
 
-  function drawBackdrop(ctx, w, h, t, theme) {
+  function drawBackdrop(ctx, w, h, t, theme, simple) {
     const th = theme || DEFAULT_THEME;
+    if (simple) {
+      ctx.fillStyle = th.mid || "#0a1628";
+      ctx.fillRect(0, 0, w, h);
+      return;
+    }
     const g = ctx.createLinearGradient(0, 0, w * 0.2, h);
     const sway = Math.sin(t * 0.1);
     g.addColorStop(0, th.top);
@@ -1747,23 +3366,42 @@
     }
   }
 
+  function drawUltraBackdrop(ctx, w, h, img) {
+    const iw = img.naturalWidth || img.width || 1;
+    const ih = img.naturalHeight || img.height || 1;
+    const s = Math.max(w / iw, h / ih);
+    const dw = iw * s;
+    const dh = ih * s;
+    ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+    ctx.fillStyle = "rgba(4, 8, 16, 0.28)";
+    ctx.fillRect(0, 0, w, h);
+  }
+
   function drawWorld(ctx, level, images, cam, extras) {
     extras = extras || {};
+    const gfx = extras.graphics === "good" || extras.graphics === "simple" || extras.graphics === "dlls5" || extras.graphics === "ultra" ? extras.graphics : "normal";
+    const real = gfx === "dlls5";
+    const pack = gfxPack(images, gfx);
+    const fx = Object.assign({ shadows: true, flashes: true, particles: true }, extras.fx || {});
     const w = ctx.canvas.width;
     const h = ctx.canvas.height;
     const zoom = cam.zoom;
     const worldW = level.cols * TILE;
     const worldH = level.rows * TILE;
 
-    ctx.imageSmoothingEnabled = false;
-    drawBackdrop(ctx, w, h, Date.now() / 1000, level.theme);
+    ctx.imageSmoothingEnabled = gfx === "ultra";
+    if (gfx === "ultra" && pack.background) drawUltraBackdrop(ctx, w, h, pack.background);
+    else drawBackdrop(ctx, w, h, Date.now() / 1000, level.theme, gfx === "simple");
 
     ctx.save();
     ctx.scale(zoom, zoom);
     ctx.translate(-cam.x, -cam.y);
 
-    drawPictures(ctx, level);
-    drawWidgets(ctx, level, 0);
+    if (gfx !== "simple") {
+      drawPictures(ctx, level);
+      drawWidgets(ctx, level, 0);
+      ctx.imageSmoothingEnabled = gfx === "ultra";
+    }
 
     ctx.fillStyle = "rgba(255, 42, 60, 0.16)";
     ctx.fillRect(-6, worldH, worldW + 12, 10);
@@ -1772,6 +3410,22 @@
     const r0 = Math.max(0, Math.floor(cam.y / TILE) - 1);
     const c1 = Math.min(level.cols - 1, Math.ceil((cam.x + w / zoom) / TILE) + 1);
     const r1 = Math.min(level.rows - 1, Math.ceil((cam.y + h / zoom) / TILE) + 1);
+
+    if (fx.shadows && gfx !== "simple") {
+      const hideInv = !!extras.engine && !extras.hitboxes;
+      ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+      for (let r = r0; r <= r1; r++) {
+        for (let c = c0; c <= c1; c++) {
+          const tile = level.grid[r][c];
+          // All brick looks (including fakes, so they stay hidden) cast a shadow —
+          // except invisible ones while playing, which must stay secret.
+          // Slopes + platforms are solid ground too, so they shadow as well.
+          if (tile && (isBrickId(tile.id) || isSlopeId(tile.id) || tile.id === "platform") && !(hideInv && isInvisibleId(tile.id))) {
+            ctx.fillRect(cellX(c, tile) + 3, cellY(r, tile) + 4, TILE, TILE);
+          }
+        }
+      }
+    }
 
     const moverCells = {};
     if (extras.engine && extras.engine.movers) {
@@ -1785,13 +3439,15 @@
         const tile = level.grid[r][c];
         if (tile) {
           if (extras.engine && moverCells[c + "," + r]) continue;
-          drawTile(ctx, images, tile, cellX(c, tile), cellY(r, tile), TILE, {
+          drawTile(ctx, pack, tile, cellX(c, tile), cellY(r, tile), TILE, {
             hideInvisible: !!extras.engine && !extras.hitboxes,
             c: c,
             r: r,
             touched: extras.engine ? extras.engine.touched : null,
             collected: extras.engine ? extras.engine.collected : null,
             bob: !!extras.engine,
+            graphics: gfx,
+            real: real,
           });
         }
       }
@@ -1801,14 +3457,63 @@
     if (movers && movers.length) {
       for (const m of movers) {
         if (m.done) continue;
-        drawTile(ctx, images, m.tile, m.x, m.y, TILE, {
+        drawTile(ctx, pack, m.tile, m.x, m.y, TILE, {
           hideInvisible: !!extras.engine && !extras.hitboxes,
           collected: extras.engine ? extras.engine.collected : null,
           collectedKey: "m:" + m.cx + "," + m.cy,
           c: m.cx,
           r: m.cy,
           bob: !!extras.engine,
+          graphics: gfx,
+          real: real,
         });
+      }
+    }
+
+    const plats = extras.engine && extras.engine.plats;
+    if (plats && plats.length) {
+      for (const pl of plats) {
+        drawTile(ctx, pack, pl.tile, pl.x, pl.y, TILE, {
+          hideInvisible: !!extras.engine && !extras.hitboxes,
+          bob: !!extras.engine,
+          graphics: gfx,
+          real: real,
+        });
+        // waypoint path (editor hitbox view only)
+        if (extras.hitboxes && pl.pts && pl.pts.length > 1) {
+          ctx.save();
+          ctx.strokeStyle = "rgba(46,230,255,0.7)";
+          ctx.lineWidth = 2 / zoom;
+          ctx.setLineDash([5 / zoom, 4 / zoom]);
+          ctx.beginPath();
+          ctx.moveTo(pl.x + TILE / 2, pl.y + TILE / 2);
+          for (let i = 1; i < pl.pts.length; i++) {
+            ctx.lineTo(pl.pts[i].x + TILE / 2, pl.pts[i].y + TILE / 2);
+          }
+          if (pl.def && pl.def.loop) ctx.closePath();
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.restore();
+        }
+      }
+    }
+
+    if (extras.heat && extras.heat.length && gfx !== "simple") {
+      let drawn = 0;
+      for (const h of extras.heat) {
+        if (drawn++ > 900) break;
+        const n = h.n | 0;
+        if (n <= 0) continue;
+        const hx = (h.c + 0.5) * TILE;
+        const hy = (h.r + 0.5) * TILE;
+        const glow = Math.log10(n + 1);
+        const a = Math.min(0.5, 0.1 + 0.12 * glow);
+        const rad = TILE * (0.42 + 0.1 * Math.min(3, glow));
+        const hg = ctx.createRadialGradient(hx, hy, 1, hx, hy, rad);
+        hg.addColorStop(0, "rgba(255,60,80," + a.toFixed(3) + ")");
+        hg.addColorStop(1, "rgba(255,60,80,0)");
+        ctx.fillStyle = hg;
+        ctx.fillRect(hx - rad, hy - rad, rad * 2, rad * 2);
       }
     }
 
@@ -1888,10 +3593,9 @@
       ctx.strokeStyle = "rgba(46, 230, 255, 0.95)";
       ctx.lineWidth = 2 / zoom;
       ctx.strokeRect(sp.c * TILE + 3, sp.r * TILE + 3, TILE - 6, TILE - 6);
-      const skinImg = images.skins && images.skins[extras.skin || 1];
-      if (skinImg && !extras.engine) {
+      if (!extras.engine) {
         ctx.globalAlpha = 0.85;
-        ctx.drawImage(skinImg, sp.c * TILE, sp.r * TILE, TILE, TILE);
+        drawSkinImage(ctx, images, extras.skin || 1, sp.c * TILE, sp.r * TILE, TILE);
         ctx.globalAlpha = 1;
       }
       ctx.fillStyle = "rgba(46, 230, 255, 0.95)";
@@ -1899,6 +3603,26 @@
       ctx.textAlign = "center";
       ctx.fillText("SPAWN", sp.c * TILE + TILE / 2, sp.r * TILE - 5);
       ctx.textAlign = "start";
+    }
+
+    if (extras.engine && extras.engine.checkpoint && extras.engine.checkpoint.practice) {
+      const cp = extras.engine.checkpoint;
+      const px = cp.c * TILE + (cp.ox || 0) + TILE / 2;
+      const py = cp.r * TILE + (cp.oy || 0) + TILE / 2;
+      ctx.save();
+      ctx.strokeStyle = "rgba(62, 224, 122, 0.95)";
+      ctx.lineWidth = 2 / zoom;
+      ctx.setLineDash([4 / zoom, 3 / zoom]);
+      ctx.beginPath();
+      ctx.arc(px, py, TILE * 0.42, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(62, 224, 122, 0.95)";
+      ctx.font = Math.max(8, 11 / zoom) + "px Consolas, monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("CP", px, py - TILE * 0.55);
+      ctx.textAlign = "start";
+      ctx.restore();
     }
 
     if (extras.hitboxes) {
@@ -1919,6 +3643,23 @@
             const b = orbBox(c, r, tile);
             ctx.strokeStyle = "rgba(62,224,122,0.9)";
             ctx.strokeRect(b.x, b.y, b.w, b.h);
+          } else if (isGravOrbId(tile.id)) {
+            const b = orbBox(c, r, tile);
+            ctx.strokeStyle = "rgba(180,92,255,0.95)";
+            ctx.strokeRect(b.x, b.y, b.w, b.h);
+          } else if (isPortalId(tile.id)) {
+            const b = dashBox(c, r, tile);
+            ctx.strokeStyle = tile.id === "portalA" ? "rgba(46,123,255,0.95)" : "rgba(255,123,46,0.95)";
+            ctx.strokeRect(b.x, b.y, b.w, b.h);
+          } else if (tile.id === "water") {
+            ctx.strokeStyle = "rgba(62,140,255,0.9)";
+            ctx.strokeRect(cellX(c, tile) + 3, cellY(r, tile) + 10, TILE - 6, TILE - 10);
+          } else if (tile.id === "lava") {
+            ctx.strokeStyle = "rgba(255,77,26,0.95)";
+            ctx.strokeRect(cellX(c, tile) + 6, cellY(r, tile) + 8, TILE - 12, TILE - 8);
+          } else if (isSlopeId(tile.id) || tile.id === "platform") {
+            ctx.strokeStyle = "rgba(125,146,181,0.9)";
+            ctx.strokeRect(cellX(c, tile), cellY(r, tile), TILE, TILE);
           } else if (tile.id === "pad") {
             const b = padBox(c, r, tile);
             ctx.strokeStyle = "rgba(255,157,46,0.9)";
@@ -1940,32 +3681,45 @@
     }
 
     if (extras.remoteCubes && extras.remoteCubes.length) {
+      ctx.imageSmoothingEnabled = false;
       for (const rc of extras.remoteCubes) {
         const rSkinId = clamp((rc.skin | 0) || 1, 1, Math.max(1, SKINS.length));
-        const rSkinImg = images.skins && images.skins[rSkinId];
         const rdx = Math.round(rc.x + PLAYER_W / 2 - TILE / 2);
         const rdy = Math.round(rc.y + PLAYER_H - TILE);
         ctx.save();
-        if (rc.dead) ctx.globalAlpha = 0.45;
-        if (rSkinImg) {
+        if (typeof rc.alpha === "number") ctx.globalAlpha = rc.alpha;
+        else if (rc.dead) ctx.globalAlpha = 0.45;
+        if (hasSkinImage(images, rSkinId)) {
           ctx.translate(rdx + TILE / 2, rdy + TILE / 2);
           ctx.rotate(((rc.rot || 0) * Math.PI) / 180);
-          ctx.drawImage(rSkinImg, -TILE / 2, -TILE / 2, TILE, TILE);
+          drawSkinImage(ctx, images, rSkinId, -TILE / 2, -TILE / 2, TILE);
         } else {
           ctx.fillStyle = "#ffd23c";
           ctx.fillRect(rc.x, rc.y, PLAYER_W, PLAYER_H);
         }
         ctx.restore();
-        if (rc.name) {
+        if (rc.name && gfx !== "simple") {
           ctx.save();
+          if (typeof rc.alpha === "number") ctx.globalAlpha = rc.alpha;
           ctx.font = Math.max(8, 11 / zoom) + "px Consolas, monospace";
-          ctx.textAlign = "center";
+          ctx.textAlign = "left";
           ctx.lineJoin = "round";
           ctx.lineWidth = Math.max(2, 3 / zoom);
           ctx.strokeStyle = "rgba(7, 16, 24, 0.85)";
-          ctx.strokeText(rc.name, rdx + TILE / 2, rdy - 6);
-          ctx.fillStyle = rc.dead ? "#7f93b0" : "#ffd23c";
-          ctx.fillText(rc.name, rdx + TILE / 2, rdy - 6);
+          const tagTxt = rc.tagLabel ? "{" + rc.tagLabel + "}" : "";
+          const nameW = ctx.measureText(rc.name).width;
+          const gap = tagTxt ? ctx.measureText(" ").width : 0;
+          const tagW = tagTxt ? ctx.measureText(tagTxt).width : 0;
+          const x0 = rdx + TILE / 2 - (nameW + gap + tagW) / 2;
+          const ny = rdy - 6;
+          ctx.strokeText(rc.name, x0, ny);
+          ctx.fillStyle = rc.dead ? "#7f93b0" : (rc.nameColor || "#ffd23c");
+          ctx.fillText(rc.name, x0, ny);
+          if (tagTxt) {
+            ctx.strokeText(tagTxt, x0 + nameW + gap, ny);
+            ctx.fillStyle = rc.dead ? "#7f93b0" : (rc.tagColor || "#ffd23c");
+            ctx.fillText(tagTxt, x0 + nameW + gap, ny);
+          }
           ctx.textAlign = "start";
           ctx.restore();
         }
@@ -1974,16 +3728,44 @@
 
     const engine = extras.engine;
     if (engine) {
+      ctx.imageSmoothingEnabled = false;
       const p = engine.player;
       const skinId = clamp((engine.skin | 0) || (extras.skin | 0) || 1, 1, Math.max(1, SKINS.length));
-      const skinImg = images.skins && images.skins[skinId];
       const dx = Math.round(p.x + p.w / 2 - TILE / 2);
       const dy = Math.round(p.y + p.h - TILE);
-      if (skinImg) {
+      if (fx.shadows && gfx !== "simple" && p.onGround && !engine.dead && !engine.won) {
+        ctx.save();
+        ctx.globalAlpha = 0.32;
+        ctx.fillStyle = "#000";
+        ctx.beginPath();
+        ctx.ellipse(p.x + p.w / 2, p.y + p.h + 5, p.w * 0.42, 4.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      if (fx.particles && gfx !== "simple" && engine.trailParts && engine.trailParts.length) {
+        for (const q of engine.trailParts) {
+          const a = Math.max(0, q.life / q.max);
+          const s = Math.max(1, q.size * (0.4 + 0.6 * a));
+          if (q.ring) {
+            ctx.globalAlpha = a * 0.85;
+            ctx.strokeStyle = q.color;
+            ctx.lineWidth = Math.max(1, 1.5 / zoom);
+            ctx.beginPath();
+            ctx.arc(q.x, q.y, s / 2, 0, Math.PI * 2);
+            ctx.stroke();
+          } else {
+            ctx.globalAlpha = a * 0.9;
+            ctx.fillStyle = q.color;
+            ctx.fillRect(q.x - s / 2, q.y - s / 2, s, s);
+          }
+        }
+        ctx.globalAlpha = 1;
+      }
+      if (hasSkinImage(images, skinId)) {
         ctx.save();
         ctx.translate(dx + TILE / 2, dy + TILE / 2);
         ctx.rotate((p.rot * Math.PI) / 180);
-        ctx.drawImage(skinImg, -TILE / 2, -TILE / 2, TILE, TILE);
+        drawSkinImage(ctx, images, skinId, -TILE / 2, -TILE / 2, TILE);
         ctx.restore();
       } else {
         ctx.fillStyle = "#fff";
@@ -1994,11 +3776,11 @@
         ctx.lineWidth = 1 / zoom;
         ctx.strokeRect(p.x, p.y, p.w, p.h);
       }
-      if (engine.flash > 0) {
+      if (fx.flashes && engine.flash > 0) {
         ctx.fillStyle = "rgba(255, 30, 50, " + engine.flash * 0.55 + ")";
         ctx.fillRect(cam.x, cam.y, w / zoom, h / zoom);
       }
-      if (engine.orbFlash > 0) {
+      if (fx.flashes && gfx !== "simple" && engine.orbFlash > 0) {
         const t = 1 - engine.orbFlash / 0.22;
         ctx.save();
         ctx.globalAlpha = 1 - t;
@@ -2009,7 +3791,7 @@
         ctx.stroke();
         ctx.restore();
       }
-      if (engine.padFlash > 0) {
+      if (fx.flashes && gfx !== "simple" && engine.padFlash > 0) {
         const t = 1 - engine.padFlash / 0.25;
         ctx.save();
         ctx.globalAlpha = 1 - t;
@@ -2020,7 +3802,7 @@
         ctx.stroke();
         ctx.restore();
       }
-      if (engine.dashFlash > 0) {
+      if (fx.flashes && gfx !== "simple" && engine.dashFlash > 0) {
         const t = 1 - engine.dashFlash / 0.35;
         ctx.save();
         ctx.globalAlpha = 1 - t;
@@ -2039,6 +3821,28 @@
           ctx.lineTo(p.x + p.w / 2 - Math.sign(p.vx || 1) * (len * 0.4), ly);
           ctx.stroke();
         }
+        ctx.restore();
+      }
+      if (fx.flashes && gfx !== "simple" && engine.portalFlash > 0) {
+        const t = 1 - engine.portalFlash / 0.3;
+        ctx.save();
+        ctx.globalAlpha = 1 - t;
+        ctx.strokeStyle = "#7db4ff";
+        ctx.lineWidth = 3 / zoom;
+        ctx.beginPath();
+        ctx.ellipse(p.x + p.w / 2, p.y + p.h / 2, TILE * (0.5 + t * 0.9), TILE * (0.7 + t * 1.1), 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+      if (fx.flashes && gfx !== "simple" && engine.gravFlash > 0) {
+        const t = 1 - engine.gravFlash / 0.3;
+        ctx.save();
+        ctx.globalAlpha = 1 - t;
+        ctx.strokeStyle = "#b45cff";
+        ctx.lineWidth = 3 / zoom;
+        ctx.beginPath();
+        ctx.arc(p.x + p.w / 2, p.y + p.h / 2, TILE * (0.5 + t * 1.0), 0, Math.PI * 2);
+        ctx.stroke();
         ctx.restore();
       }
     }
@@ -2070,8 +3874,17 @@
     TILE_TYPES,
     isSpikeId,
     isBrickId,
+    isSlopeId,
+    isPlatformId,
+    isPortalId,
+    isGravOrbId,
+    isWaterId,
+    isLavaId,
+    isLiquidId,
     isGoalId,
     isOrbId,
+    sanitizePlatforms,
+    slopeSurfaceY,
     isFakeId,
     isInvisibleId,
     isCoinId,
@@ -2115,6 +3928,7 @@
     solidBox,
     PLAYER_W,
     PLAYER_H,
+    TRAILS,
     matchesBind,
   };
 })(window);

@@ -30,6 +30,14 @@
     pad: { id: "pad", solid: false, hazard: false, rotatable: false, label: "Bounce pad" },
     dash: { id: "dash", solid: false, hazard: false, rotatable: false, label: "Dash" },
     checkpoint: { id: "checkpoint", solid: false, hazard: false, rotatable: false, label: "Checkpoint" },
+    slopeL: { id: "slopeL", solid: true, hazard: false, rotatable: false, slope: "L", label: "Slope /" },
+    slopeR: { id: "slopeR", solid: true, hazard: false, rotatable: false, slope: "R", label: "Slope \\" },
+    platform: { id: "platform", solid: true, hazard: false, rotatable: false, label: "Moving platform" },
+    portalA: { id: "portalA", solid: false, hazard: false, rotatable: false, label: "Portal A (blue)" },
+    portalB: { id: "portalB", solid: false, hazard: false, rotatable: false, label: "Portal B (orange)" },
+    gravOrb: { id: "gravOrb", solid: false, hazard: false, rotatable: false, label: "Gravity orb" },
+    water: { id: "water", solid: false, hazard: false, rotatable: false, liquid: "water", label: "Water" },
+    lava: { id: "lava", solid: false, hazard: false, rotatable: false, liquid: "lava", label: "Lava" },
     coin10: { id: "coin10", solid: false, hazard: false, rotatable: false, label: "Coin +10" },
     coin50: { id: "coin50", solid: false, hazard: false, rotatable: false, label: "Coin +50" },
     coin100: { id: "coin100", solid: false, hazard: false, rotatable: false, label: "Coin +100" },
@@ -52,6 +60,34 @@
 
   function isOrbId(id) {
     return id === "orb" || id === "iorb";
+  }
+
+  function isSlopeId(id) {
+    return id === "slopeL" || id === "slopeR";
+  }
+
+  function isPlatformId(id) {
+    return id === "platform";
+  }
+
+  function isPortalId(id) {
+    return id === "portalA" || id === "portalB";
+  }
+
+  function isGravOrbId(id) {
+    return id === "gravOrb";
+  }
+
+  function isWaterId(id) {
+    return id === "water";
+  }
+
+  function isLavaId(id) {
+    return id === "lava";
+  }
+
+  function isLiquidId(id) {
+    return id === "water" || id === "lava";
   }
 
   function isFakeId(id) {
@@ -153,6 +189,16 @@
     dash: "assets/tiles/DashIcon.png",
     checkpoint: "assets/tiles/checkpoint.png",
     checkpointTouched: "assets/tiles/checkpoint-touched.png",
+    slopeL: "assets/tiles/slopeL.png",
+    slopeR: "assets/tiles/slopeR.png",
+    platform: "assets/tiles/platform.png",
+    portalA: "assets/tiles/portalA.png",
+    portalB: "assets/tiles/portalB.png",
+    gravOrb: "assets/tiles/gravOrb.png",
+    water: "assets/tiles/water.png",
+    waterStrip: "assets/tiles/water-strip.png",
+    lava: "assets/tiles/lava.png",
+    lavaStrip: "assets/tiles/lava-strip.png",
     coin10: "assets/tiles/coin10.png",
     coin50: "assets/tiles/coin50.png",
     coin100: "assets/tiles/coin100.png",
@@ -177,6 +223,16 @@
     dash: "assets/tiles/ultra/dash.png",
     checkpoint: "assets/tiles/ultra/checkpoint.png",
     checkpointTouched: "assets/tiles/ultra/checkpoint-touched.png",
+    slopeL: "assets/tiles/slopeL.png",
+    slopeR: "assets/tiles/slopeR.png",
+    platform: "assets/tiles/platform.png",
+    portalA: "assets/tiles/portalA.png",
+    portalB: "assets/tiles/portalB.png",
+    gravOrb: "assets/tiles/gravOrb.png",
+    water: "assets/tiles/water.png",
+    waterStrip: "assets/tiles/water-strip.png",
+    lava: "assets/tiles/lava.png",
+    lavaStrip: "assets/tiles/lava-strip.png",
     coin10: "assets/tiles/ultra/coin10.png",
     coin50: "assets/tiles/ultra/coin50.png",
     coin100: "assets/tiles/ultra/coin100.png",
@@ -1184,6 +1240,48 @@
       .filter(Boolean);
   }
 
+  // Moving platforms: { c, r, path: [[dc,dr],...], speed, loop }
+  // path offsets are in tiles relative to (c,r). loop=true cycles
+  // around the waypoints forever; loop=false ping-pongs. Empty path
+  // (or missing entry) = static solid platform tile.
+  function sanitizePlatforms(raw) {
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .map((t) => {
+        if (!t || typeof t !== "object") return null;
+        const path = [];
+        if (Array.isArray(t.path)) {
+          for (const a of t.path.slice(0, 8)) {
+            if (Array.isArray(a)) {
+              path.push([
+                clamp(a[0] | 0, -200, 200),
+                clamp(a[1] | 0, -200, 200),
+              ]);
+            }
+          }
+        }
+        return {
+          c: t.c | 0,
+          r: t.r | 0,
+          path: path,
+          speed: clamp(Number(t.speed) || 3, 1, 20),
+          loop: t.loop === false ? false : true,
+        };
+      })
+      .filter(Boolean)
+      .slice(0, 64);
+  }
+
+  // 45° slope surface: world Y of the walkable face at world X.
+  // slopeL (/) rises to the right, slopeR (\) rises to the left.
+  function slopeSurfaceY(c, r, id, tile, x) {
+    const tx = c * TILE + tileOx(tile);
+    const ty = r * TILE + tileOy(tile);
+    const lx = clamp(x - tx, 0, TILE);
+    if (id === "slopeL") return ty + (TILE - lx);
+    return ty + lx;
+  }
+
   class Level {
     constructor(opts) {
       opts = opts || {};
@@ -1199,6 +1297,7 @@
       this.pictures = asList(opts.pictures).map(sanitizePicture).filter(Boolean).slice(0, MAX_PICTURES);
       this.widgets = asList(opts.widgets).map(sanitizeWidget).filter(Boolean).slice(0, MAX_WIDGETS);
       this.triggers = sanitizeTriggers(opts.triggers);
+      this.platforms = sanitizePlatforms(opts.platforms);
       this.song = sanitizeSong(opts.song);
       this.meta = Object.assign(
         {
@@ -1246,7 +1345,7 @@
     }
 
     counts() {
-      const out = { brick: 0, ibrick: 0, fbrick: 0, spike: 0, ispike: 0, fspike: 0, goal: 0, igoal: 0, orb: 0, iorb: 0, pad: 0, dash: 0, coin10: 0, coin50: 0, coin100: 0, coin500: 0, empty: 0, labels: 0, pictures: 0, widgets: 0 };
+      const out = { brick: 0, ibrick: 0, fbrick: 0, spike: 0, ispike: 0, fspike: 0, goal: 0, igoal: 0, orb: 0, iorb: 0, pad: 0, dash: 0, coin10: 0, coin50: 0, coin100: 0, coin500: 0, slopeL: 0, slopeR: 0, platform: 0, portalA: 0, portalB: 0, gravOrb: 0, water: 0, lava: 0, empty: 0, labels: 0, pictures: 0, widgets: 0 };
       for (let r = 0; r < this.rows; r++) {
         for (let c = 0; c < this.cols; c++) {
           const t = this.grid[r][c];
@@ -1337,6 +1436,11 @@
         t.areas = (t.areas || []).map((a) => [a[0] + shiftC, a[1] + shiftR]);
       });
       this.triggers = (this.triggers || []).filter((t) => this.inBounds(t.tc, t.tr));
+      (this.platforms || []).forEach((t) => {
+        t.c += shiftC;
+        t.r += shiftR;
+      });
+      this.platforms = (this.platforms || []).filter((t) => this.inBounds(t.c, t.r));
       return {
         left: shiftC,
         right: actualRight,
@@ -1391,6 +1495,7 @@
         })),
         gameplay: Object.assign({}, this.gameplay),
         triggers: JSON.parse(JSON.stringify(this.triggers)),
+        platforms: JSON.parse(JSON.stringify(this.platforms || [])),
         song: this.song || "",
         theme: Object.assign({}, this.theme),
         meta: Object.assign({}, this.meta, { updatedAt: new Date().toISOString() }),
@@ -1421,6 +1526,7 @@
         pictures: asList(data.pictures),
         widgets: asList(data.widgets),
         triggers: data.triggers,
+        platforms: data.platforms,
         song: data.song,
       });
       const tiles = Array.isArray(data.tiles) ? data.tiles : [];
@@ -1568,8 +1674,16 @@
       this.orbFlash = 0;
       this.padFlash = 0;
       this.dashFlash = 0;
+      this.portalFlash = 0;
+      this.gravFlash = 0;
+      this.gravDir = 1;
+      this.portalCd = 0;
+      this.inWater = false;
+      this.groundSlope = null;
+      this.wasSlope = null;
       this.finished = false;
       this.movers = [];
+      this.plats = [];
       this.trailParts = [];
       this.trailTick = 0;
       const triggers = this.level.triggers || [];
@@ -1599,6 +1713,41 @@
         });
         this.level.set(tg.tc, ty, null);
       }
+      // Looping waypoint platforms: lift the platform tile out of the
+      // grid and drive it along its path. How to author: place a
+      // "platform" tile, then add a platforms entry:
+      // { c, r, path: [[dx,dy],[dx,dy]...], speed: 3, loop: true }
+      // path offsets are tiles from (c,r). loop=true cycles the route,
+      // loop=false ping-pongs. See sanitizePlatforms.
+      const platDefs = this.level.platforms || [];
+      for (const def of platDefs) {
+        let tile = this.level.get(def.c, def.r);
+        if (!tile || tile.id !== "platform") {
+          // tolerate: search 1 below (platform sitting on floor edge)
+          tile = this.level.get(def.c, def.r + 1);
+          if (!tile || tile.id !== "platform") continue;
+          def.r = def.r + 1;
+        }
+        const ox = def.c * TILE + tileOx(tile);
+        const oy = def.r * TILE + tileOy(tile);
+        const pts = [{ x: ox, y: oy }];
+        for (const off of def.path || []) {
+          pts.push({ x: (def.c + off[0]) * TILE, y: (def.r + off[1]) * TILE });
+        }
+        this.plats.push({
+          def: def,
+          tile: packTile(tile),
+          pts: pts,
+          seg: 0,
+          dir: 1,
+          x: ox,
+          y: oy,
+          speed: (def.speed || 3) * 120,
+        });
+        this.level.set(def.c, def.r, null);
+      }
+      // Standalone platform tiles with no platforms entry stay put as
+      // static solid ground (handled by normal tile collision).
     }
 
     clearCheckpoint() {
@@ -1641,14 +1790,20 @@
       for (const { tile, c, r } of hits) {
         const type = TILE_TYPES[tile.id];
         if (!type || !type.solid) continue;
+        if (isSlopeId(tile.id)) continue; // slopes use resolveSlopes, not AABB
         solids.push(solidBox(c, r, tile));
       }
       for (const m of this.movers || []) {
         if (m.done) continue;
         const type = TILE_TYPES[m.tile.id];
         if (!type || !type.solid) continue;
+        if (isSlopeId(m.tile.id)) continue;
         solids.push({ x: m.x, y: m.y, w: TILE, h: TILE });
       }
+      for (const pl of this.plats || []) {
+        solids.push({ x: pl.x, y: pl.y, w: TILE, h: TILE });
+      }
+      const gravDown = (this.gravDir || 1) > 0;
       for (const s of solids) {
         if (!aabbOverlap(box, s)) continue;
         if (axis === "x") {
@@ -1662,24 +1817,174 @@
           p.vx = 0;
           box.x = p.x;
         } else {
-          if (p.vy > 0) {
-            p.y = s.y - p.h;
-            p.onGround = true;
-          } else if (p.vy < 0) {
-            p.y = s.y + s.h;
-          } else {
-            const dt = box.y + box.h - s.y;
-            const db = s.y + s.h - box.y;
-            if (dt < db) {
+          if (gravDown) {
+            if (p.vy > 0) {
               p.y = s.y - p.h;
               p.onGround = true;
-            } else {
+            } else if (p.vy < 0) {
               p.y = s.y + s.h;
+            } else {
+              const dt = box.y + box.h - s.y;
+              const db = s.y + s.h - box.y;
+              if (dt < db) {
+                p.y = s.y - p.h;
+                p.onGround = true;
+              } else {
+                p.y = s.y + s.h;
+              }
+            }
+          } else {
+            // flipped gravity: the ceiling is the floor
+            if (p.vy < 0) {
+              p.y = s.y + s.h;
+              p.onGround = true;
+            } else if (p.vy > 0) {
+              p.y = s.y - p.h;
+            } else {
+              const dt = box.y + box.h - s.y;
+              const db = s.y + s.h - box.y;
+              if (db < dt) {
+                p.y = s.y + s.h;
+                p.onGround = true;
+              } else {
+                p.y = s.y - p.h;
+              }
             }
           }
           p.vy = 0;
           box.y = p.y;
         }
+      }
+    }
+
+    resolveSlopes() {
+      // 45° slopes: snap feet to the diagonal face, slide downhill
+      // when idle, and let speed carry into a launch off the lip
+      // (handled in update via wasSlope).
+      const p = this.player;
+      if (this.dead || this.won) return;
+      if ((this.gravDir || 1) < 0) return; // slopes are ground-only for now
+      if (p.vy < -50) return; // moving up fast: don't stick
+      const box = this.playerBox();
+      const hits = this.nearbyTiles(box.x, box.y, box.w, box.h, 2);
+      const cx = p.x + p.w / 2;
+      let best = null;
+      for (const { tile, c, r } of hits) {
+        if (!isSlopeId(tile.id)) continue;
+        const tx = c * TILE + tileOx(tile);
+        if (cx < tx - 2 || cx > tx + TILE + 2) continue;
+        const surf = slopeSurfaceY(c, r, tile.id, tile, cx);
+        const feet = p.y + p.h;
+        // land when feet penetrate the face but the head is above it
+        if (feet >= surf - 2 && feet <= surf + TILE && p.y < surf) {
+          if (!best || surf < best.surf) best = { surf: surf, id: tile.id };
+        }
+      }
+      // moving waypoint platforms with slope tiles behave the same
+      for (const m of this.movers || []) {
+        if (m.done || !isSlopeId(m.tile.id)) continue;
+        const mc = m.x / TILE;
+        const mr = m.y / TILE;
+        const tx = m.x;
+        if (cx < tx - 2 || cx > tx + TILE + 2) continue;
+        const lx = clamp(cx - tx, 0, TILE);
+        const surf = (m.tile.id === "slopeL" ? m.y + (TILE - lx) : m.y + lx);
+        const feet = p.y + p.h;
+        if (feet >= surf - 2 && feet <= surf + TILE && p.y < surf) {
+          if (!best || surf < best.surf) best = { surf: surf, id: m.tile.id };
+        }
+      }
+      if (best && p.vy >= 0) {
+        p.y = best.surf - p.h;
+        p.vy = 0;
+        p.onGround = true;
+        this.groundSlope = best.id;
+      }
+    }
+
+    updatePlats(dt) {
+      if (!this.plats || !this.plats.length || this.dead || this.won) return;
+      const p = this.player;
+      const pb = { x: p.x, y: p.y, w: p.w, h: p.h };
+      for (const pl of this.plats) {
+        if (!pl.pts || pl.pts.length < 2) continue;
+        let target = pl.pts[pl.seg + pl.dir];
+        if (!target) {
+          if (pl.def.loop) {
+            // cycle: last -> first
+            target = pl.pts[0];
+            const dx0 = target.x - pl.x;
+            const dy0 = target.y - pl.y;
+            const d0 = Math.hypot(dx0, dy0);
+            if (d0 < 1) {
+              pl.seg = 0;
+              pl.dir = 1;
+              continue;
+            }
+          } else {
+            pl.dir *= -1;
+            target = pl.pts[pl.seg + pl.dir];
+            if (!target) continue;
+          }
+        }
+        const dx = target.x - pl.x;
+        const dy = target.y - pl.y;
+        const dist = Math.hypot(dx, dy);
+        const step = pl.speed * dt;
+        let nx = pl.x;
+        let ny = pl.y;
+        if (dist <= step) {
+          nx = target.x;
+          ny = target.y;
+          pl.seg += pl.dir;
+          if (pl.def.loop) {
+            if (pl.seg >= pl.pts.length - 1) {
+              // head back to start to close the loop
+              pl.seg = pl.pts.length - 1;
+              pl.dir = -99; // sentinel: next target is pts[0]
+            } else if (pl.dir === -99) {
+              pl.seg = 0;
+              pl.dir = 1;
+            }
+          } else {
+            if (pl.seg >= pl.pts.length - 1) {
+              pl.seg = pl.pts.length - 1;
+              pl.dir = -1;
+            } else if (pl.seg < 0) {
+              pl.seg = 0;
+              pl.dir = 1;
+            }
+          }
+        } else if (dist > 0) {
+          nx = pl.x + (dx / dist) * step;
+          ny = pl.y + (dy / dist) * step;
+        }
+        const mdx = nx - pl.x;
+        const mdy = ny - pl.y;
+        if (mdx || mdy) {
+          // carry the cube when standing on top (6px grace)
+          const ride = { x: pl.x, y: pl.y - 6, w: TILE, h: TILE + 6 };
+          if (aabbOverlap(pb, ride)) {
+            p.x += mdx;
+            p.y += mdy;
+            pb.x = p.x;
+            pb.y = p.y;
+          } else {
+            // shove the cube out if the platform runs into it sideways
+            const platBox = { x: nx, y: ny, w: TILE, h: TILE };
+            if (aabbOverlap(pb, platBox)) {
+              if (Math.abs(mdx) >= Math.abs(mdy)) {
+                p.x = mdx > 0 ? nx - p.w : nx + TILE;
+                pb.x = p.x;
+              } else {
+                p.y = mdy > 0 ? ny - p.h : ny + TILE;
+                pb.y = p.y;
+              }
+            }
+          }
+        }
+        pl.x = nx;
+        pl.y = ny;
       }
     }
 
@@ -1746,6 +2051,13 @@
         if (type && type.hazard) {
           if (aabbOverlap(box, spikeBox(c, r, tile.rot || 0, tile))) {
             this.kill("spike");
+            return;
+          }
+        } else if (isLavaId(tile.id)) {
+          // lava: insta-die on any real touch (6px forgiveness)
+          const lb = { x: cellX(c, tile) + 6, y: cellY(r, tile) + 8, w: TILE - 12, h: TILE - 8 };
+          if (aabbOverlap(box, lb)) {
+            this.kill("lava");
             return;
           }
         } else if (isGoalId(tile.id)) {
@@ -1826,7 +2138,7 @@
         this.orbTouch = 0.12;
         if (this.buffer > 0 && !this.dead && !this.won) {
           const g = this.level.gameplay;
-          p.vy = -g.jumpForce * 1.15;
+          p.vy = -g.jumpForce * 1.15 * (this.gravDir || 1);
           p.jumping = true;
           p.onGround = false;
           this.buffer = 0;
@@ -1849,8 +2161,8 @@
         if (!aabbOverlap(box, b)) continue;
         if (this.padFlash > 0 || this.dead || this.won) return;
         const g = this.level.gameplay;
-        p.vy = -g.jumpForce * 1.45;
-        p.vy = Math.max(p.vy, -g.maxFall * 1.6);
+        p.vy = -g.jumpForce * 1.45 * (this.gravDir || 1);
+        p.vy = (this.gravDir || 1) > 0 ? Math.max(p.vy, -g.maxFall * 1.6) : Math.min(p.vy, g.maxFall * 1.6);
         p.jumping = true;
         p.onGround = false;
         this.buffer = 0;
@@ -1884,6 +2196,85 @@
       }
     }
 
+    checkPortals() {
+      // Portal pair: touch A -> appear at B (and reverse), velocity kept.
+      // Pairs match by type: nearest opposite portal wins. Cooldown
+      // stops instant bounce-back.
+      if (this.dead || this.won || this.portalCd > 0) return;
+      const p = this.player;
+      const box = this.playerBox();
+      const hits = this.nearbyTiles(box.x, box.y, box.w, box.h, 2);
+      let touched = null;
+      for (const { tile, c, r } of hits) {
+        if (!isPortalId(tile.id)) continue;
+        if (aabbOverlap(box, dashBox(c, r, tile))) {
+          touched = { tile: tile, c: c, r: r };
+          break;
+        }
+      }
+      if (!touched) return;
+      const want = touched.tile.id === "portalA" ? "portalB" : "portalA";
+      let best = null;
+      let bestD = Infinity;
+      this.level.forEachTile((t, c, r) => {
+        if (t.id !== want) return;
+        if (c === touched.c && r === touched.r) return;
+        const d = Math.abs(c - touched.c) + Math.abs(r - touched.r);
+        if (d < bestD) {
+          bestD = d;
+          best = { c: c, r: r, tile: t };
+        }
+      });
+      if (!best) return;
+      p.x = best.c * TILE + tileOx(best.tile) + (TILE - p.w) / 2;
+      p.y = best.r * TILE + tileOy(best.tile) + (TILE - p.h) / 2;
+      this.portalCd = 0.5;
+      this.portalFlash = 0.3;
+    }
+
+    checkGravOrbs() {
+      // Gravity orb: press jump while touching to flip up/down.
+      const p = this.player;
+      const box = this.playerBox();
+      const hits = this.nearbyTiles(box.x, box.y, box.w, box.h, 2);
+      const orbs = hits.filter(({ tile }) => isGravOrbId(tile.id)).map(({ c, r, tile }) => orbBox(c, r, tile));
+      for (const b of orbs) {
+        if (!aabbOverlap(box, b)) continue;
+        if (this.buffer > 0 && !this.dead && !this.won) {
+          this.gravDir = (this.gravDir || 1) > 0 ? -1 : 1;
+          p.vy = 0;
+          p.onGround = false;
+          p.jumping = false;
+          this.buffer = 0;
+          this.coyote = 0;
+          this.gravFlash = 0.3;
+        }
+        return;
+      }
+    }
+
+    checkLiquids() {
+      // Water: slow sink + buoyancy/swim. Lava: handled in
+      // checkTriggers (insta-die). Sets this.inWater for physics.
+      if (this.dead || this.won) {
+        this.inWater = false;
+        return;
+      }
+      const box = this.playerBox();
+      const hits = this.nearbyTiles(box.x, box.y, box.w, box.h, 2);
+      const cx = box.x + box.w / 2;
+      const cy = box.y + box.h / 2;
+      this.inWater = false;
+      for (const { tile, c, r } of hits) {
+        if (tile.id !== "water") continue;
+        const wb = { x: cellX(c, tile) + 3, y: cellY(r, tile) + 10, w: TILE - 6, h: TILE - 10 };
+        if (cx >= wb.x && cx <= wb.x + wb.w && cy >= wb.y && cy <= wb.y + wb.h) {
+          this.inWater = true;
+          break;
+        }
+      }
+    }
+
     kill(reason) {
       if (this.dead || this.won) return;
       this.dead = true;
@@ -1907,6 +2298,9 @@
       if (this.orbFlash > 0) this.orbFlash = Math.max(0, this.orbFlash - dt);
       if (this.padFlash > 0) this.padFlash = Math.max(0, this.padFlash - dt);
       if (this.dashFlash > 0) this.dashFlash = Math.max(0, this.dashFlash - dt);
+      if (this.portalFlash > 0) this.portalFlash = Math.max(0, this.portalFlash - dt);
+      if (this.gravFlash > 0) this.gravFlash = Math.max(0, this.gravFlash - dt);
+      if (this.portalCd > 0) this.portalCd = Math.max(0, this.portalCd - dt);
 
       if (this.dead) {
         this.deathTimer += dt;
@@ -1942,21 +2336,49 @@
         p.vx += wish * accel * dt;
         p.vx = clamp(p.vx, -g.moveSpeed, g.moveSpeed);
       } else if (p.onGround) {
-        const mag = Math.abs(p.vx);
-        const next = mag - g.friction * dt;
-        p.vx = next <= 0 ? 0 : Math.sign(p.vx) * next;
+        if (this.groundSlope) {
+          // slide downhill on 45° slopes when no input:
+          // slopeL (/) falls left, slopeR (\) falls right
+          const dir = this.groundSlope === "slopeL" ? -1 : 1;
+          p.vx += dir * 1400 * dt;
+          p.vx = clamp(p.vx, -g.moveSpeed, g.moveSpeed);
+        } else {
+          const mag = Math.abs(p.vx);
+          const next = mag - g.friction * dt;
+          p.vx = next <= 0 ? 0 : Math.sign(p.vx) * next;
+        }
       } else {
         p.vx *= 1 - Math.min(1, 1.6 * dt);
       }
 
-      p.vy += g.gravity * dt;
-      if (p.vy > g.maxFall) p.vy = g.maxFall;
+      const gd = this.gravDir || 1;
+      this.checkLiquids();
+      if (this.inWater) {
+        // slow sink + buoyancy: weak gravity, capped fall, swim on hold
+        p.vy += g.gravity * 0.32 * dt;
+        if (jumpDown) p.vy -= g.gravity * 1.15 * dt;
+        const cap = 170;
+        if (p.vy > cap) p.vy = cap;
+        if (p.vy < -300) p.vy = -300;
+        p.vx *= 1 - Math.min(1, 2.2 * dt);
+      } else {
+        p.vy += g.gravity * gd * dt;
+        if (gd > 0) {
+          if (p.vy > g.maxFall) p.vy = g.maxFall;
+        } else {
+          if (p.vy < -g.maxFall) p.vy = -g.maxFall;
+        }
+      }
 
       if (p.onGround) this.coyote = g.coyoteMs / 1000;
       else this.coyote = Math.max(0, this.coyote - dt);
 
       if (this.buffer > 0 && this.coyote > 0) {
-        p.vy = -g.jumpForce;
+        p.vy = -g.jumpForce * gd;
+        if (this.inWater) p.vy *= 0.62;
+        // slope launch: jumping while running up a 45° face keeps
+        // the run-up as an angled boost
+        if (this.groundSlope) p.vx *= 1.08;
         p.onGround = false;
         this.coyote = 0;
         this.buffer = 0;
@@ -1964,17 +2386,35 @@
         this.pendingJumps = (this.pendingJumps || 0) + 1;
       }
 
-      if (p.jumping && !jumpDown && p.vy < 0) {
-        p.vy *= g.jumpCut;
-        p.jumping = false;
+      if (gd > 0) {
+        if (p.jumping && !jumpDown && p.vy < 0) {
+          p.vy *= g.jumpCut;
+          p.jumping = false;
+        }
+        if (p.vy >= 0) p.jumping = false;
+      } else {
+        if (p.jumping && !jumpDown && p.vy > 0) {
+          p.vy *= g.jumpCut;
+          p.jumping = false;
+        }
+        if (p.vy <= 0) p.jumping = false;
       }
-      if (p.vy >= 0) p.jumping = false;
 
+      this.wasSlope = this.groundSlope;
+      const wasVx = p.vx;
       p.onGround = false;
+      this.groundSlope = null;
       p.x += p.vx * dt;
       this.resolveAxis("x");
       p.y += p.vy * dt;
       this.resolveAxis("y");
+      this.resolveSlopes();
+      if (!p.onGround && this.wasSlope && this.portalCd <= 0) {
+        // ran off a slope lip at speed: convert run-up into launch
+        // angle instead of just dropping flat
+        if (this.wasSlope === "slopeL" && wasVx > 220) p.vy = Math.min(p.vy, -wasVx * 0.42);
+        else if (this.wasSlope === "slopeR" && wasVx < -220) p.vy = Math.min(p.vy, wasVx * 0.42);
+      }
 
       if (p.x < 0) {
         p.x = 0;
@@ -1993,11 +2433,14 @@
       if (!p.onGround) p.rot += p.facing * 220 * dt;
 
       this.checkOrbs();
+      this.checkGravOrbs();
       this.checkPads();
       this.checkDashes();
+      this.checkPortals();
       this.checkCheckpoints();
       this.checkCoins();
       this.updateMovers(dt);
+      this.updatePlats(dt);
       this.checkTriggers();
       this.tickTrail(dt);
     }
@@ -2064,10 +2507,16 @@
   function simpleTileColor(tile) {
     if (isSpikeId(tile.id)) return "#ff4d62";
     if (isOrbId(tile.id)) return "#3ee07a";
+    if (isGravOrbId(tile.id)) return "#b45cff";
     if (tile.id === "pad") return "#2ee6ff";
     if (tile.id === "dash") return "#ff9a1f";
+    if (isPortalId(tile.id)) return tile.id === "portalA" ? "#2e7bff" : "#ff7b2e";
     if (isGoalId(tile.id)) return "#ffd23c";
     if (tile.id === "checkpoint") return "#3ee07a";
+    if (tile.id === "water") return "#3e8cff";
+    if (tile.id === "lava") return "#ff4d1a";
+    if (tile.id === "platform") return "#aab4c8";
+    if (isSlopeId(tile.id)) return "#7d92b5";
     if (tile.id === "grass" || tile.id === "igrass" || tile.id === "fgrass") return "#5fd68e";
     if (isBrickId(tile.id)) return "#6b86b0";
     return "#9db4d8";
@@ -2082,10 +2531,30 @@
     if (isSpikeId(tile.id)) {
       spikePoly(ctx, x, y, size, rot);
       ctx.fill();
-    } else if (isOrbId(tile.id) || isCoinId(tile.id)) {
+    } else if (isSlopeId(tile.id)) {
+      // 45° triangle: slopeL (/) fills bottom-right, slopeR (\) bottom-left
+      ctx.beginPath();
+      if (tile.id === "slopeL") {
+        ctx.moveTo(x, y + size);
+        ctx.lineTo(x + size, y + size);
+        ctx.lineTo(x + size, y);
+      } else {
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y + size);
+        ctx.lineTo(x + size, y + size);
+      }
+      ctx.closePath();
+      ctx.fill();
+    } else if (isOrbId(tile.id) || isGravOrbId(tile.id) || isCoinId(tile.id)) {
       ctx.beginPath();
       ctx.arc(x + size / 2, y + size / 2, size * 0.38, 0, Math.PI * 2);
       ctx.fill();
+    } else if (isPortalId(tile.id)) {
+      ctx.beginPath();
+      ctx.ellipse(x + size / 2, y + size / 2, size * 0.3, size * 0.42, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (tile.id === "water" || tile.id === "lava") {
+      ctx.fillRect(x + 1, y + size * 0.3, size - 2, size * 0.7 - 1);
     } else if (tile.id === "pad") {
       ctx.fillRect(x + 2, y + size * 0.58, size - 4, size * 0.32);
     } else {
@@ -2713,6 +3182,31 @@
     return images;
   }
 
+  // Animated liquid frame: water-strip.png / lava-strip.png hold 4
+  // frames side-by-side (128x32). Falls back to the static sprite.
+  function drawLiquidStrip(ctx, images, kind, x, y, size) {
+    const strip = images && (kind === "water" ? images.waterStrip || images.waterstrip : images.lavaStrip || images.lavastrip);
+    const fallback = images && images[kind];
+    let frame = 0;
+    try {
+      frame = Math.floor(Date.now() / 280) % 4;
+    } catch (e) {}
+    if (strip && (strip.naturalWidth || strip.width)) {
+      const sw = strip.naturalWidth || strip.width || 128;
+      const sh = strip.naturalHeight || strip.height || 32;
+      const fw = sw / 4;
+      try {
+        ctx.drawImage(strip, frame * fw, 0, fw, sh, x, y, size, size);
+        return true;
+      } catch (e) {}
+    }
+    if (fallback) {
+      ctx.drawImage(fallback, x, y, size, size);
+      return true;
+    }
+    return false;
+  }
+
   function drawTile(ctx, images, tile, x, y, size, opts) {
     size = size || TILE;
     opts = opts || {};
@@ -2735,6 +3229,11 @@
       return;
     }
     if (opts.graphics === "simple") {
+      drawSimpleTile(ctx, tile, x, y, size, opts);
+      return;
+    }
+    if (tile.id === "water" || tile.id === "lava") {
+      if (drawLiquidStrip(ctx, images, tile.id, x, y, size)) return;
       drawSimpleTile(ctx, tile, x, y, size, opts);
       return;
     }
@@ -2767,6 +3266,14 @@
         img = images.spike;
       } else if (isOrbId(tile.id)) {
         img = images.orb;
+      } else if (isGravOrbId(tile.id)) {
+        img = images.gravOrb;
+      } else if (isPortalId(tile.id)) {
+        img = images[tile.id];
+      } else if (isSlopeId(tile.id)) {
+        img = images[tile.id];
+      } else if (tile.id === "platform") {
+        img = images.platform;
       } else if (tile.id === "pad") {
         img = images.pad;
       } else if (tile.id === "dash") {
@@ -2777,7 +3284,12 @@
     } else {
       img = realImg;
     }
-    if (!img) return;
+    if (!img) {
+      if (isSlopeId(tile.id) || isPortalId(tile.id) || isGravOrbId(tile.id) || tile.id === "platform" || tile.id === "water" || tile.id === "lava") {
+        drawSimpleTile(ctx, tile, x, y, size, opts);
+      }
+      return;
+    }
     const rot = isSpikeId(tile.id) ? tile.rot || 0 : 0;
     ctx.save();
     if (isInvisibleId(tile.id)) ctx.globalAlpha *= 0.4;
@@ -2907,7 +3419,8 @@
           const tile = level.grid[r][c];
           // All brick looks (including fakes, so they stay hidden) cast a shadow —
           // except invisible ones while playing, which must stay secret.
-          if (tile && isBrickId(tile.id) && !(hideInv && isInvisibleId(tile.id))) {
+          // Slopes + platforms are solid ground too, so they shadow as well.
+          if (tile && (isBrickId(tile.id) || isSlopeId(tile.id) || tile.id === "platform") && !(hideInv && isInvisibleId(tile.id))) {
             ctx.fillRect(cellX(c, tile) + 3, cellY(r, tile) + 4, TILE, TILE);
           }
         }
@@ -2954,6 +3467,34 @@
           graphics: gfx,
           real: real,
         });
+      }
+    }
+
+    const plats = extras.engine && extras.engine.plats;
+    if (plats && plats.length) {
+      for (const pl of plats) {
+        drawTile(ctx, pack, pl.tile, pl.x, pl.y, TILE, {
+          hideInvisible: !!extras.engine && !extras.hitboxes,
+          bob: !!extras.engine,
+          graphics: gfx,
+          real: real,
+        });
+        // waypoint path (editor hitbox view only)
+        if (extras.hitboxes && pl.pts && pl.pts.length > 1) {
+          ctx.save();
+          ctx.strokeStyle = "rgba(46,230,255,0.7)";
+          ctx.lineWidth = 2 / zoom;
+          ctx.setLineDash([5 / zoom, 4 / zoom]);
+          ctx.beginPath();
+          ctx.moveTo(pl.x + TILE / 2, pl.y + TILE / 2);
+          for (let i = 1; i < pl.pts.length; i++) {
+            ctx.lineTo(pl.pts[i].x + TILE / 2, pl.pts[i].y + TILE / 2);
+          }
+          if (pl.def && pl.def.loop) ctx.closePath();
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.restore();
+        }
       }
     }
 
@@ -3102,6 +3643,23 @@
             const b = orbBox(c, r, tile);
             ctx.strokeStyle = "rgba(62,224,122,0.9)";
             ctx.strokeRect(b.x, b.y, b.w, b.h);
+          } else if (isGravOrbId(tile.id)) {
+            const b = orbBox(c, r, tile);
+            ctx.strokeStyle = "rgba(180,92,255,0.95)";
+            ctx.strokeRect(b.x, b.y, b.w, b.h);
+          } else if (isPortalId(tile.id)) {
+            const b = dashBox(c, r, tile);
+            ctx.strokeStyle = tile.id === "portalA" ? "rgba(46,123,255,0.95)" : "rgba(255,123,46,0.95)";
+            ctx.strokeRect(b.x, b.y, b.w, b.h);
+          } else if (tile.id === "water") {
+            ctx.strokeStyle = "rgba(62,140,255,0.9)";
+            ctx.strokeRect(cellX(c, tile) + 3, cellY(r, tile) + 10, TILE - 6, TILE - 10);
+          } else if (tile.id === "lava") {
+            ctx.strokeStyle = "rgba(255,77,26,0.95)";
+            ctx.strokeRect(cellX(c, tile) + 6, cellY(r, tile) + 8, TILE - 12, TILE - 8);
+          } else if (isSlopeId(tile.id) || tile.id === "platform") {
+            ctx.strokeStyle = "rgba(125,146,181,0.9)";
+            ctx.strokeRect(cellX(c, tile), cellY(r, tile), TILE, TILE);
           } else if (tile.id === "pad") {
             const b = padBox(c, r, tile);
             ctx.strokeStyle = "rgba(255,157,46,0.9)";
@@ -3265,6 +3823,28 @@
         }
         ctx.restore();
       }
+      if (fx.flashes && gfx !== "simple" && engine.portalFlash > 0) {
+        const t = 1 - engine.portalFlash / 0.3;
+        ctx.save();
+        ctx.globalAlpha = 1 - t;
+        ctx.strokeStyle = "#7db4ff";
+        ctx.lineWidth = 3 / zoom;
+        ctx.beginPath();
+        ctx.ellipse(p.x + p.w / 2, p.y + p.h / 2, TILE * (0.5 + t * 0.9), TILE * (0.7 + t * 1.1), 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+      if (fx.flashes && gfx !== "simple" && engine.gravFlash > 0) {
+        const t = 1 - engine.gravFlash / 0.3;
+        ctx.save();
+        ctx.globalAlpha = 1 - t;
+        ctx.strokeStyle = "#b45cff";
+        ctx.lineWidth = 3 / zoom;
+        ctx.beginPath();
+        ctx.arc(p.x + p.w / 2, p.y + p.h / 2, TILE * (0.5 + t * 1.0), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
 
     // NOTE: front-layer (layer 1) widgets are NOT drawn here — they render as
@@ -3294,8 +3874,17 @@
     TILE_TYPES,
     isSpikeId,
     isBrickId,
+    isSlopeId,
+    isPlatformId,
+    isPortalId,
+    isGravOrbId,
+    isWaterId,
+    isLavaId,
+    isLiquidId,
     isGoalId,
     isOrbId,
+    sanitizePlatforms,
+    slopeSurfaceY,
     isFakeId,
     isInvisibleId,
     isCoinId,
