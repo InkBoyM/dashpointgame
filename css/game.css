@@ -458,6 +458,8 @@ body.touch #touchControls { display: block; }
   -webkit-tap-highlight-color: transparent;
   box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.12), 4px 4px 0 rgba(0, 0, 0, 0.4);
 }
+.touch-btn img { width: 56%; height: 56%; object-fit: contain; image-rendering: pixelated; pointer-events: none; display: block; }
+.touch-btn.jump img { width: 58%; height: 58%; }
 .touch-btn.jump {
   width: calc(var(--tc-size, 72px) + 12px);
   height: calc(var(--tc-size, 72px) + 12px);
