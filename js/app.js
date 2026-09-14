@@ -112,6 +112,8 @@
     discord: { skin: 35 },
     nerd: { skin: 37 },
     bibi: { skin: 39 },
+    putin: { skin: 40 },
+    trump: { skin: 41 },
   };
 
   function coinIcon(cls) {
@@ -1745,9 +1747,11 @@
     addSection("JUMPS", jumps, "Jump to unlock");
     addSection("VICTORY — beat levels", victory, "");
     addSection("SECRET", secret, "Hidden — tap the SKINS title 7 times or press Alt+A");
+    const irl = SKINS.filter(function(s){ return !!s.irl; });
+    if (irl.length) addSection("IRL — real people", irl, 'Codes: "bibi" / "putin" / "trump"');
     const shopOwned = SKINS.filter(function(s){ return isShopSkin(s) && isUnlocked(s.id) && !(s.unlock && s.unlock.deaths); });
     if (shopOwned.length) addSection("SHOP", shopOwned, "Bought with coins");
-    const codeOwned = SKINS.filter(function(s){ return isCodeSkin(s) && isUnlocked(s.id); });
+    const codeOwned = SKINS.filter(function(s){ return isCodeSkin(s) && isUnlocked(s.id) && !s.irl; });
     if (codeOwned.length) addSection("CODES", codeOwned, "Unlocked with a code");
     syncCoinUI();
   }
