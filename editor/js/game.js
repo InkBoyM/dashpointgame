@@ -38,6 +38,13 @@
     gravOrb: { id: "gravOrb", solid: false, hazard: false, rotatable: false, label: "Gravity orb" },
     water: { id: "water", solid: false, hazard: false, rotatable: false, liquid: "water", label: "Water" },
     lava: { id: "lava", solid: false, hazard: false, rotatable: false, liquid: "lava", label: "Lava" },
+    djOrb: { id: "djOrb", solid: false, hazard: false, rotatable: false, label: "Double-jump orb" },
+    crusher: { id: "crusher", solid: true, hazard: false, rotatable: false, label: "Crusher" },
+    saw: { id: "saw", solid: false, hazard: true, rotatable: false, label: "Saw" },
+    ice: { id: "ice", solid: true, hazard: false, rotatable: false, label: "Ice block" },
+    mud: { id: "mud", solid: true, hazard: false, rotatable: false, label: "Mud block" },
+    half: { id: "half", solid: true, hazard: false, rotatable: false, label: "Half block" },
+    halfT: { id: "halfT", solid: true, hazard: false, rotatable: false, label: "Half block (top)" },
     coin10: { id: "coin10", solid: false, hazard: false, rotatable: false, label: "Coin +10" },
     coin50: { id: "coin50", solid: false, hazard: false, rotatable: false, label: "Coin +50" },
     coin100: { id: "coin100", solid: false, hazard: false, rotatable: false, label: "Coin +100" },
@@ -64,6 +71,18 @@
 
   function isSlopeId(id) {
     return id === "slopeL" || id === "slopeR";
+  }
+
+  function isSawId(id) {
+    return id === "saw";
+  }
+
+  function isHalfId(id) {
+    return id === "half" || id === "halfT";
+  }
+
+  function isDjOrbId(id) {
+    return id === "djOrb";
   }
 
   function isPlatformId(id) {
@@ -199,6 +218,18 @@
     waterStrip: "assets/tiles/water-strip.png",
     lava: "assets/tiles/lava.png",
     lavaStrip: "assets/tiles/lava-strip.png",
+    djOrb: "assets/tiles/djOrb.png",
+    crusher: "assets/tiles/crusher.png",
+    saw: "assets/tiles/saw.png",
+    ice: "assets/tiles/ice.png",
+    mud: "assets/tiles/mud.png",
+    half: "assets/tiles/half.png",
+    halfT: "assets/tiles/halfT.png",
+    bgMeadow: "assets/bg/bg-meadow.png",
+    bgGlacier: "assets/bg/bg-glacier.png",
+    bgVolcano: "assets/bg/bg-volcano.png",
+    bgDesert: "assets/bg/bg-desert.png",
+    bgCave: "assets/bg/bg-cave.png",
     coin10: "assets/tiles/coin10.png",
     coin50: "assets/tiles/coin50.png",
     coin100: "assets/tiles/coin100.png",
@@ -233,6 +264,18 @@
     waterStrip: "assets/tiles/water-strip.png",
     lava: "assets/tiles/lava.png",
     lavaStrip: "assets/tiles/lava-strip.png",
+    djOrb: "assets/tiles/djOrb.png",
+    crusher: "assets/tiles/crusher.png",
+    saw: "assets/tiles/saw.png",
+    ice: "assets/tiles/ice.png",
+    mud: "assets/tiles/mud.png",
+    half: "assets/tiles/half.png",
+    halfT: "assets/tiles/halfT.png",
+    bgMeadow: "assets/bg/bg-meadow.png",
+    bgGlacier: "assets/bg/bg-glacier.png",
+    bgVolcano: "assets/bg/bg-volcano.png",
+    bgDesert: "assets/bg/bg-desert.png",
+    bgCave: "assets/bg/bg-cave.png",
     coin10: "assets/tiles/ultra/coin10.png",
     coin50: "assets/tiles/ultra/coin50.png",
     coin100: "assets/tiles/ultra/coin100.png",
@@ -629,7 +672,12 @@
 
   const TEXT_COLORS = ["#ffffff", "#2ee6ff", "#ff2a3c", "#ffd23c", "#3ee07a"];
 
-  const DEFAULT_THEME = { top: "#040810", mid: "#0a1628", bottom: "#122a4a" };
+  const DEFAULT_THEME = { top: "#040810", mid: "#0a1628", bottom: "#122a4a", bg: "" };
+
+  // Looping theme backgrounds (assets/bg/*.png, seamless 256px tiles).
+  // Level theme.bg picks one; "" keeps the gradient.
+  const BG_IDS = ["", "meadow", "glacier", "volcano", "desert", "cave"];
+  const BG_KEYS = { meadow: "bgMeadow", glacier: "bgGlacier", volcano: "bgVolcano", desert: "bgDesert", cave: "bgCave" };
 
   const SONGS = [
     { id: "", name: "No song", file: "" },
@@ -688,14 +736,14 @@
   };
 
   const THEMES = [
-    { name: "Ocean", top: "#040810", mid: "#0a1628", bottom: "#122a4a" },
-    { name: "Violet", top: "#070514", mid: "#150b30", bottom: "#2a1652" },
-    { name: "Ember", top: "#0d0406", mid: "#2a0a12", bottom: "#48121a" },
-    { name: "Jungle", top: "#03100a", mid: "#0a2618", bottom: "#144228" },
-    { name: "Glacier", top: "#04090d", mid: "#0a2230", bottom: "#10445c" },
-    { name: "Sandstorm", top: "#0d0904", mid: "#241708", bottom: "#443010" },
-    { name: "Void", top: "#000000", mid: "#060608", bottom: "#101016" },
-    { name: "Candy", top: "#12061a", mid: "#33094a", bottom: "#5c1480" },
+    { name: "Ocean", top: "#040810", mid: "#0a1628", bottom: "#122a4a", bg: "" },
+    { name: "Violet", top: "#070514", mid: "#150b30", bottom: "#2a1652", bg: "cave" },
+    { name: "Ember", top: "#0d0406", mid: "#2a0a12", bottom: "#48121a", bg: "volcano" },
+    { name: "Jungle", top: "#03100a", mid: "#0a2618", bottom: "#144228", bg: "meadow" },
+    { name: "Glacier", top: "#04090d", mid: "#0a2230", bottom: "#10445c", bg: "glacier" },
+    { name: "Sandstorm", top: "#0d0904", mid: "#241708", bottom: "#443010", bg: "desert" },
+    { name: "Void", top: "#000000", mid: "#060608", bottom: "#101016", bg: "" },
+    { name: "Candy", top: "#12061a", mid: "#33094a", bottom: "#5c1480", bg: "" },
   ];
 
   function isValidHex(v) {
@@ -704,10 +752,12 @@
 
   function sanitizeTheme(raw) {
     const t = raw && typeof raw === "object" ? raw : {};
+    const bg = String(t.bg || "");
     return {
       top: isValidHex(t.top) ? t.top.toLowerCase() : DEFAULT_THEME.top,
       mid: isValidHex(t.mid) ? t.mid.toLowerCase() : DEFAULT_THEME.mid,
       bottom: isValidHex(t.bottom) ? t.bottom.toLowerCase() : DEFAULT_THEME.bottom,
+      bg: BG_IDS.indexOf(bg) !== -1 ? bg : "",
     };
   }
 
@@ -1240,10 +1290,11 @@
       .filter(Boolean);
   }
 
-  // Moving platforms: { c, r, path: [[dc,dr],...], speed, loop }
+  // Moving loopers: { c, r, path: [[dc,dr],...], speed, loop }
+  // Works for "platform" (rides the cube) and "saw" (kills on touch).
   // path offsets are in tiles relative to (c,r). loop=true cycles
-  // around the waypoints forever; loop=false ping-pongs. Empty path
-  // (or missing entry) = static solid platform tile.
+  // the route, loop=false ping-pongs. Empty path (or missing entry)
+  // = static tile.
   function sanitizePlatforms(raw) {
     if (!Array.isArray(raw)) return [];
     return raw
@@ -1345,7 +1396,7 @@
     }
 
     counts() {
-      const out = { brick: 0, ibrick: 0, fbrick: 0, spike: 0, ispike: 0, fspike: 0, goal: 0, igoal: 0, orb: 0, iorb: 0, pad: 0, dash: 0, coin10: 0, coin50: 0, coin100: 0, coin500: 0, slopeL: 0, slopeR: 0, platform: 0, portalA: 0, portalB: 0, gravOrb: 0, water: 0, lava: 0, empty: 0, labels: 0, pictures: 0, widgets: 0 };
+      const out = { brick: 0, ibrick: 0, fbrick: 0, spike: 0, ispike: 0, fspike: 0, goal: 0, igoal: 0, orb: 0, iorb: 0, pad: 0, dash: 0, coin10: 0, coin50: 0, coin100: 0, coin500: 0, slopeL: 0, slopeR: 0, platform: 0, portalA: 0, portalB: 0, gravOrb: 0, water: 0, lava: 0, djOrb: 0, crusher: 0, saw: 0, ice: 0, mud: 0, half: 0, halfT: 0, empty: 0, labels: 0, pictures: 0, widgets: 0 };
       for (let r = 0; r < this.rows; r++) {
         for (let c = 0; c < this.cols; c++) {
           const t = this.grid[r][c];
@@ -1605,6 +1656,20 @@
     return { x: cellX(c, tile) + m, y: cellY(r, tile) + m, w: TILE - m * 2, h: TILE - m * 2 };
   }
 
+  function sawBox(c, r, tile) {
+    return { x: cellX(c, tile) + 5, y: cellY(r, tile) + 5, w: TILE - 10, h: TILE - 10 };
+  }
+
+  function sawBoxPx(x, y) {
+    return { x: x + 5, y: y + 5, w: TILE - 10, h: TILE - 10 };
+  }
+
+  // Half blocks occupy 16px: half = floor strip, halfT = ceiling strip.
+  function halfBox(c, r, tile) {
+    if (tile.id === "halfT") return { x: cellX(c, tile), y: cellY(r, tile), w: TILE, h: TILE / 2 };
+    return { x: cellX(c, tile), y: cellY(r, tile) + TILE / 2, w: TILE, h: TILE / 2 };
+  }
+
   function coinBox(c, r, tile) {
     const m = TILE * 0.16;
     return { x: cellX(c, tile) + m, y: cellY(r, tile) + m, w: TILE - m * 2, h: TILE - m * 2 };
@@ -1676,14 +1741,18 @@
       this.dashFlash = 0;
       this.portalFlash = 0;
       this.gravFlash = 0;
+      this.djFlash = 0;
       this.gravDir = 1;
       this.portalCd = 0;
       this.inWater = false;
       this.groundSlope = null;
       this.wasSlope = null;
+      this.groundMat = null;
+      this.airJumps = 0;
       this.finished = false;
       this.movers = [];
       this.plats = [];
+      this.crushers = [];
       this.trailParts = [];
       this.trailTick = 0;
       const triggers = this.level.triggers || [];
@@ -1713,19 +1782,19 @@
         });
         this.level.set(tg.tc, ty, null);
       }
-      // Looping waypoint platforms: lift the platform tile out of the
+      // Looping waypoint loopers: lift the platform/saw tile out of the
       // grid and drive it along its path. How to author: place a
-      // "platform" tile, then add a platforms entry:
+      // "platform" or "saw" tile, then add a platforms entry:
       // { c, r, path: [[dx,dy],[dx,dy]...], speed: 3, loop: true }
       // path offsets are tiles from (c,r). loop=true cycles the route,
       // loop=false ping-pongs. See sanitizePlatforms.
       const platDefs = this.level.platforms || [];
       for (const def of platDefs) {
         let tile = this.level.get(def.c, def.r);
-        if (!tile || tile.id !== "platform") {
-          // tolerate: search 1 below (platform sitting on floor edge)
+        if (!tile || (tile.id !== "platform" && tile.id !== "saw")) {
+          // tolerate: search 1 below (looper sitting on floor edge)
           tile = this.level.get(def.c, def.r + 1);
-          if (!tile || tile.id !== "platform") continue;
+          if (!tile || (tile.id !== "platform" && tile.id !== "saw")) continue;
           def.r = def.r + 1;
         }
         const ox = def.c * TILE + tileOx(tile);
@@ -1748,6 +1817,26 @@
       }
       // Standalone platform tiles with no platforms entry stay put as
       // static solid ground (handled by normal tile collision).
+      // Crushers: hover until the cube passes underneath, then slam.
+      const crusherCells = [];
+      this.level.forEachTile((tile, c, r) => {
+        if (tile.id === "crusher") crusherCells.push({ c: c, r: r });
+      });
+      for (const cc of crusherCells) {
+        const tile = this.level.get(cc.c, cc.r);
+        this.crushers.push({
+          x: cc.c * TILE + tileOx(tile),
+          y: cc.r * TILE + tileOy(tile),
+          baseY: cc.r * TILE + tileOy(tile),
+          cc: cc.c,
+          cr: cc.r,
+          state: "idle",
+          t: 0,
+          vy: 0,
+          fallY: cc.r * TILE + TILE * 4,
+        });
+        this.level.set(cc.c, cc.r, null);
+      }
     }
 
     clearCheckpoint() {
@@ -1791,7 +1880,7 @@
         const type = TILE_TYPES[tile.id];
         if (!type || !type.solid) continue;
         if (isSlopeId(tile.id)) continue; // slopes use resolveSlopes, not AABB
-        solids.push(solidBox(c, r, tile));
+        solids.push(isHalfId(tile.id) ? halfBox(c, r, tile) : solidBox(c, r, tile));
       }
       for (const m of this.movers || []) {
         if (m.done) continue;
@@ -1802,6 +1891,9 @@
       }
       for (const pl of this.plats || []) {
         solids.push({ x: pl.x, y: pl.y, w: TILE, h: TILE });
+      }
+      for (const cr of this.crushers || []) {
+        solids.push({ x: cr.x, y: cr.y, w: TILE, h: TILE });
       }
       const gravDown = (this.gravDir || 1) > 0;
       for (const s of solids) {
@@ -1988,6 +2080,77 @@
       }
     }
 
+    updateCrushers(dt) {
+      // Crusher: idle hover -> slam when the cube passes underneath ->
+      // pause -> slow rise. Touching a falling crusher kills.
+      if (!this.crushers || !this.crushers.length || this.dead || this.won) return;
+      const p = this.player;
+      const box = this.playerBox();
+      for (const c of this.crushers) {
+        if (c.state === "idle") {
+          const pcx = p.x + p.w / 2;
+          if (Math.abs(pcx - (c.x + TILE / 2)) < TILE * 0.6 && p.y > c.y && p.y - c.y < TILE * 6.5) {
+            // fall until the first solid top below (max 5 tiles down)
+            const cc = Math.round(c.x / TILE);
+            const r0 = Math.round(c.baseY / TILE);
+            let fallY = c.baseY + TILE * 4;
+            for (let rr = r0 + 1; rr <= r0 + 6 && rr < this.level.rows; rr++) {
+              const t = this.level.get(cc, rr);
+              const ty = t && TILE_TYPES[t.id];
+              if (ty && ty.solid && !isSlopeId(t.id)) {
+                let top = rr * TILE + tileOy(t);
+                if (t.id === "half") top += TILE / 2;
+                fallY = top - TILE;
+                break;
+              }
+            }
+            if (fallY < c.y) fallY = c.y;
+            c.fallY = fallY;
+            c.state = "fall";
+            c.vy = 0;
+          }
+        } else if (c.state === "fall") {
+          c.vy += 5200 * dt;
+          c.y += c.vy * dt;
+          if (c.y >= c.fallY) {
+            c.y = c.fallY;
+            c.state = "wait";
+            c.t = 0.55;
+          }
+        } else if (c.state === "wait") {
+          c.t -= dt;
+          if (c.t <= 0) c.state = "rise";
+        } else if (c.state === "rise") {
+          c.y -= 95 * dt;
+          if (c.y <= c.baseY) {
+            c.y = c.baseY;
+            c.state = "idle";
+            c.vy = 0;
+          }
+        }
+        if (c.state === "fall" && c.vy > 60) {
+          if (aabbOverlap(box, { x: c.x + 3, y: c.y + 3, w: TILE - 6, h: TILE - 6 })) {
+            this.kill("crush");
+            return;
+          }
+        }
+      }
+    }
+
+    groundMaterial() {
+      // ice/mud under the feet (sampled after landing, used next frame)
+      const p = this.player;
+      if (!p.onGround) return null;
+      const cx = p.x + p.w / 2;
+      const c = Math.floor(cx / TILE);
+      const r = Math.floor((p.y + p.h + 2) / TILE);
+      const t = this.level.get(c, r);
+      if (!t || (t.id !== "ice" && t.id !== "mud")) return null;
+      const top = t.id === "half" ? 0 : r * TILE + tileOy(t);
+      if (Math.abs(p.y + p.h - top) > 7) return null;
+      return t.id;
+    }
+
     updateMovers(dt) {
       if (!this.movers || !this.movers.length || this.dead || this.won) return;
       const p = this.player;
@@ -2049,7 +2212,12 @@
       for (const { tile, c, r } of hits) {
         const type = TILE_TYPES[tile.id];
         if (type && type.hazard) {
-          if (aabbOverlap(box, spikeBox(c, r, tile.rot || 0, tile))) {
+          if (isSawId(tile.id)) {
+            if (aabbOverlap(box, sawBox(c, r, tile))) {
+              this.kill("saw");
+              return;
+            }
+          } else if (aabbOverlap(box, spikeBox(c, r, tile.rot || 0, tile))) {
             this.kill("spike");
             return;
           }
@@ -2071,7 +2239,12 @@
         if (m.done) continue;
         const mType = TILE_TYPES[m.tile.id];
         if (mType && mType.hazard) {
-          if (aabbOverlap(box, spikeBox(m.x / TILE, m.y / TILE, m.tile.rot || 0))) {
+          if (isSawId(m.tile.id)) {
+            if (aabbOverlap(box, sawBoxPx(m.x, m.y))) {
+              this.kill("saw");
+              return;
+            }
+          } else if (aabbOverlap(box, spikeBox(m.x / TILE, m.y / TILE, m.tile.rot || 0))) {
             this.kill("spike");
             return;
           }
@@ -2080,6 +2253,12 @@
             this.win();
             return;
           }
+        }
+      }
+      for (const pl of this.plats || []) {
+        if (isSawId(pl.tile.id) && aabbOverlap(box, sawBoxPx(pl.x, pl.y))) {
+          this.kill("saw");
+          return;
         }
       }
       if (this.player.y > this.level.rows * TILE + 8) this.kill("fall");
@@ -2275,6 +2454,23 @@
       }
     }
 
+    checkDjOrbs() {
+      // Double-jump orb: touch to bank one air jump (no press needed).
+      // Spend it anytime airborne with jump. Refreshes on landing.
+      if (this.dead || this.won) return;
+      const box = this.playerBox();
+      const hits = this.nearbyTiles(box.x, box.y, box.w, box.h, 2);
+      for (const { tile, c, r } of hits) {
+        if (!isDjOrbId(tile.id)) continue;
+        if (!aabbOverlap(box, orbBox(c, r, tile))) continue;
+        if ((this.airJumps | 0) < 1) {
+          this.airJumps = 1;
+          this.djFlash = 0.25;
+        }
+        return;
+      }
+    }
+
     kill(reason) {
       if (this.dead || this.won) return;
       this.dead = true;
@@ -2300,6 +2496,7 @@
       if (this.dashFlash > 0) this.dashFlash = Math.max(0, this.dashFlash - dt);
       if (this.portalFlash > 0) this.portalFlash = Math.max(0, this.portalFlash - dt);
       if (this.gravFlash > 0) this.gravFlash = Math.max(0, this.gravFlash - dt);
+      if (this.djFlash > 0) this.djFlash = Math.max(0, this.djFlash - dt);
       if (this.portalCd > 0) this.portalCd = Math.max(0, this.portalCd - dt);
 
       if (this.dead) {
@@ -2330,11 +2527,13 @@
       if (wish !== 0) p.facing = wish;
 
       const accel = p.onGround ? g.accel : g.airAccel;
+      const mat = this.groundMat;
+      const mudCap = mat === "mud" ? g.moveSpeed * 0.55 : g.moveSpeed;
       if (this.dashFlash > 0.12) {
         if (wish !== 0) p.facing = wish;
       } else if (wish !== 0) {
-        p.vx += wish * accel * dt;
-        p.vx = clamp(p.vx, -g.moveSpeed, g.moveSpeed);
+        p.vx += wish * accel * (mat === "mud" && p.onGround ? 0.5 : 1) * dt;
+        p.vx = clamp(p.vx, -mudCap, mudCap);
       } else if (p.onGround) {
         if (this.groundSlope) {
           // slide downhill on 45° slopes when no input:
@@ -2342,6 +2541,17 @@
           const dir = this.groundSlope === "slopeL" ? -1 : 1;
           p.vx += dir * 1400 * dt;
           p.vx = clamp(p.vx, -g.moveSpeed, g.moveSpeed);
+        } else if (mat === "ice") {
+          // ice: nearly frictionless, momentum carries
+          const mag = Math.abs(p.vx);
+          const next = mag - 200 * dt;
+          p.vx = next <= 0 ? 0 : Math.sign(p.vx) * next;
+        } else if (mat === "mud") {
+          // mud: heavy drag + capped speed
+          p.vx = clamp(p.vx, -mudCap, mudCap);
+          const mag = Math.abs(p.vx);
+          const next = mag - 5000 * dt;
+          p.vx = next <= 0 ? 0 : Math.sign(p.vx) * next;
         } else {
           const mag = Math.abs(p.vx);
           const next = mag - g.friction * dt;
@@ -2353,6 +2563,7 @@
 
       const gd = this.gravDir || 1;
       this.checkLiquids();
+      this.checkDjOrbs();
       if (this.inWater) {
         // slow sink + buoyancy: weak gravity, capped fall, swim on hold
         p.vy += g.gravity * 0.32 * dt;
@@ -2383,6 +2594,17 @@
         this.coyote = 0;
         this.buffer = 0;
         p.jumping = true;
+        this.pendingJumps = (this.pendingJumps || 0) + 1;
+      } else if (this.buffer > 0 && (this.airJumps | 0) > 0 && !p.onGround) {
+        // double jump: spend the banked air jump from a djOrb
+        p.vy = -g.jumpForce * gd;
+        if (this.inWater) p.vy *= 0.62;
+        p.onGround = false;
+        this.airJumps = (this.airJumps | 0) - 1;
+        this.buffer = 0;
+        this.coyote = 0;
+        p.jumping = true;
+        this.djFlash = 0.25;
         this.pendingJumps = (this.pendingJumps || 0) + 1;
       }
 
@@ -2432,8 +2654,13 @@
       p.rot += (p.vx / TILE) * 90 * dt;
       if (!p.onGround) p.rot += p.facing * 220 * dt;
 
+      // landing refreshes the banked double jump; sample ground material
+      if (p.onGround) this.airJumps = 0;
+      this.groundMat = this.groundMaterial();
+
       this.checkOrbs();
       this.checkGravOrbs();
+      this.checkDjOrbs();
       this.checkPads();
       this.checkDashes();
       this.checkPortals();
@@ -2441,6 +2668,7 @@
       this.checkCoins();
       this.updateMovers(dt);
       this.updatePlats(dt);
+      this.updateCrushers(dt);
       this.checkTriggers();
       this.tickTrail(dt);
     }
@@ -2508,8 +2736,14 @@
     if (isSpikeId(tile.id)) return "#ff4d62";
     if (isOrbId(tile.id)) return "#3ee07a";
     if (isGravOrbId(tile.id)) return "#b45cff";
+    if (isDjOrbId(tile.id)) return "#2ee6ff";
     if (tile.id === "pad") return "#2ee6ff";
     if (tile.id === "dash") return "#ff9a1f";
+    if (isSawId(tile.id)) return "#ff5a6e";
+    if (tile.id === "crusher") return "#8a93a8";
+    if (tile.id === "ice") return "#9fd8ff";
+    if (tile.id === "mud") return "#8a6238";
+    if (isHalfId(tile.id)) return "#7d92b5";
     if (isPortalId(tile.id)) return tile.id === "portalA" ? "#2e7bff" : "#ff7b2e";
     if (isGoalId(tile.id)) return "#ffd23c";
     if (tile.id === "checkpoint") return "#3ee07a";
@@ -2545,10 +2779,35 @@
       }
       ctx.closePath();
       ctx.fill();
-    } else if (isOrbId(tile.id) || isGravOrbId(tile.id) || isCoinId(tile.id)) {
+    } else if (isOrbId(tile.id) || isGravOrbId(tile.id) || isDjOrbId(tile.id) || isCoinId(tile.id)) {
       ctx.beginPath();
       ctx.arc(x + size / 2, y + size / 2, size * 0.38, 0, Math.PI * 2);
       ctx.fill();
+      if (isDjOrbId(tile.id)) {
+        ctx.fillStyle = "rgba(10,22,40,0.85)";
+        ctx.beginPath();
+        ctx.arc(x + size / 2, y + size / 2, size * 0.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (isSawId(tile.id)) {
+      ctx.beginPath();
+      ctx.arc(x + size / 2, y + size / 2, size * 0.44, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(10,22,40,0.8)";
+      ctx.lineWidth = Math.max(1, size * 0.08);
+      ctx.beginPath();
+      ctx.moveTo(x + size * 0.2, y + size * 0.2);
+      ctx.lineTo(x + size * 0.8, y + size * 0.8);
+      ctx.moveTo(x + size * 0.8, y + size * 0.2);
+      ctx.lineTo(x + size * 0.2, y + size * 0.8);
+      ctx.stroke();
+    } else if (tile.id === "crusher") {
+      ctx.fillRect(x + 1, y + 1, size - 2, size - 2);
+      ctx.fillStyle = "rgba(255,210,60,0.9)";
+      ctx.fillRect(x + 3, y + size * 0.4, size - 6, Math.max(2, size * 0.08));
+    } else if (isHalfId(tile.id)) {
+      if (tile.id === "halfT") ctx.fillRect(x + 1, y + 1, size - 2, size / 2 - 1);
+      else ctx.fillRect(x + 1, y + size / 2, size - 2, size / 2 - 1);
     } else if (isPortalId(tile.id)) {
       ctx.beginPath();
       ctx.ellipse(x + size / 2, y + size / 2, size * 0.3, size * 0.42, 0, 0, Math.PI * 2);
@@ -3207,6 +3466,42 @@
     return false;
   }
 
+  // Themed looping background: 256px seamless tile drawn in screen
+  // space with light parallax, so it covers any level size in all
+  // directions. Falls back to the gradient when unset/missing.
+  function drawTiledBg(ctx, images, w, h, cam, theme) {
+    const id = theme && theme.bg;
+    const key = (id && BG_KEYS[id]) || null;
+    const img = (key && images && images[key]) || null;
+    if (!img) return false;
+    const S = 256;
+    const par = 0.55;
+    const z = cam.zoom || 1;
+    const ts = S * z;
+    if (!(ts > 0)) return false;
+    let ox = -(((cam.x || 0) * z * par) % ts);
+    let oy = -(((cam.y || 0) * z * par) % ts);
+    if (ox > 0) ox -= ts;
+    if (oy > 0) oy -= ts;
+    ctx.fillStyle = (theme && theme.mid) || "#0a1628";
+    ctx.fillRect(0, 0, w, h);
+    const prev = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    try {
+      for (let y = oy; y < h; y += ts) {
+        for (let x = ox; x < w; x += ts) {
+          ctx.drawImage(img, x, y, ts, ts);
+        }
+      }
+    } catch (e) {
+      ctx.imageSmoothingEnabled = prev;
+      return false;
+    }
+    ctx.imageSmoothingEnabled = prev;
+    return true;
+  }
+
   function drawTile(ctx, images, tile, x, y, size, opts) {
     size = size || TILE;
     opts = opts || {};
@@ -3268,6 +3563,20 @@
         img = images.orb;
       } else if (isGravOrbId(tile.id)) {
         img = images.gravOrb;
+      } else if (isDjOrbId(tile.id)) {
+        img = images.djOrb;
+      } else if (tile.id === "crusher") {
+        img = images.crusher;
+      } else if (isSawId(tile.id)) {
+        img = images.saw;
+      } else if (tile.id === "ice") {
+        img = images.ice;
+      } else if (tile.id === "mud") {
+        img = images.mud;
+      } else if (tile.id === "half") {
+        img = images.half;
+      } else if (tile.id === "halfT") {
+        img = images.halfT;
       } else if (isPortalId(tile.id)) {
         img = images[tile.id];
       } else if (isSlopeId(tile.id)) {
@@ -3285,12 +3594,19 @@
       img = realImg;
     }
     if (!img) {
-      if (isSlopeId(tile.id) || isPortalId(tile.id) || isGravOrbId(tile.id) || tile.id === "platform" || tile.id === "water" || tile.id === "lava") {
+      if (isSlopeId(tile.id) || isPortalId(tile.id) || isGravOrbId(tile.id) || isDjOrbId(tile.id) || isSawId(tile.id) || tile.id === "platform" || tile.id === "crusher" || tile.id === "ice" || tile.id === "mud" || isHalfId(tile.id) || tile.id === "water" || tile.id === "lava") {
         drawSimpleTile(ctx, tile, x, y, size, opts);
       }
       return;
     }
     const rot = isSpikeId(tile.id) ? tile.rot || 0 : 0;
+    // saws spin in place (time-based, no tile state needed)
+    let spin = 0;
+    if (isSawId(tile.id)) {
+      try {
+        spin = (Date.now() / 350) % (Math.PI * 2);
+      } catch (e) {}
+    }
     ctx.save();
     if (isInvisibleId(tile.id)) ctx.globalAlpha *= 0.4;
     const prevSmooth = ctx.imageSmoothingEnabled;
@@ -3298,9 +3614,9 @@
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
     }
-    if (rot) {
+    if (rot || spin) {
       ctx.translate(x + size / 2, y + size / 2);
-      ctx.rotate((rot * Math.PI) / 180);
+      ctx.rotate(spin || (rot * Math.PI) / 180);
       ctx.drawImage(img, -size / 2, -size / 2, size, size);
     } else {
       ctx.drawImage(img, x, y, size, size);
@@ -3390,7 +3706,9 @@
     const worldH = level.rows * TILE;
 
     ctx.imageSmoothingEnabled = gfx === "ultra";
-    if (gfx === "ultra" && pack.background) drawUltraBackdrop(ctx, w, h, pack.background);
+    if (level.theme && level.theme.bg && drawTiledBg(ctx, pack, w, h, cam, level.theme)) {
+      // themed looping bg handled it (base fill + seamless tiles)
+    } else if (gfx === "ultra" && pack.background) drawUltraBackdrop(ctx, w, h, pack.background);
     else drawBackdrop(ctx, w, h, Date.now() / 1000, level.theme, gfx === "simple");
 
     ctx.save();
@@ -3419,8 +3737,8 @@
           const tile = level.grid[r][c];
           // All brick looks (including fakes, so they stay hidden) cast a shadow —
           // except invisible ones while playing, which must stay secret.
-          // Slopes + platforms are solid ground too, so they shadow as well.
-          if (tile && (isBrickId(tile.id) || isSlopeId(tile.id) || tile.id === "platform") && !(hideInv && isInvisibleId(tile.id))) {
+          // Slopes + platforms + new solids shadow as well.
+          if (tile && (isBrickId(tile.id) || isSlopeId(tile.id) || isHalfId(tile.id) || tile.id === "platform" || tile.id === "crusher" || tile.id === "ice" || tile.id === "mud") && !(hideInv && isInvisibleId(tile.id))) {
             ctx.fillRect(cellX(c, tile) + 3, cellY(r, tile) + 4, TILE, TILE);
           }
         }
@@ -3495,6 +3813,17 @@
           ctx.setLineDash([]);
           ctx.restore();
         }
+      }
+    }
+
+    const crushers = extras.engine && extras.engine.crushers;
+    if (crushers && crushers.length) {
+      for (const cr of crushers) {
+        drawTile(ctx, pack, { id: "crusher", rot: 0 }, cr.x, cr.y, TILE, {
+          hideInvisible: !!extras.engine && !extras.hitboxes,
+          graphics: gfx,
+          real: real,
+        });
       }
     }
 
@@ -3660,6 +3989,24 @@
           } else if (isSlopeId(tile.id) || tile.id === "platform") {
             ctx.strokeStyle = "rgba(125,146,181,0.9)";
             ctx.strokeRect(cellX(c, tile), cellY(r, tile), TILE, TILE);
+          } else if (isDjOrbId(tile.id)) {
+            const b = orbBox(c, r, tile);
+            ctx.strokeStyle = "rgba(46,230,255,0.95)";
+            ctx.strokeRect(b.x, b.y, b.w, b.h);
+          } else if (isSawId(tile.id)) {
+            const b = sawBox(c, r, tile);
+            ctx.strokeStyle = "rgba(255,90,110,0.95)";
+            ctx.strokeRect(b.x, b.y, b.w, b.h);
+          } else if (tile.id === "crusher") {
+            ctx.strokeStyle = "rgba(138,147,168,0.95)";
+            ctx.strokeRect(cellX(c, tile), cellY(r, tile), TILE, TILE);
+          } else if (tile.id === "ice" || tile.id === "mud") {
+            ctx.strokeStyle = tile.id === "ice" ? "rgba(159,216,255,0.9)" : "rgba(200,150,90,0.9)";
+            ctx.strokeRect(cellX(c, tile), cellY(r, tile), TILE, TILE);
+          } else if (isHalfId(tile.id)) {
+            const b = halfBox(c, r, tile);
+            ctx.strokeStyle = "rgba(125,146,181,0.9)";
+            ctx.strokeRect(b.x, b.y, b.w, b.h);
           } else if (tile.id === "pad") {
             const b = padBox(c, r, tile);
             ctx.strokeStyle = "rgba(255,157,46,0.9)";
@@ -3845,6 +4192,17 @@
         ctx.stroke();
         ctx.restore();
       }
+      if (fx.flashes && gfx !== "simple" && engine.djFlash > 0) {
+        const t = 1 - engine.djFlash / 0.25;
+        ctx.save();
+        ctx.globalAlpha = 1 - t;
+        ctx.strokeStyle = "#2ee6ff";
+        ctx.lineWidth = 3 / zoom;
+        ctx.beginPath();
+        ctx.arc(p.x + p.w / 2, p.y + p.h / 2, TILE * (0.5 + t * 0.9), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
 
     // NOTE: front-layer (layer 1) widgets are NOT drawn here — they render as
@@ -3875,6 +4233,9 @@
     isSpikeId,
     isBrickId,
     isSlopeId,
+    isSawId,
+    isHalfId,
+    isDjOrbId,
     isPlatformId,
     isPortalId,
     isGravOrbId,
@@ -3893,6 +4254,7 @@
     TEXT_COLORS,
     DEFAULT_THEME,
     THEMES,
+    BG_IDS,
     sanitizeTheme,
     hexToRgba,
     sanitizeText,
@@ -3919,12 +4281,16 @@
     Engine,
     drawWorld,
     drawTile,
+    drawTiledBg,
     spikeBox,
     goalBox,
     orbBox,
     padBox,
     dashBox,
     coinBox,
+    sawBox,
+    sawBoxPx,
+    halfBox,
     solidBox,
     PLAYER_W,
     PLAYER_H,

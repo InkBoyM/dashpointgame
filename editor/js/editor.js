@@ -1048,7 +1048,7 @@
     text: "Click to stamp your text label",
     image: "Click an image to move it, drag the handles to resize",
     html: "Click a block to move it, right-click for layer options",
-    path: "Click a platform, then click tiles to add stops (right-click removes)",
+    path: "Click a platform or saw, then click tiles to add stops (right-click removes)",
   };
 
   function syncToolHint() {
@@ -1223,7 +1223,7 @@
   function pathRemoveLast() {
     const sel = selPlat();
     if (!sel) {
-      setStatus("Path: click a platform tile first");
+      setStatus("Path: click a platform or saw tile first");
       return;
     }
     if (!sel.path.length) {
@@ -1243,15 +1243,15 @@
       return true;
     }
     const t = cell.inside ? state.level.get(cell.c, cell.r) : null;
-    if (t && t.id === "platform") {
+    if (t && (t.id === "platform" || t.id === "saw")) {
       let p = platAt(cell.c, cell.r);
       if (!p) {
         pushUndo();
         state.level.platforms.push({ c: cell.c, r: cell.r, path: [], speed: 3, loop: true });
         markDirty(true);
-        setStatus("Platform route started — click tiles to add stops");
+        setStatus((t.id === "saw" ? "Saw patrol" : "Platform route") + " started — click tiles to add stops");
       } else {
-        setStatus("Platform " + cell.c + "," + cell.r + " selected (" + p.path.length + " stops)");
+        setStatus("Route " + cell.c + "," + cell.r + " selected (" + p.path.length + " stops)");
       }
       state.pathSel = { c: cell.c, r: cell.r };
       syncPathUI();
@@ -1259,7 +1259,7 @@
     }
     const sel = selPlat();
     if (!sel) {
-      setStatus("Path: click a platform tile first");
+      setStatus("Path: click a platform or saw tile first");
       return true;
     }
     if (!cell.inside) {
@@ -1299,10 +1299,10 @@
     const n = (state.level.platforms || []).length;
     if (st) {
       st.textContent = sel
-        ? "Platform " + sel.c + "," + sel.r + " · " + sel.path.length + " stop(s) · " + (sel.loop === false ? "ping-pong" : "loop")
+        ? "Route " + sel.c + "," + sel.r + " · " + sel.path.length + " stop(s) · " + (sel.loop === false ? "ping-pong" : "loop")
         : n
-          ? n + " route(s) — pick the Path tool and click a platform to edit"
-          : "Pick the Path tool (Y), paint a platform, then click it.";
+          ? n + " route(s) — pick the Path tool and click a platform or saw to edit"
+          : "Pick the Path tool (Y), paint a platform or saw, then click it.";
     }
     if (sp && document.activeElement !== sp) sp.value = String(sel ? sel.speed : 3);
     if (vs) vs.textContent = String(sel ? sel.speed : (sp ? sp.value : 3));
@@ -2623,13 +2623,17 @@
   }
 
   function themeMatchesPreset(th) {
-    return DP.THEMES.find((t) => t.top === th.top && t.mid === th.mid && t.bottom === th.bottom) || null;
+    return DP.THEMES.find((t) => t.top === th.top && t.mid === th.mid && t.bottom === th.bottom && (t.bg || "") === (th.bg || "")) || null;
   }
 
   function syncThemeUI() {
     const th = state.level.theme;
+    const preset = themeMatchesPreset(th);
     document.querySelectorAll("#themeChips .theme-chip").forEach((b) => {
-      b.classList.toggle("active", !!themeMatchesPreset(th));
+      b.classList.toggle("active", !!preset && b.title === preset.name);
+    });
+    document.querySelectorAll("#bgChips .chip").forEach((b) => {
+      b.classList.toggle("active", (b.dataset.bg || "") === (th.bg || ""));
     });
     ["Top", "Mid", "Bottom"].forEach((k) => {
       const inp = document.getElementById("th" + k);
@@ -2708,10 +2712,35 @@
       });
       chipBox.appendChild(b);
     });
+    const BG_LABELS = { "": "None", meadow: "Grassy", glacier: "Icy", volcano: "Lava", desert: "Desert", cave: "Cave" };
+    const bgBox = document.getElementById("bgChips");
+    if (bgBox && DP.BG_IDS) {
+      DP.BG_IDS.forEach((id) => {
+        const b = document.createElement("button");
+        b.className = "chip";
+        b.dataset.bg = id;
+        b.textContent = BG_LABELS[id] || id;
+        b.title = id ? "Looping " + (BG_LABELS[id] || id) + " background" : "Gradient background";
+        b.addEventListener("click", () => {
+          if (state.playing) return;
+          pushUndo();
+          state.level.theme = DP.sanitizeTheme({
+            top: state.level.theme.top,
+            mid: state.level.theme.mid,
+            bottom: state.level.theme.bottom,
+            bg: id,
+          });
+          markDirty(true);
+          syncInspector();
+          setStatus("Background: " + (BG_LABELS[id] || id));
+        });
+        bgBox.appendChild(b);
+      });
+    }
     ["Top", "Mid", "Bottom"].forEach((k) => {
       const inp = document.getElementById("th" + k);
       inp.addEventListener("input", () => {
-        applyTheme({ top: document.getElementById("thTop").value, mid: document.getElementById("thMid").value, bottom: document.getElementById("thBottom").value }, false);
+        applyTheme({ top: document.getElementById("thTop").value, mid: document.getElementById("thMid").value, bottom: document.getElementById("thBottom").value, bg: state.level.theme.bg || "" }, false);
         syncThemeUI();
       });
       inp.addEventListener("focus", () => {

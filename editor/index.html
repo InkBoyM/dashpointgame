@@ -155,6 +155,34 @@
           <img src="assets/tiles/lava.png" alt="" />
           <span>Lava</span>
         </button>
+        <button class="tile-btn" data-tile="djOrb" title="Double-jump orb — touch to bank one air jump">
+          <img src="assets/tiles/djOrb.png" alt="" />
+          <span>2xJump</span>
+        </button>
+        <button class="tile-btn" data-tile="crusher" title="Crusher — slams down when you pass under">
+          <img src="assets/tiles/crusher.png" alt="" />
+          <span>Crush</span>
+        </button>
+        <button class="tile-btn" data-tile="saw" title="Saw — kills on touch; use Path tool for patrols">
+          <img src="assets/tiles/saw.png" alt="" />
+          <span>Saw</span>
+        </button>
+        <button class="tile-btn" data-tile="ice" title="Ice block — nearly frictionless">
+          <img src="assets/tiles/ice.png" alt="" />
+          <span>Ice</span>
+        </button>
+        <button class="tile-btn" data-tile="mud" title="Mud block — heavy drag, slows you">
+          <img src="assets/tiles/mud.png" alt="" />
+          <span>Mud</span>
+        </button>
+        <button class="tile-btn" data-tile="half" title="Half block — 16px floor strip">
+          <img src="assets/tiles/half.png" alt="" />
+          <span>Half</span>
+        </button>
+        <button class="tile-btn" data-tile="halfT" title="Half block — 16px ceiling strip">
+          <img src="assets/tiles/halfT.png" alt="" />
+          <span>HalfT</span>
+        </button>
       </div>
 
       <div class="section-title" style="margin-top:14px">Platform path</div>
@@ -168,7 +196,7 @@
         <button class="mini grow" id="btnPathUndo">Undo stop</button>
         <button class="mini grow" id="btnPathClear">Clear stops</button>
       </div>
-      <p class="hint">Path tool: click a platform to select it, click tiles to add stops (max 8), right-click removes the last stop. Erasing the platform tile deletes its route. Playtest to watch it ride.</p>
+      <p class="hint">Path tool: click a platform or saw to select it, click tiles to add stops (max 8), right-click removes the last stop. Erasing the tile deletes its route. Playtest to watch it ride.</p>
 
       <div class="section-title" style="margin-top:14px">Level text</div>
       <input id="textDraft" class="level-name" style="width:100%; margin-bottom:8px" maxlength="64" spellcheck="false" value="JUMP!" placeholder="Type a label" />
@@ -288,6 +316,8 @@
         <label class="theme-lab">Mid <input type="color" id="thMid" /></label>
         <label class="theme-lab">Bot <input type="color" id="thBottom" /></label>
       </div>
+      <label style="margin-top:8px">Background (loops forever, any size)</label>
+      <div class="chips" id="bgChips"></div>
 
       <div class="section-title" style="margin-top:14px">Stats</div>
       <div class="stat">Bricks <b id="cBrick">0</b></div>
