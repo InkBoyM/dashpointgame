@@ -42,4 +42,9 @@ window.DashPointSkins = [
   { id: 40, name: "Putin", src: "assets/skins/skin-40.png", hint: "Redeem a code", unlock: { type: "code" }, irl: true },
   { id: 41, name: "Trump", src: "assets/skins/skin-41.png", hint: "Redeem a code", unlock: { type: "code" }, irl: true },
   { id: 42, name: "6 7", src: "assets/skins/skin-42.png", hint: "Redeem a code", unlock: { type: "code" }, anim: { src: "assets/skins/skin-42-strip.png", frames: 4, fps: 6 } },
+  { id: 43, name: "Skibidi Toilet", src: "assets/skins/skin-43.png", hint: "Redeem a code", unlock: { type: "code" }, anim: { src: "assets/skins/skin-43-strip.png", frames: 4, fps: 6 } },
+  { id: 44, name: "Trollface", src: "assets/skins/skin-44.png", hint: "Redeem a code", unlock: { type: "code" }, anim: { src: "assets/skins/skin-44-strip.png", frames: 4, fps: 6 } },
+  { id: 45, name: "Doge", src: "assets/skins/skin-45.png", hint: "Buy in the shop", unlock: { type: "shop", cost: 13370 }, anim: { src: "assets/skins/skin-45-strip.png", frames: 4, fps: 4 } },
+  { id: 46, name: "Among Us", src: "assets/skins/skin-46.png", hint: "Redeem a code", unlock: { type: "code" }, anim: { src: "assets/skins/skin-46-strip.png", frames: 4, fps: 6 } },
+  { id: 47, name: "Nyan Cat", src: "assets/skins/skin-47.png", hint: "Buy in the shop", unlock: { type: "shop", cost: 30000 }, anim: { src: "assets/skins/skin-47-strip.png", frames: 4, fps: 8 } },
 ];

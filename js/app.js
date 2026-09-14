@@ -115,6 +115,9 @@
     putin: { skin: 40 },
     trump: { skin: 41 },
     "67": { skin: 42 },
+    skibidi: { skin: 43 },
+    troll: { skin: 44 },
+    sus: { skin: 46 },
   };
 
   function coinIcon(cls) {
