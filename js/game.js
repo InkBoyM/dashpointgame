@@ -176,7 +176,13 @@
     );
     images.skins = [];
     for (const skin of SKINS) {
-      images.skins[skin.id] = await loadImage(skin.src);
+      const img = await loadImage(skin.src);
+      if (/\.gif$/i.test(skin.src) && img && document.body) {
+        img.className = "skin-gif-hold";
+        img.setAttribute("aria-hidden", "true");
+        document.body.appendChild(img);
+      }
+      images.skins[skin.id] = img;
     }
     ["coin10", "coin50", "coin100", "coin500"].forEach(function (k) {
       if (images[k]) images[k] = knockOutBlack(images[k]);
