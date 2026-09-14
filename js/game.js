@@ -77,9 +77,34 @@
   // Draws a skin at (dx, dy, size). Animated skins provide anim:{src,frames,fps}
   // as a horizontal strip; menus keep using the static src. Returns true if drawn.
   function hasSkinImage(images, skinId) {
-    return !!((images.skins && images.skins[skinId]) || (images.skinAnims && images.skinAnims[skinId]));
+    const gif = images.skinGifs && images.skinGifs[skinId];
+    return !!(
+      (gif && gif.frames && gif.frames.length) ||
+      (images.skins && images.skins[skinId]) ||
+      (images.skinAnims && images.skinAnims[skinId])
+    );
+  }
+  function gifFrameAt(anim, now) {
+    if (!anim || !anim.frames || !anim.frames.length) return null;
+    const total = anim.totalMs || 0;
+    if (!total) return anim.frames[0];
+    let t = (now === undefined ? performance.now() : now) % total;
+    if (t < 0) t += total;
+    for (let i = 0; i < anim.delays.length; i++) {
+      t -= anim.delays[i];
+      if (t < 0) return anim.frames[i];
+    }
+    return anim.frames[anim.frames.length - 1];
   }
   function drawSkinImage(c, images, skinId, dx, dy, size, now) {
+    const gif = images.skinGifs && images.skinGifs[skinId];
+    if (gif && gif.frames && gif.frames.length) {
+      const frame = gifFrameAt(gif, now);
+      if (frame) {
+        c.drawImage(frame, dx, dy, size, size);
+        return true;
+      }
+    }
     const def = SKIN_BY_ID[skinId];
     const strip = images.skinAnims && images.skinAnims[skinId];
     const frames = (def && def.anim && def.anim.frames) | 0;
@@ -201,6 +226,249 @@
     });
   }
 
+  function gifReadSubBlocks(data, p) {
+    const chunks = [];
+    let n;
+    while (p.i < data.length && (n = data[p.i++])) {
+      chunks.push(data.subarray(p.i, p.i + n));
+      p.i += n;
+    }
+    let len = 0;
+    for (let i = 0; i < chunks.length; i++) len += chunks[i].length;
+    const out = new Uint8Array(len);
+    let o = 0;
+    for (let i = 0; i < chunks.length; i++) {
+      out.set(chunks[i], o);
+      o += chunks[i].length;
+    }
+    return out;
+  }
+
+  function gifSkipSubBlocks(data, p) {
+    let n;
+    while (p.i < data.length && (n = data[p.i++])) p.i += n;
+  }
+
+  function gifLzw(minCode, bytes) {
+    const clear = 1 << minCode;
+    const eoi = clear + 1;
+    let codeSize = minCode + 1;
+    let nextCode = eoi + 1;
+    let prev = -1;
+    const dict = [];
+    const out = [];
+    let acc = 0;
+    let bits = 0;
+    let bi = 0;
+    function reset() {
+      codeSize = minCode + 1;
+      nextCode = eoi + 1;
+      prev = -1;
+    }
+    function readCode() {
+      while (bits < codeSize && bi < bytes.length) {
+        acc |= bytes[bi++] << bits;
+        bits += 8;
+      }
+      if (bits < codeSize) return -1;
+      const c = acc & ((1 << codeSize) - 1);
+      acc >>= codeSize;
+      bits -= codeSize;
+      return c;
+    }
+    reset();
+    while (true) {
+      const code = readCode();
+      if (code < 0 || code === eoi) break;
+      if (code === clear) {
+        reset();
+        continue;
+      }
+      let seq;
+      if (code < nextCode) seq = code < clear ? [code] : dict[code].slice();
+      else if (code === nextCode && prev >= 0) {
+        seq = (prev < clear ? [prev] : dict[prev].slice());
+        seq.push(seq[0]);
+      } else break;
+      for (let i = 0; i < seq.length; i++) out.push(seq[i]);
+      if (prev >= 0 && nextCode < 4096) {
+        const add = prev < clear ? [prev] : dict[prev].slice();
+        add.push(seq[0]);
+        dict[nextCode] = add;
+        nextCode++;
+        if (nextCode === 1 << codeSize && codeSize < 12) codeSize++;
+      }
+      prev = code;
+    }
+    return out;
+  }
+
+  function decodeGifBytes(buffer) {
+    const data = new Uint8Array(buffer);
+    if (data.length < 13) return null;
+    const p = { i: 6 };
+    const u8 = function () { return data[p.i++]; };
+    const u16 = function () {
+      const v = data[p.i] | (data[p.i + 1] << 8);
+      p.i += 2;
+      return v;
+    };
+    const width = u16();
+    const height = u16();
+    const packed = u8();
+    u8();
+    u8();
+    let gct = null;
+    if (packed & 0x80) {
+      const n = 2 << (packed & 7);
+      gct = data.subarray(p.i, p.i + n * 3);
+      p.i += n * 3;
+    }
+    const work = document.createElement("canvas");
+    work.width = width;
+    work.height = height;
+    const wctx = work.getContext("2d", { willReadFrequently: true });
+    if (!wctx) return null;
+    wctx.imageSmoothingEnabled = false;
+    const frames = [];
+    const delays = [];
+    let delay = 10;
+    let tIdx = -1;
+    let disposal = 0;
+    let restore = null;
+
+    function snap() {
+      const c = document.createElement("canvas");
+      c.width = width;
+      c.height = height;
+      const x = c.getContext("2d");
+      x.imageSmoothingEnabled = false;
+      x.drawImage(work, 0, 0);
+      return c;
+    }
+
+    while (p.i < data.length) {
+      const b = u8();
+      if (b === 0x3b) break;
+      if (b === 0x21) {
+        const label = u8();
+        if (label === 0xf9) {
+          u8();
+          const flags = u8();
+          delay = u16();
+          if (delay < 2) delay = 10;
+          const ti = u8();
+          u8();
+          tIdx = flags & 1 ? ti : -1;
+          disposal = (flags >> 2) & 7;
+        } else {
+          gifSkipSubBlocks(data, p);
+        }
+        continue;
+      }
+      if (b !== 0x2c) break;
+      const left = u16();
+      const top = u16();
+      const fw = u16();
+      const fh = u16();
+      const ip = u8();
+      let ct = gct;
+      if (ip & 0x80) {
+        const n = 2 << (ip & 7);
+        ct = data.subarray(p.i, p.i + n * 3);
+        p.i += n * 3;
+      }
+      if (!ct) break;
+      const minCode = u8();
+      const idx = gifLzw(minCode, gifReadSubBlocks(data, p));
+      if (disposal === 3) restore = snap();
+      const img = wctx.createImageData(fw, fh);
+      const px = img.data;
+      const rows = [];
+      if (ip & 0x40) {
+        for (let r = 0; r < fh; r += 8) rows.push(r);
+        for (let r = 4; r < fh; r += 8) rows.push(r);
+        for (let r = 2; r < fh; r += 4) rows.push(r);
+        for (let r = 1; r < fh; r += 2) rows.push(r);
+      } else {
+        for (let r = 0; r < fh; r++) rows.push(r);
+      }
+      let k = 0;
+      for (let ri = 0; ri < rows.length; ri++) {
+        const y = rows[ri];
+        for (let x = 0; x < fw; x++) {
+          const ci = idx[k++];
+          if (ci === undefined || ci === tIdx) continue;
+          const po = (y * fw + x) * 4;
+          const co = ci * 3;
+          px[po] = ct[co];
+          px[po + 1] = ct[co + 1];
+          px[po + 2] = ct[co + 2];
+          px[po + 3] = 255;
+        }
+      }
+      const tmp = document.createElement("canvas");
+      tmp.width = fw;
+      tmp.height = fh;
+      tmp.getContext("2d").putImageData(img, 0, 0);
+      wctx.drawImage(tmp, left, top);
+      frames.push(snap());
+      delays.push(delay * 10);
+      if (disposal === 2) wctx.clearRect(left, top, fw, fh);
+      else if (disposal === 3 && restore) {
+        wctx.clearRect(0, 0, width, height);
+        wctx.drawImage(restore, 0, 0);
+      }
+      delay = 10;
+      tIdx = -1;
+      disposal = 0;
+    }
+    if (!frames.length) return null;
+    let totalMs = 0;
+    for (let i = 0; i < delays.length; i++) totalMs += delays[i];
+    return { frames: frames, delays: delays, totalMs: totalMs || frames.length * 100 };
+  }
+
+  async function decodeGifAnim(src) {
+    try {
+      const res = await fetch(src);
+      if (!res.ok) return null;
+      const buffer = await res.arrayBuffer();
+      if (typeof ImageDecoder === "function") {
+        try {
+          const decoder = new ImageDecoder({ data: buffer, type: "image/gif" });
+          if (decoder.tracks && decoder.tracks.ready) await decoder.tracks.ready;
+          const track = decoder.tracks && decoder.tracks.selectedTrack;
+          const n = track && track.frameCount ? track.frameCount : 0;
+          const frames = [];
+          const delays = [];
+          for (let i = 0; i < n; i++) {
+            const result = await decoder.decode({ frameIndex: i });
+            const bmp = result.image;
+            const c = document.createElement("canvas");
+            c.width = bmp.displayWidth || bmp.width;
+            c.height = bmp.displayHeight || bmp.height;
+            const x = c.getContext("2d");
+            x.imageSmoothingEnabled = false;
+            x.drawImage(bmp, 0, 0);
+            if (bmp.close) bmp.close();
+            frames.push(c);
+            delays.push(Math.max(20, Math.round((result.duration || 100000) / 1000)));
+          }
+          if (decoder.close) decoder.close();
+          if (frames.length) {
+            let totalMs = 0;
+            for (let i = 0; i < delays.length; i++) totalMs += delays[i];
+            return { frames: frames, delays: delays, totalMs: totalMs || frames.length * 100 };
+          }
+        } catch (e) {}
+      }
+      return decodeGifBytes(buffer);
+    } catch (e) {
+      return null;
+    }
+  }
+
   async function loadAssets() {
     const images = {};
     const entries = Object.entries(ASSET_PATHS);
@@ -210,14 +478,14 @@
       })
     );
     images.skins = [];
+    images.skinGifs = [];
     for (const skin of SKINS) {
       const img = await loadImage(skin.src);
-      if (/\.gif$/i.test(skin.src) && img && document.body) {
-        img.className = "skin-gif-hold";
-        img.setAttribute("aria-hidden", "true");
-        document.body.appendChild(img);
-      }
       images.skins[skin.id] = img;
+      if (/\.gif$/i.test(skin.src)) {
+        const anim = await decodeGifAnim(skin.src);
+        if (anim) images.skinGifs[skin.id] = anim;
+      }
     }
     images.skinAnims = [];
     for (const skin of SKINS) {
