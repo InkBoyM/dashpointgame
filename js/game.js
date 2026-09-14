@@ -211,7 +211,13 @@
     );
     images.skins = [];
     for (const skin of SKINS) {
-      images.skins[skin.id] = await loadImage(skin.src);
+      const img = await loadImage(skin.src);
+      if (/\.gif$/i.test(skin.src) && img && document.body) {
+        img.className = "skin-gif-hold";
+        img.setAttribute("aria-hidden", "true");
+        document.body.appendChild(img);
+      }
+      images.skins[skin.id] = img;
     }
     images.skinAnims = [];
     for (const skin of SKINS) {
