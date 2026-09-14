@@ -114,6 +114,7 @@
     bibi: { skin: 39 },
     putin: { skin: 40 },
     trump: { skin: 41 },
+    "67": { skin: 42 },
   };
 
   function coinIcon(cls) {

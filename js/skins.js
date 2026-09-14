@@ -41,4 +41,5 @@ window.DashPointSkins = [
   { id: 39, name: "Netanyahu", src: "assets/skins/skin-39.png", hint: "Redeem a code", unlock: { type: "code" }, irl: true },
   { id: 40, name: "Putin", src: "assets/skins/skin-40.png", hint: "Redeem a code", unlock: { type: "code" }, irl: true },
   { id: 41, name: "Trump", src: "assets/skins/skin-41.png", hint: "Redeem a code", unlock: { type: "code" }, irl: true },
+  { id: 42, name: "6 7", src: "assets/skins/skin-42.png", hint: "Redeem a code", unlock: { type: "code" }, anim: { src: "assets/skins/skin-42-strip.png", frames: 4, fps: 6 } },
 ];
