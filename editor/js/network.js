@@ -76,6 +76,9 @@ window.DPNet = (function () {
       pictures: data.pictures || [],
       widgets: data.widgets || [],
       gameplay: data.gameplay,
+      triggers: data.triggers || [],
+      platforms: data.platforms || [],
+      song: data.song || "",
       theme: data.theme,
       meta: data.meta || {},
     }));
@@ -120,6 +123,7 @@ window.DPNet = (function () {
       widgets: data.widgets || [],
       gameplay: data.gameplay,
       triggers: data.triggers || [],
+      platforms: data.platforms || [],
       song: data.song || "",
       theme: data.theme,
       meta: data.meta || {},
