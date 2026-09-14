@@ -38,4 +38,5 @@ window.DashPointSkins = [
   { id: 36, name: "RGB", src: "assets/skins/skin-36.gif", hint: "Buy in the shop", unlock: { type: "shop", cost: "100000000000000" } },
   { id: 37, name: "Rubik", src: "assets/skins/skin-37.png", hint: "Redeem a code", unlock: { type: "code" }, anim: { src: "assets/skins/skin-37-strip.png", frames: 4, fps: 3 } },
   { id: 38, name: "Static", src: "assets/skins/skin-38.png", hint: "Die 777 times", unlock: { type: "deaths", n: 777 }, anim: { src: "assets/skins/skin-38-strip.png", frames: 4, fps: 10 } },
+  { id: 39, name: "Netanyahu", src: "assets/skins/skin-39.png", hint: "Redeem a code", unlock: { type: "code" } },
 ];

@@ -111,6 +111,7 @@
     thebestskinever: { skin: 29 },
     discord: { skin: 35 },
     nerd: { skin: 37 },
+    bibi: { skin: 39 },
   };
 
   function coinIcon(cls) {
