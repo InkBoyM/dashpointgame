@@ -109,7 +109,7 @@
     openthechampionchest: { keys: 1 },
     triplekey: { keys: 3 },
     thebestskinever: { skin: 29 },
-    discord: { skin: 36 },
+    discord: { skin: 35 },
   };
 
   function coinIcon(cls) {
