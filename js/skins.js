@@ -33,4 +33,7 @@ window.DashPointSkins = [
   { id: 31, name: "Golden Tripple T", src: "assets/skins/skin-31.png", hint: "Buy in the shop", unlock: { type: "shop", cost: 1000000000000 } },
   { id: 32, name: "Glacier", src: "assets/skins/skin-32.png", hint: "Buy in the shop", unlock: { type: "shop", cost: 2500 }, anim: { src: "assets/skins/skin-32-strip.png", frames: 4, fps: 6 } },
   { id: 33, name: "Magma", src: "assets/skins/skin-33.png", hint: "Buy in the shop", unlock: { type: "shop", cost: 5000 }, anim: { src: "assets/skins/skin-33-strip.png", frames: 4, fps: 8 } },
+  { id: 34, name: "Storm", src: "assets/skins/skin-34.png", hint: "Buy in the shop", unlock: { type: "shop", cost: 7500 }, anim: { src: "assets/skins/skin-34-strip.png", frames: 4, fps: 8 } },
+  { id: 35, name: "Slime", src: "assets/skins/skin-35.png", hint: "Die 200 times", unlock: { type: "deaths", n: 200 }, anim: { src: "assets/skins/skin-35-strip.png", frames: 4, fps: 6 } },
+  { id: 36, name: "Discord", src: "assets/skins/skin-36.png", hint: "Redeem a code", unlock: { type: "code" }, anim: { src: "assets/skins/skin-36-strip.png", frames: 4, fps: 4 } },
 ];

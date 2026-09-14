@@ -109,6 +109,7 @@
     openthechampionchest: { keys: 1 },
     triplekey: { keys: 3 },
     thebestskinever: { skin: 29 },
+    discord: { skin: 36 },
   };
 
   function coinIcon(cls) {
@@ -1715,13 +1716,15 @@
       const h = document.createElement("div"); h.className = "skin-section-title"; h.innerHTML = escapeHtml(titleText) + '<span class="line"></span>'; sec.appendChild(h);
       if (extra) { const p=document.createElement("div"); p.className="hint"; p.textContent=extra; sec.appendChild(p); }
       if (titleText.indexOf("DEATHS") !== -1) {
-        let have = save_.data.deaths; let maxNeed=100; let pct=Math.min(100, Math.floor(have/maxNeed*100));
+        let have = save_.data.deaths; let maxNeed=100;
+        skins.forEach(function(s){ const u=s.unlock||{}; const n=u.n||u.deaths||0; if(n>maxNeed)maxNeed=n; }); let pct=Math.min(100, Math.floor(have/maxNeed*100));
         let prog=document.createElement("div"); prog.className="skin-progress";
         let fill=document.createElement("div"); fill.className="skin-progress-fill"; fill.style.width=pct+"%"; prog.appendChild(fill); sec.appendChild(prog);
         let txt=document.createElement("div"); txt.className="skin-progress-text"; txt.textContent=have + " / " + maxNeed + " deaths (" + pct + "%)"; sec.appendChild(txt);
       }
       if (titleText.indexOf("JUMPS") !== -1) {
-        let have = save_.data.jumps | 0; let maxNeed=100; let pct=Math.min(100, Math.floor(have/maxNeed*100));
+        let have = save_.data.jumps | 0; let maxNeed=100;
+        skins.forEach(function(s){ const u=s.unlock||{}; const n=u.n||u.jumps||0; if(n>maxNeed)maxNeed=n; }); let pct=Math.min(100, Math.floor(have/maxNeed*100));
         let prog=document.createElement("div"); prog.className="skin-progress";
         let fill=document.createElement("div"); fill.className="skin-progress-fill"; fill.style.width=pct+"%"; prog.appendChild(fill); sec.appendChild(prog);
         let txt=document.createElement("div"); txt.className="skin-progress-text"; txt.textContent=have + " / " + maxNeed + " jumps (" + pct + "%)"; sec.appendChild(txt);
