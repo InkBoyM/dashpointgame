@@ -70,38 +70,57 @@ def clamp(v):
     return 0 if v < 0 else (255 if v > 255 else int(v))
 
 def revamp(w, h, px):
-    # pass 1: saturation + contrast + top light
+    # pass 1: rich saturation + contrast, gentle top light / deep bottom
     out = [[(0, 0, 0, 0)] * w for _ in range(h)]
     for y in range(h):
-        light = 1.14 - 0.28 * (y / max(1, h - 1))
+        light = 1.10 - 0.42 * (y / max(1, h - 1))
         for x in range(w):
             r, g, b, a = px[y][x]
             if a == 0:
                 continue
-            mx, mn = max(r, g, b), min(r, g, b)
-            # saturation boost toward extremes
-            r2 = mx - (mx - r) * 0.72
-            g2 = mx - (mx - g) * 0.72
-            b2 = mx - (mx - b) * 0.72
+            # true saturation boost: push channels away from luminance
+            lum = 0.299 * r + 0.587 * g + 0.114 * b
+            r2 = lum + (r - lum) * 1.55
+            g2 = lum + (g - lum) * 1.55
+            b2 = lum + (b - lum) * 1.55
             # contrast + light
-            r2 = ((r2 - 128) * 1.12 + 128) * light
-            g2 = ((g2 - 128) * 1.12 + 128) * light
-            b2 = ((b2 - 128) * 1.12 + 128) * light
+            r2 = ((r2 - 128) * 1.15 + 128) * light
+            g2 = ((g2 - 128) * 1.15 + 128) * light
+            b2 = ((b2 - 128) * 1.15 + 128) * light
             out[y][x] = (clamp(r2), clamp(g2), clamp(b2), a)
-    # pass 2: ink outline where opaque meets transparency
+    # distance-to-transparent (0 = transparent, 1-2 = near edge)
+    def alpha_at(x, y):
+        if x < 0 or y < 0 or x >= w or y >= h:
+            return 0
+        return out[y][x][3]
+    # pass 2: 2px ink outline + bevel (lit top/left, shaded bottom/right)
     for y in range(h):
         for x in range(w):
-            if out[y][x][3] == 0:
+            r, g, b, a = out[y][x]
+            if a == 0:
                 continue
-            edge = x == 0 or y == 0 or x == w - 1 or y == h - 1
-            if not edge:
-                for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-                    if out[y + dy][x + dx][3] == 0:
-                        edge = True
+            near = False
+            near2 = False
+            for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                if alpha_at(x + dx, y + dy) == 0:
+                    near = True
+                    break
+            if not near:
+                for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2), (-1, -1), (1, -1), (-1, 1), (1, 1)):
+                    if alpha_at(x + dx, y + dy) == 0:
+                        near2 = True
                         break
-            if edge:
-                r, g, b, a = out[y][x]
-                out[y][x] = (clamp(r * 0.35 + 8), clamp(g * 0.35 + 8), clamp(b * 0.35 + 16), a)
+            if near:
+                out[y][x] = (clamp(r * 0.18 + 3), clamp(g * 0.18 + 3), clamp(b * 0.24 + 12), a)
+            else:
+                if alpha_at(x, y - 1) == 0 or alpha_at(x - 1, y) == 0:
+                    # bevel highlight just inside top/left edges (warm, restrained)
+                    out[y][x] = (clamp(r * 0.75 + 48), clamp(g * 0.75 + 42), clamp(b * 0.75 + 28), a)
+                elif alpha_at(x, y + 1) == 0 or alpha_at(x + 1, y) == 0:
+                    # bevel shade just inside bottom/right edges (cool purple)
+                    out[y][x] = (clamp(r * 0.45 + 10), clamp(g * 0.45 + 8), clamp(b * 0.6 + 34), a)
+                elif near2:
+                    out[y][x] = (clamp(r * 0.7 + 2), clamp(g * 0.7 + 2), clamp(b * 0.8 + 12), a)
     return out
 
 def revamp_strip(w, h, px):
