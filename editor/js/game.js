@@ -624,9 +624,9 @@
       images.drawing = null;
     }
     try {
-      images.revamped = await buildArtPack(images, "revamped", false);
+      images.neon = await buildArtPack(images, "neon", false);
     } catch (e) {
-      images.revamped = null;
+      images.neon = null;
     }
     return images;
   }
@@ -3683,7 +3683,8 @@
 
   function gfxPack(images, gfx) {
     if (gfx === "drawing" && images && images.drawing) return Object.assign({}, images, images.drawing);
-    if (gfx === "revamped" && images && images.revamped) return Object.assign({}, images, images.revamped);
+    if (gfx === "revamped" && images && images.neon) return Object.assign({}, images, images.neon);
+    if (gfx === "neon" && images && images.neon) return Object.assign({}, images, images.neon);
     if (gfx === "ultra" && images && images.ultra) return Object.assign({}, images, images.ultra);
     return images;
   }
@@ -4032,7 +4033,7 @@
 
   function drawWorld(ctx, level, images, cam, extras) {
     extras = extras || {};
-    const gfx = extras.graphics === "good" || extras.graphics === "simple" || extras.graphics === "dlls5" || extras.graphics === "ultra" || extras.graphics === "drawing" || extras.graphics === "revamped" ? extras.graphics : "normal";
+    const gfx = extras.graphics === "good" || extras.graphics === "simple" || extras.graphics === "dlls5" || extras.graphics === "ultra" || extras.graphics === "drawing" || extras.graphics === "revamped" || extras.graphics === "neon" ? extras.graphics : "normal";
     const real = gfx === "dlls5";
     const pack = gfxPack(images, gfx);
     const fx = Object.assign({ shadows: true, flashes: true, particles: true }, extras.fx || {});
