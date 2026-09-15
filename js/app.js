@@ -1318,6 +1318,116 @@
     }
   }
 
+  /* ---------------- GLOBAL LEADERBOARDS ---------------- */
+  const BOARD_CATS = [
+    { id: "deaths", label: "Deaths" },
+    { id: "coins", label: "Coins" },
+    { id: "jumps", label: "Jumps" },
+    { id: "skins", label: "Skins" },
+    { id: "beaten", label: "Beaten" },
+    { id: "crowns", label: "Crowns" },
+    { id: "playtime", label: "Playtime" },
+    { id: "made", label: "Made" },
+  ];
+  let boardCat = "deaths";
+  let boardsCache = { at: 0, users: null };
+  let crownsCache = { at: 0, map: null };
+
+  function boardVal(u, cat) {
+    if (!u) return 0;
+    if (cat === "coins") return parseFloat(u.coins) || 0;
+    if (cat === "skins") return u.skins | 0;
+    if (cat === "beaten") return u.beatenCount | 0;
+    if (cat === "playtime") return u.playtime | 0;
+    if (cat === "made") return u.made | 0;
+    if (cat === "crowns") return (crownsCache.map && crownsCache.map[u.uid]) || 0;
+    if (cat === "jumps") return u.jumps | 0;
+    return u.deaths | 0;
+  }
+
+  function boardFmt(cat, u) {
+    if (cat === "coins") return fmtCoins(u.coins || "0");
+    if (cat === "playtime") return fmtPlaytime(u.playtime || 0);
+    if (cat === "skins") return (u.skins | 0) + "/" + SKINS.length;
+    return String(boardVal(u, cat));
+  }
+
+  function boardTitle(cat) {
+    for (let i = 0; i < BOARD_CATS.length; i++) {
+      if (BOARD_CATS[i].id === cat) return "TOP 50 — " + BOARD_CATS[i].label.toUpperCase();
+    }
+    return "TOP 50";
+  }
+
+  async function computeCrowns() {
+    if (crownsCache.map && Date.now() - crownsCache.at < 5 * 60 * 1000) return crownsCache.map;
+    const map = {};
+    for (const f of LEVEL_FILES) {
+      try {
+        const list = await NET.getLeaderboard(f, 1);
+        if (list && list.length && list[0].uid) map[list[0].uid] = (map[list[0].uid] || 0) + 1;
+      } catch (e) {}
+    }
+    crownsCache = { at: Date.now(), map: map };
+    return map;
+  }
+
+  async function renderBoards() {
+    const box = el("netBoardsList");
+    if (!box) return;
+    document.querySelectorAll("#screen-netboards .chip[data-board]").forEach(function (x) {
+      x.classList.toggle("active", x.dataset.board === boardCat);
+    });
+    box.innerHTML = '<p class="loading-note">Loading leaderboard…</p>';
+    try {
+      // push my latest numbers first so "you" is current
+      try {
+        const me0 = NET.getUser && NET.getUser();
+        if (me0 && NET.syncStats) {
+          await NET.syncStats({
+            deaths: save_.data.deaths | 0,
+            jumps: save_.data.jumps | 0,
+            coins: save_.data.coins,
+            beatenCount: Object.keys(save_.data.beaten || {}).length,
+            skins: (save_.data.unlocked || []).length,
+            playtime: Number(save_.data.playtime) || 0,
+          });
+          boardsCache.at = 0;
+        }
+      } catch (e) {}
+      if (boardCat === "crowns") await computeCrowns();
+      let users = null;
+      if (boardsCache.users && Date.now() - boardsCache.at < 120000) {
+        users = boardsCache.users;
+      } else {
+        users = await NET.loadUsersIndex();
+        boardsCache = { at: Date.now(), users: users };
+      }
+      const me = NET.getUser ? NET.getUser() : null;
+      const rows = (users || [])
+        .map(function (u) { return { u: u, v: boardVal(u, boardCat) }; })
+        .filter(function (r) { return r.v > 0; })
+        .sort(function (a, b) { return b.v - a.v; })
+        .slice(0, 50);
+      if (!rows.length) {
+        box.innerHTML = '<p class="loading-note">No scores yet. Go play!</p>';
+        return;
+      }
+      let html = '<div class="lb-title">' + escapeHtml(boardTitle(boardCat)) + "</div>";
+      for (let i = 0; i < rows.length; i++) {
+        const u = rows[i].u;
+        const isMe = me && u.uid === me.uid;
+        html += '<div class="lb-row' + (isMe ? " lb-me" : "") + '"><span class="lb-rank">#' + (i + 1) + "</span>" +
+          frameAvatarHtml(u.skin, isMe ? equippedFrameId() : u.frame) +
+          '<span class="lb-name">' + taggedNameHtml(u.name, u.tag || (isMe ? equippedTagId() : ""), isMe ? " (you)" : "", u.nameColor || (isMe ? equippedNameColorId() : "")) + "</span>" +
+          '<span class="lb-time">' + escapeHtml(boardFmt(boardCat, u)) + "</span></div>";
+      }
+      box.innerHTML = html;
+    } catch (e) {
+      box.innerHTML = '<p class="loading-note">Could not reach the network.<br />' + escapeHtml((e && e.message) || String(e)) + "</p>";
+    }
+  }
+
   let mainLbPlayIndex = -1;
   async function showMainLevelLeaderboard(entry, index) {
     mainLbPlayIndex = index;
@@ -1508,7 +1618,7 @@
     if (name === "levels") renderLevels();
     if (name === "game") resizeCanvas();
     if (name === "home") renderLotd();
-    if (name === "network" || name === "netsaved" || name === "netsearch") state.netBack = name;
+    if (name === "network" || name === "netsaved" || name === "netsearch" || name === "netboards") state.netBack = name;
   }
 
   function lotdDateStr(d) {
@@ -3419,6 +3529,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
   function showPanel(which) {
     if (which === "saved") show("netsaved");
     else if (which === "search") show("netsearch");
+    else if (which === "boards") show("netboards");
   }
 
   function starString(n) {
@@ -4188,6 +4299,17 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     });
     el("btnNetBackSaved").addEventListener("click", () => show("network"));
     el("btnNetBackSearch").addEventListener("click", () => show("network"));
+    el("btnNetBackBoards").addEventListener("click", () => show("network"));
+    el("netBoards").addEventListener("click", () => {
+      showPanel("boards");
+      renderBoards();
+    });
+    document.querySelectorAll("#screen-netboards .chip[data-board]").forEach((b) => {
+      b.addEventListener("click", () => {
+        boardCat = b.dataset.board;
+        renderBoards();
+      });
+    });
     el("btnBell").addEventListener("click", () => {
       openModal("modalBell");
       renderBell();

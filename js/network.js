@@ -365,12 +365,21 @@ window.DPNet = (function () {
       patch.beatenCount = Math.max(cloud.beatenCount || 0, (stats && stats.beatenCount) || 0);
       patch.jumps = Math.max(cloud.jumps || 0, (stats && stats.jumps) || 0);
       patch.coins = coinsMaxStr(cloud.coins, stats && stats.coins);
+      patch.skins = Math.max(cloud.skins || 0, (stats && stats.skins) || 0);
+      patch.playtime = Math.max(cloud.playtime || 0, (stats && stats.playtime) || 0);
+      try {
+        const mine = await getJSON("/dashpoint/userLevels/" + u.uid);
+        patch.made = mine ? Object.keys(mine).length : (cloud.made || 0);
+      } catch (e2) { patch.made = cloud.made || 0; }
       if (!Object.prototype.hasOwnProperty.call(patch, "skin") && cloud.skin) patch.skin = cloud.skin | 0;
     } catch(e){
       patch.deaths = (stats && stats.deaths) || 0;
       patch.beatenCount = (stats && stats.beatenCount) || 0;
       patch.jumps = (stats && stats.jumps) || 0;
       patch.coins = coinsMaxStr("0", stats && stats.coins);
+      patch.skins = (stats && stats.skins) || 0;
+      patch.playtime = (stats && stats.playtime) || 0;
+      patch.made = 0;
     }
     await patchJSON(refPath, patch);
     return patch;
@@ -522,6 +531,8 @@ window.DPNet = (function () {
       jumps: toSave.jumps,
       beatenCount: Object.keys(toSave.beaten || {}).length,
       coins: toSave.coins,
+      skins: (toSave.unlocked || []).length,
+      playtime: Number(toSave.playtime) || 0,
       skin: toSave.skin,
       tag: String(fullSave.tag || toSave.tag || ""),
       nameColor: String(fullSave.nameColor || toSave.nameColor || ""),

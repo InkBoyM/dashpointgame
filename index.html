@@ -510,6 +510,11 @@
           <b>SEARCH</b>
           <span>Find levels &amp; players</span>
         </button>
+        <button class="net-tile" id="netBoards">
+          <img src="assets/ui/net.png" alt="" />
+          <b>LEADERBOARDS</b>
+          <span>Global tops</span>
+        </button>
       </div>
     </div>
   </div>
@@ -538,6 +543,27 @@
       <input type="text" id="netQuery" class="px-input" placeholder="type to search…" autocomplete="off" />
     </div>
     <div class="net-results" id="netResults"><p class="loading-note">Type something to search.</p></div>
+  </div>
+
+  <div class="screen" id="screen-netboards">
+    <header class="topbar">
+      <button class="px-btn small" id="btnNetBackBoards">&#9664; BACK</button>
+      <h1 class="bar-title">LEADERBOARDS</h1>
+      <span class="bar-spacer"></span>
+    </header>
+    <div class="net-search-head">
+      <div class="chips">
+        <button class="chip active" data-board="deaths">DEATHS</button>
+        <button class="chip" data-board="coins">COINS</button>
+        <button class="chip" data-board="jumps">JUMPS</button>
+        <button class="chip" data-board="skins">SKINS</button>
+        <button class="chip" data-board="beaten">BEATEN</button>
+        <button class="chip" data-board="crowns">CROWNS</button>
+        <button class="chip" data-board="playtime">PLAYTIME</button>
+        <button class="chip" data-board="made">MADE</button>
+      </div>
+    </div>
+    <div class="leaderboard leaderboard-full" id="netBoardsList"><p class="loading-note">Pick a category.</p></div>
   </div>
 
   <div class="modal-root" id="modalAccount">

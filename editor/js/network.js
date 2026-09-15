@@ -168,13 +168,19 @@ window.DPNet = (function () {
     ensure();
     const u = getUser();
     if (!u) return null;
+    stats = stats || {};
+    const num = function (v) { v = Number(v); return isFinite(v) && v > 0 ? Math.floor(v) : 0; };
     const ref = db.ref("dashpoint/usersIndex/" + u.uid);
     const cloudSnap = await ref.once("value");
     const cloud = cloudSnap.val() || {};
     const merged = {
       name: u.name,
-      deaths: Math.max(cloud.deaths || 0, stats.deaths || 0),
-      beatenCount: Math.max(cloud.beatenCount || 0, stats.beatenCount || 0),
+      deaths: Math.max(cloud.deaths || 0, num(stats.deaths)),
+      beatenCount: Math.max(cloud.beatenCount || 0, num(stats.beatenCount)),
+      jumps: Math.max(cloud.jumps || 0, num(stats.jumps)),
+      coins: String(Math.max(num(cloud.coins), num(stats.coins))),
+      skins: Math.max(cloud.skins || 0, num(stats.skins)),
+      playtime: Math.max(cloud.playtime || 0, num(stats.playtime)),
       lastSeen: Date.now(),
     };
     await ref.update(merged);
