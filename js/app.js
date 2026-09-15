@@ -838,7 +838,7 @@
         diamond: Number(cf.diamond) || 0,
         king: Number(cf.king) || 0,
       };
-      s.graphics = s.graphics === "good" || s.graphics === "simple" || s.graphics === "dlls5" || s.graphics === "ultra" || s.graphics === "drawing" ? s.graphics : "normal";
+      s.graphics = s.graphics === "good" || s.graphics === "simple" || s.graphics === "dlls5" || s.graphics === "ultra" || s.graphics === "drawing" || s.graphics === "revamped" ? s.graphics : "normal";
       s.ghostOpacity = clampGhostOpacity(s.ghostOpacity);
       return s;
     } catch (e) {
@@ -2257,7 +2257,7 @@
 
   function gfxMode() {
     const g = save_.data && save_.data.graphics;
-    if (g === "good" || g === "simple" || g === "dlls5" || g === "ultra" || g === "drawing") return g;
+    if (g === "good" || g === "simple" || g === "dlls5" || g === "ultra" || g === "drawing" || g === "revamped") return g;
     return "normal";
   }
 
@@ -2303,7 +2303,8 @@
     else if (mode === "simple") hint.textContent = "Faster. Solid colors and fewer effects.";
     else if (mode === "dlls5") hint.textContent = "Realistic tiles: stone, metal, glass and gold. Skins stay the same.";
     else if (mode === "ultra") hint.textContent = "Photoreal tiles and a photo backdrop.";
-    else if (mode === "drawing") hint.textContent = "Drawing pack: the whole game redrawn in black-and-white ink.";
+    else if (mode === "drawing") hint.textContent = "Drawing pack: the whole game redrawn in black-and-white ink."
+    else if (mode === "revamped") hint.textContent = "Revamped pack: sharper colors, lighting and inked edges.";
     else hint.textContent = "Default look.";
   }
 
@@ -4344,7 +4345,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     document.querySelectorAll(".gfx-opt").forEach(function (b) {
       b.addEventListener("click", function () {
         const next = b.getAttribute("data-gfx");
-        save_.data.graphics = next === "good" || next === "simple" || next === "dlls5" || next === "ultra" || next === "drawing" ? next : "normal";
+        save_.data.graphics = next === "good" || next === "simple" || next === "dlls5" || next === "ultra" || next === "drawing" || next === "revamped" ? next : "normal";
         save();
         applyGraphics();
         syncGfxUI();

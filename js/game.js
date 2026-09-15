@@ -615,13 +615,18 @@
         } catch (e) {}
       })
     );
-    // "Drawing" texture pack: hand-drawn B&W files where they exist
-    // (assets/drawing/**/…), ink-filtered base art everywhere else, so
-    // the pack covers all present and future sprites.
+    // Art packs: hand-drawn files where they exist, sensible fallback
+    // everywhere else (drawing -> ink filter, revamped -> original art),
+    // so packs cover all present and future sprites.
     try {
-      images.drawing = await buildDrawingPack(images);
+      images.drawing = await buildArtPack(images, "drawing", true);
     } catch (e) {
       images.drawing = null;
+    }
+    try {
+      images.revamped = await buildArtPack(images, "revamped", false);
+    } catch (e) {
+      images.revamped = null;
     }
     return images;
   }
@@ -674,26 +679,27 @@
     return c;
   }
 
-  async function buildDrawingPack(images) {
+  async function buildArtPack(images, sub, sketchFallback) {
     const pack = {};
-    async function fileOrSketch(key, src) {
+    async function fileOrFallback(key, src) {
       const alt =
         typeof src === "string"
-          ? src.replace("assets/tiles/", "assets/drawing/tiles/").replace("assets/bg/", "assets/drawing/bg/")
+          ? src.replace("assets/tiles/", "assets/" + sub + "/tiles/").replace("assets/bg/", "assets/" + sub + "/bg/")
           : src;
       if (alt && alt !== src) {
         try {
           return await loadImage(alt);
         } catch (e) {}
       }
-      try {
-        return sketchify(images[key]);
-      } catch (e) {
-        return images[key];
+      if (sketchFallback) {
+        try {
+          return sketchify(images[key]);
+        } catch (e) {}
       }
+      return images[key];
     }
     for (const key of Object.keys(ASSET_PATHS)) {
-      if (images[key]) pack[key] = await fileOrSketch(key, ASSET_PATHS[key]);
+      if (images[key]) pack[key] = await fileOrFallback(key, ASSET_PATHS[key]);
     }
     pack.skins = [];
     pack.skinAnims = [];
@@ -701,6 +707,10 @@
     if (images.skins) {
       for (const id in images.skins) {
         if (!images.skins[id]) continue;
+        if (!sketchFallback) {
+          pack.skins[id] = images.skins[id];
+          continue;
+        }
         try {
           pack.skins[id] = sketchify(images.skins[id]);
         } catch (e) {
@@ -711,6 +721,10 @@
     if (images.skinAnims) {
       for (const id in images.skinAnims) {
         if (!images.skinAnims[id]) continue;
+        if (!sketchFallback) {
+          pack.skinAnims[id] = images.skinAnims[id];
+          continue;
+        }
         try {
           pack.skinAnims[id] = sketchify(images.skinAnims[id]);
         } catch (e) {
@@ -722,6 +736,10 @@
       for (const id in images.skinGifs) {
         const anim = images.skinGifs[id];
         if (!anim || !anim.frames) continue;
+        if (!sketchFallback) {
+          pack.skinGifs[id] = anim;
+          continue;
+        }
         try {
           pack.skinGifs[id] = {
             frames: anim.frames.map((f) => sketchify(f)),
@@ -3665,6 +3683,7 @@
 
   function gfxPack(images, gfx) {
     if (gfx === "drawing" && images && images.drawing) return Object.assign({}, images, images.drawing);
+    if (gfx === "revamped" && images && images.revamped) return Object.assign({}, images, images.revamped);
     if (gfx === "ultra" && images && images.ultra) return Object.assign({}, images, images.ultra);
     return images;
   }
@@ -4013,7 +4032,7 @@
 
   function drawWorld(ctx, level, images, cam, extras) {
     extras = extras || {};
-    const gfx = extras.graphics === "good" || extras.graphics === "simple" || extras.graphics === "dlls5" || extras.graphics === "ultra" || extras.graphics === "drawing" ? extras.graphics : "normal";
+    const gfx = extras.graphics === "good" || extras.graphics === "simple" || extras.graphics === "dlls5" || extras.graphics === "ultra" || extras.graphics === "drawing" || extras.graphics === "revamped" ? extras.graphics : "normal";
     const real = gfx === "dlls5";
     const pack = gfxPack(images, gfx);
     const fx = Object.assign({ shadows: true, flashes: true, particles: true }, extras.fx || {});
