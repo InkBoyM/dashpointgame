@@ -615,7 +615,114 @@
         } catch (e) {}
       })
     );
+    // "Drawing" texture pack: black-and-white ink redraw of every sprite,
+    // generated at load so it covers all present and future art.
+    try {
+      images.drawing = buildDrawingPack(images);
+    } catch (e) {
+      images.drawing = null;
+    }
     return images;
+  }
+
+  // Ink-sketch filter: grayscale + contrast + posterize, then darken
+  // opaque pixels bordering transparency for a hand-inked outline.
+  function sketchify(src) {
+    const w = src.naturalWidth || src.width;
+    const h = src.naturalHeight || src.height;
+    if (!w || !h) return src;
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const x = c.getContext("2d");
+    if (!x) return src;
+    x.imageSmoothingEnabled = false;
+    x.drawImage(src, 0, 0);
+    const data = x.getImageData(0, 0, w, h);
+    const p = data.data;
+    const gray = new Uint8Array(w * h);
+    const LEVELS = 5;
+    for (let i = 0; i < w * h; i++) {
+      const o = i * 4;
+      if (p[o + 3] === 0) continue;
+      let g = 0.299 * p[o] + 0.587 * p[o + 1] + 0.114 * p[o + 2];
+      g = (g - 128) * 1.35 + 128; // punch contrast
+      if (g < 0) g = 0;
+      else if (g > 255) g = 255;
+      g = Math.round((g / 255) * (LEVELS - 1)) * (255 / (LEVELS - 1)); // posterize
+      gray[i] = g;
+    }
+    for (let yy = 0; yy < h; yy++) {
+      for (let xx = 0; xx < w; xx++) {
+        const i = yy * w + xx;
+        const o = i * 4;
+        if (p[o + 3] === 0) continue;
+        let edge = false;
+        if (xx === 0 || yy === 0 || xx === w - 1 || yy === h - 1) edge = true;
+        else if (
+          p[o - 4 + 3] === 0 || p[o + 4 + 3] === 0 ||
+          p[o - w * 4 + 3] === 0 || p[o + w * 4 + 3] === 0
+        ) edge = true;
+        let g = edge ? Math.min(gray[i], 40) : gray[i];
+        p[o] = g;
+        p[o + 1] = g;
+        p[o + 2] = g;
+      }
+    }
+    x.putImageData(data, 0, 0);
+    return c;
+  }
+
+  function buildDrawingPack(images) {
+    const pack = {};
+    for (const key of Object.keys(ASSET_PATHS)) {
+      if (images[key]) {
+        try {
+          pack[key] = sketchify(images[key]);
+        } catch (e) {
+          pack[key] = images[key];
+        }
+      }
+    }
+    pack.skins = [];
+    pack.skinAnims = [];
+    pack.skinGifs = [];
+    if (images.skins) {
+      for (const id in images.skins) {
+        if (!images.skins[id]) continue;
+        try {
+          pack.skins[id] = sketchify(images.skins[id]);
+        } catch (e) {
+          pack.skins[id] = images.skins[id];
+        }
+      }
+    }
+    if (images.skinAnims) {
+      for (const id in images.skinAnims) {
+        if (!images.skinAnims[id]) continue;
+        try {
+          pack.skinAnims[id] = sketchify(images.skinAnims[id]);
+        } catch (e) {
+          pack.skinAnims[id] = images.skinAnims[id];
+        }
+      }
+    }
+    if (images.skinGifs) {
+      for (const id in images.skinGifs) {
+        const anim = images.skinGifs[id];
+        if (!anim || !anim.frames) continue;
+        try {
+          pack.skinGifs[id] = {
+            frames: anim.frames.map((f) => sketchify(f)),
+            delays: anim.delays,
+            totalMs: anim.totalMs,
+          };
+        } catch (e) {
+          pack.skinGifs[id] = anim;
+        }
+      }
+    }
+    return pack;
   }
 
   function knockOutBlack(img) {
@@ -3546,8 +3653,16 @@
   }
 
   function gfxPack(images, gfx) {
+    if (gfx === "drawing" && images && images.drawing) return Object.assign({}, images, images.drawing);
     if (gfx === "ultra" && images && images.ultra) return Object.assign({}, images, images.ultra);
     return images;
+  }
+
+  function grayHex(hex) {
+    if (!isValidHex(hex)) return "#0a1628";
+    const g = Math.round(0.299 * parseInt(hex.slice(1, 3), 16) + 0.587 * parseInt(hex.slice(3, 5), 16) + 0.114 * parseInt(hex.slice(5, 7), 16));
+    const h = g.toString(16).padStart(2, "0");
+    return "#" + h + h + h;
   }
 
   // Animated liquid frame: water-strip.png / lava-strip.png hold 4
@@ -3887,7 +4002,7 @@
 
   function drawWorld(ctx, level, images, cam, extras) {
     extras = extras || {};
-    const gfx = extras.graphics === "good" || extras.graphics === "simple" || extras.graphics === "dlls5" || extras.graphics === "ultra" ? extras.graphics : "normal";
+    const gfx = extras.graphics === "good" || extras.graphics === "simple" || extras.graphics === "dlls5" || extras.graphics === "ultra" || extras.graphics === "drawing" ? extras.graphics : "normal";
     const real = gfx === "dlls5";
     const pack = gfxPack(images, gfx);
     const fx = Object.assign({ shadows: true, flashes: true, particles: true }, extras.fx || {});
@@ -3901,6 +4016,7 @@
     if (level.theme && level.theme.bg && drawTiledBg(ctx, pack, w, h, cam, level.theme)) {
       // themed looping bg handled it (base fill + seamless tiles)
     } else if (gfx === "ultra" && pack.background) drawUltraBackdrop(ctx, w, h, pack.background);
+    else if (gfx === "drawing") drawBackdrop(ctx, w, h, Date.now() / 1000, { top: grayHex(level.theme.top), mid: grayHex(level.theme.mid), bottom: grayHex(level.theme.bottom) }, false);
     else drawBackdrop(ctx, w, h, Date.now() / 1000, level.theme, gfx === "simple");
 
     ctx.save();
