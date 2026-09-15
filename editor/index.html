@@ -51,6 +51,7 @@
         <button class="tool" data-tool="image" title="Images (M)"><span>Image</span><b class="k">M</b></button>
         <button class="tool" data-tool="html" title="HTML blocks (U)"><span>Html</span><b class="k">U</b></button>
         <button class="tool" data-tool="path" title="Platform path (Y)"><span>Path</span><b class="k">Y</b></button>
+        <button class="tool" data-tool="zone" title="Effect zone (X)"><span>Zone</span><b class="k">X</b></button>
       </div>
 
       <div class="section-title">Tiles</div>
@@ -183,6 +184,14 @@
           <img src="assets/tiles/halfT.png" alt="" />
           <span>HalfT</span>
         </button>
+        <button class="tile-btn" data-tile="convL" title="Conveyor — pushes left while you stand on it">
+          <img src="assets/tiles/convL.png" alt="" />
+          <span>Conv &lt;</span>
+        </button>
+        <button class="tile-btn" data-tile="convR" title="Conveyor — pushes right while you stand on it">
+          <img src="assets/tiles/convR.png" alt="" />
+          <span>Conv &gt;</span>
+        </button>
       </div>
 
       <div class="section-title" style="margin-top:14px">Platform path</div>
@@ -197,6 +206,19 @@
         <button class="mini grow" id="btnPathClear">Clear stops</button>
       </div>
       <p class="hint">Path tool: click a platform or saw to select it, click tiles to add stops (max 8), right-click removes the last stop. Erasing the tile deletes its route. Playtest to watch it ride.</p>
+
+      <div class="section-title" style="margin-top:14px">Effect zone</div>
+      <div class="chips" id="zoneKinds">
+        <button class="chip active" data-zone="windR" title="Push right">Wind →</button>
+        <button class="chip" data-zone="windL" title="Push left">← Wind</button>
+        <button class="chip" data-zone="windU" title="Push up">Wind ↑</button>
+        <button class="chip" data-zone="windD" title="Push down">Wind ↓</button>
+        <button class="chip" data-zone="lowgrav" title="Floaty low gravity">Low-G</button>
+        <button class="chip" data-zone="flip" title="Reversed gravity inside">Flip</button>
+      </div>
+      <label style="margin-top:6px">Power <span id="vZonePower">2</span></label>
+      <input type="range" id="zonePower" min="1" max="3" step="1" value="2" />
+      <p class="hint">Zone tool (X): drag a rect to paint the zone. Right-click a zone to delete it. Wind power 1–3.</p>
 
       <div class="section-title" style="margin-top:14px">Level text</div>
       <input id="textDraft" class="level-name" style="width:100%; margin-bottom:8px" maxlength="64" spellcheck="false" value="JUMP!" placeholder="Type a label" />
@@ -328,6 +350,7 @@
       <div class="stat">Pads <b id="cPad">0</b></div>
       <div class="stat">Dashes <b id="cDash">0</b></div>
       <div class="stat">Moving <b id="cPlat">0</b></div>
+      <div class="stat">Zones <b id="cZones">0</b></div>
       <div class="stat">Goals <b id="cGoal">0</b></div>
       <div class="stat">Fake blk <b id="cFBrick">0</b></div>
       <div class="stat">Fake spk <b id="cFSpike">0</b></div>
@@ -366,7 +389,7 @@
       <div class="help-grid">
         <b>B / E / F</b><span>Paint, erase, fill</span>
         <b>R / L / V</b><span>Rectangle, line, select</span>
-        <b>I / P / G / T / M / U / Y</b><span>Eyedropper, spawn, prefab, text, images, html, platform path</span>
+        <b>I / P / G / T / M / U / Y / X</b><span>Eyedropper, spawn, prefab, text, images, html, platform path, effect zone</span>
         <b>1 2 3 4 5 6 7 8</b><span>Brick, spike, goal, invis spike, orb, pad, dash, invis block</span>
         <b>[ ] wheel</b><span>Rotate spike</span>
         <b>Right click</b><span>Eyedropper (or erase with right-drag); on HTML: layer menu</span>

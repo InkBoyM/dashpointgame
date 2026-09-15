@@ -45,6 +45,8 @@
     mud: { id: "mud", solid: true, hazard: false, rotatable: false, label: "Mud block" },
     half: { id: "half", solid: true, hazard: false, rotatable: false, label: "Half block" },
     halfT: { id: "halfT", solid: true, hazard: false, rotatable: false, label: "Half block (top)" },
+    convL: { id: "convL", solid: true, hazard: false, rotatable: false, label: "Conveyor (left)" },
+    convR: { id: "convR", solid: true, hazard: false, rotatable: false, label: "Conveyor (right)" },
     coin10: { id: "coin10", solid: false, hazard: false, rotatable: false, label: "Coin +10" },
     coin50: { id: "coin50", solid: false, hazard: false, rotatable: false, label: "Coin +50" },
     coin100: { id: "coin100", solid: false, hazard: false, rotatable: false, label: "Coin +100" },
@@ -225,11 +227,15 @@
     mud: "assets/tiles/mud.png",
     half: "assets/tiles/half.png",
     halfT: "assets/tiles/halfT.png",
+    convL: "assets/tiles/convL.png",
+    convR: "assets/tiles/convR.png",
     bgMeadow: "assets/bg/bg-meadow.png",
     bgGlacier: "assets/bg/bg-glacier.png",
     bgVolcano: "assets/bg/bg-volcano.png",
     bgDesert: "assets/bg/bg-desert.png",
     bgCave: "assets/bg/bg-cave.png",
+    bgSpace: "assets/bg/bg-space.png",
+    bgSunset: "assets/bg/bg-sunset.png",
     coin10: "assets/tiles/coin10.png",
     coin50: "assets/tiles/coin50.png",
     coin100: "assets/tiles/coin100.png",
@@ -271,11 +277,15 @@
     mud: "assets/tiles/mud.png",
     half: "assets/tiles/half.png",
     halfT: "assets/tiles/halfT.png",
+    convL: "assets/tiles/convL.png",
+    convR: "assets/tiles/convR.png",
     bgMeadow: "assets/bg/bg-meadow.png",
     bgGlacier: "assets/bg/bg-glacier.png",
     bgVolcano: "assets/bg/bg-volcano.png",
     bgDesert: "assets/bg/bg-desert.png",
     bgCave: "assets/bg/bg-cave.png",
+    bgSpace: "assets/bg/bg-space.png",
+    bgSunset: "assets/bg/bg-sunset.png",
     coin10: "assets/tiles/ultra/coin10.png",
     coin50: "assets/tiles/ultra/coin50.png",
     coin100: "assets/tiles/ultra/coin100.png",
@@ -676,8 +686,29 @@
 
   // Looping theme backgrounds (assets/bg/*.png, seamless 256px tiles).
   // Level theme.bg picks one; "" keeps the gradient.
-  const BG_IDS = ["", "meadow", "glacier", "volcano", "desert", "cave"];
-  const BG_KEYS = { meadow: "bgMeadow", glacier: "bgGlacier", volcano: "bgVolcano", desert: "bgDesert", cave: "bgCave" };
+  const BG_IDS = ["", "meadow", "glacier", "volcano", "desert", "cave", "space", "sunset"];
+  const BG_KEYS = { meadow: "bgMeadow", glacier: "bgGlacier", volcano: "bgVolcano", desert: "bgDesert", cave: "bgCave", space: "bgSpace", sunset: "bgSunset" };
+
+  // Effect zones: rects in tiles { c, r, w, h, kind, power }.
+  // windL/R/U/D push, lowgrav floats, flip reverses gravity inside.
+  const ZONE_KINDS = ["windL", "windR", "windU", "windD", "lowgrav", "flip"];
+  function sanitizeZones(raw) {
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .map((t) => {
+        if (!t || typeof t !== "object") return null;
+        return {
+          c: t.c | 0,
+          r: t.r | 0,
+          w: clamp((t.w | 0) || 1, 1, 64),
+          h: clamp((t.h | 0) || 1, 1, 64),
+          kind: ZONE_KINDS.indexOf(t.kind) !== -1 ? t.kind : "windR",
+          power: clamp(Number(t.power) || 2, 1, 3),
+        };
+      })
+      .filter(Boolean)
+      .slice(0, 64);
+  }
 
   const SONGS = [
     { id: "", name: "No song", file: "" },
@@ -744,6 +775,8 @@
     { name: "Sandstorm", top: "#0d0904", mid: "#241708", bottom: "#443010", bg: "desert" },
     { name: "Void", top: "#000000", mid: "#060608", bottom: "#101016", bg: "" },
     { name: "Candy", top: "#12061a", mid: "#33094a", bottom: "#5c1480", bg: "" },
+    { name: "Nebula", top: "#05030f", mid: "#140b33", bottom: "#2a1652", bg: "space" },
+    { name: "Sunset", top: "#1c0b2e", mid: "#7a2d52", bottom: "#ff8c3c", bg: "sunset" },
   ];
 
   function isValidHex(v) {
@@ -1349,6 +1382,7 @@
       this.widgets = asList(opts.widgets).map(sanitizeWidget).filter(Boolean).slice(0, MAX_WIDGETS);
       this.triggers = sanitizeTriggers(opts.triggers);
       this.platforms = sanitizePlatforms(opts.platforms);
+      this.zones = sanitizeZones(opts.zones);
       this.song = sanitizeSong(opts.song);
       this.meta = Object.assign(
         {
@@ -1396,7 +1430,7 @@
     }
 
     counts() {
-      const out = { brick: 0, ibrick: 0, fbrick: 0, spike: 0, ispike: 0, fspike: 0, goal: 0, igoal: 0, orb: 0, iorb: 0, pad: 0, dash: 0, coin10: 0, coin50: 0, coin100: 0, coin500: 0, slopeL: 0, slopeR: 0, platform: 0, portalA: 0, portalB: 0, gravOrb: 0, water: 0, lava: 0, djOrb: 0, crusher: 0, saw: 0, ice: 0, mud: 0, half: 0, halfT: 0, empty: 0, labels: 0, pictures: 0, widgets: 0 };
+      const out = { brick: 0, ibrick: 0, fbrick: 0, spike: 0, ispike: 0, fspike: 0, goal: 0, igoal: 0, orb: 0, iorb: 0, pad: 0, dash: 0, coin10: 0, coin50: 0, coin100: 0, coin500: 0, slopeL: 0, slopeR: 0, platform: 0, portalA: 0, portalB: 0, gravOrb: 0, water: 0, lava: 0, djOrb: 0, crusher: 0, saw: 0, ice: 0, mud: 0, half: 0, halfT: 0, convL: 0, convR: 0, empty: 0, labels: 0, pictures: 0, widgets: 0 };
       for (let r = 0; r < this.rows; r++) {
         for (let c = 0; c < this.cols; c++) {
           const t = this.grid[r][c];
@@ -1492,6 +1526,11 @@
         t.r += shiftR;
       });
       this.platforms = (this.platforms || []).filter((t) => this.inBounds(t.c, t.r));
+      (this.zones || []).forEach((t) => {
+        t.c += shiftC;
+        t.r += shiftR;
+      });
+      this.zones = (this.zones || []).filter((t) => this.inBounds(t.c, t.r));
       return {
         left: shiftC,
         right: actualRight,
@@ -1547,6 +1586,7 @@
         gameplay: Object.assign({}, this.gameplay),
         triggers: JSON.parse(JSON.stringify(this.triggers)),
         platforms: JSON.parse(JSON.stringify(this.platforms || [])),
+        zones: JSON.parse(JSON.stringify(this.zones || [])),
         song: this.song || "",
         theme: Object.assign({}, this.theme),
         meta: Object.assign({}, this.meta, { updatedAt: new Date().toISOString() }),
@@ -1578,6 +1618,7 @@
         widgets: asList(data.widgets),
         triggers: data.triggers,
         platforms: data.platforms,
+        zones: data.zones,
         song: data.song,
       });
       const tiles = Array.isArray(data.tiles) ? data.tiles : [];
@@ -1743,11 +1784,14 @@
       this.gravFlash = 0;
       this.djFlash = 0;
       this.gravDir = 1;
+      this.gFlip = 1;
       this.portalCd = 0;
       this.inWater = false;
       this.groundSlope = null;
       this.wasSlope = null;
       this.groundMat = null;
+      this.groundConv = 0;
+      this.zoneWindX = 0;
       this.airJumps = 0;
       this.finished = false;
       this.movers = [];
@@ -1895,7 +1939,7 @@
       for (const cr of this.crushers || []) {
         solids.push({ x: cr.x, y: cr.y, w: TILE, h: TILE });
       }
-      const gravDown = (this.gravDir || 1) > 0;
+      const gravDown = ((this.gravDir || 1) * (this.gFlip || 1)) > 0;
       for (const s of solids) {
         if (!aabbOverlap(box, s)) continue;
         if (axis === "x") {
@@ -2138,17 +2182,34 @@
     }
 
     groundMaterial() {
-      // ice/mud under the feet (sampled after landing, used next frame)
+      // ice/mud/conveyor under the feet (sampled after landing, used next frame)
       const p = this.player;
+      this.groundConv = 0;
       if (!p.onGround) return null;
       const cx = p.x + p.w / 2;
       const c = Math.floor(cx / TILE);
       const r = Math.floor((p.y + p.h + 2) / TILE);
       const t = this.level.get(c, r);
-      if (!t || (t.id !== "ice" && t.id !== "mud")) return null;
-      const top = t.id === "half" ? 0 : r * TILE + tileOy(t);
+      if (!t) return null;
+      if (t.id === "convL") this.groundConv = -1;
+      else if (t.id === "convR") this.groundConv = 1;
+      if (t.id !== "ice" && t.id !== "mud") return null;
+      const top = r * TILE + tileOy(t);
       if (Math.abs(p.y + p.h - top) > 7) return null;
       return t.id;
+    }
+
+    zoneAt() {
+      // effect zone containing the cube's center (first match wins)
+      const p = this.player;
+      const cx = p.x + p.w / 2;
+      const cy = p.y + p.h / 2;
+      const list = this.level.zones || [];
+      for (let i = 0; i < list.length; i++) {
+        const z = list[i];
+        if (cx >= z.c * TILE && cx < (z.c + z.w) * TILE && cy >= z.r * TILE && cy < (z.r + z.h) * TILE) return z;
+      }
+      return null;
     }
 
     updateMovers(dt) {
@@ -2529,13 +2590,25 @@
       const accel = p.onGround ? g.accel : g.airAccel;
       const mat = this.groundMat;
       const mudCap = mat === "mud" ? g.moveSpeed * 0.55 : g.moveSpeed;
+      if (p.onGround && this.groundConv) {
+        // conveyor belt carries the cube even with no input
+        p.vx += this.groundConv * 1500 * dt;
+        p.vx = clamp(p.vx, -g.moveSpeed * 1.05, g.moveSpeed * 1.05);
+      }
       if (this.dashFlash > 0.12) {
         if (wish !== 0) p.facing = wish;
       } else if (wish !== 0) {
         p.vx += wish * accel * (mat === "mud" && p.onGround ? 0.5 : 1) * dt;
         p.vx = clamp(p.vx, -mudCap, mudCap);
       } else if (p.onGround) {
-        if (this.groundSlope) {
+        if (this.groundConv) {
+          // belt already pushed above; no friction fight
+        } else if (this.zoneWindX) {
+          // wind rules the ground game: keep momentum, tiny bleed
+          const mag = Math.abs(p.vx);
+          const next = mag - 150 * dt;
+          p.vx = next <= 0 ? 0 : Math.sign(p.vx) * next;
+        } else if (this.groundSlope) {
           // slide downhill on 45° slopes when no input:
           // slopeL (/) falls left, slopeR (\) falls right
           const dir = this.groundSlope === "slopeL" ? -1 : 1;
@@ -2564,6 +2637,23 @@
       const gd = this.gravDir || 1;
       this.checkLiquids();
       this.checkDjOrbs();
+      // effect zones: wind pushes, lowgrav floats, flip reverses
+      const z = this.zoneAt();
+      let gravScale = 1;
+      let flipZ = 1;
+      this.zoneWindX = 0;      if (z) {
+        const pw = z.power || 2;
+        if (z.kind === "windR") p.vx += 850 * pw * dt;
+        else if (z.kind === "windL") p.vx -= 850 * pw * dt;
+        else if (z.kind === "windU") p.vy -= 1150 * pw * dt;
+        else if (z.kind === "windD") p.vy += 1150 * pw * dt;
+        else if (z.kind === "lowgrav") gravScale = 0.18;
+        else if (z.kind === "flip") flipZ = -1;
+        if (z.kind === "windR" || z.kind === "windL") p.vx = clamp(p.vx, -g.moveSpeed * 1.25, g.moveSpeed * 1.25);
+        if (z.kind === "windR") this.zoneWindX = 1;
+        else if (z.kind === "windL") this.zoneWindX = -1;
+      }
+      this.gFlip = flipZ;
       if (this.inWater) {
         // slow sink + buoyancy: weak gravity, capped fall, swim on hold
         p.vy += g.gravity * 0.32 * dt;
@@ -2573,11 +2663,12 @@
         if (p.vy < -300) p.vy = -300;
         p.vx *= 1 - Math.min(1, 2.2 * dt);
       } else {
-        p.vy += g.gravity * gd * dt;
-        if (gd > 0) {
-          if (p.vy > g.maxFall) p.vy = g.maxFall;
+        p.vy += g.gravity * gd * flipZ * gravScale * dt;
+        const mf = gravScale < 1 ? 260 : g.maxFall;
+        if (gd * flipZ > 0) {
+          if (p.vy > mf) p.vy = mf;
         } else {
-          if (p.vy < -g.maxFall) p.vy = -g.maxFall;
+          if (p.vy < -mf) p.vy = -mf;
         }
       }
 
@@ -2585,7 +2676,7 @@
       else this.coyote = Math.max(0, this.coyote - dt);
 
       if (this.buffer > 0 && this.coyote > 0) {
-        p.vy = -g.jumpForce * gd;
+        p.vy = -g.jumpForce * gd * (this.gFlip || 1);
         if (this.inWater) p.vy *= 0.62;
         // slope launch: jumping while running up a 45° face keeps
         // the run-up as an angled boost
@@ -2597,7 +2688,7 @@
         this.pendingJumps = (this.pendingJumps || 0) + 1;
       } else if (this.buffer > 0 && (this.airJumps | 0) > 0 && !p.onGround) {
         // double jump: spend the banked air jump from a djOrb
-        p.vy = -g.jumpForce * gd;
+        p.vy = -g.jumpForce * gd * (this.gFlip || 1);
         if (this.inWater) p.vy *= 0.62;
         p.onGround = false;
         this.airJumps = (this.airJumps | 0) - 1;
@@ -2608,7 +2699,7 @@
         this.pendingJumps = (this.pendingJumps || 0) + 1;
       }
 
-      if (gd > 0) {
+      if (gd * (this.gFlip || 1) > 0) {
         if (p.jumping && !jumpDown && p.vy < 0) {
           p.vy *= g.jumpCut;
           p.jumping = false;
@@ -2743,6 +2834,7 @@
     if (tile.id === "crusher") return "#8a93a8";
     if (tile.id === "ice") return "#9fd8ff";
     if (tile.id === "mud") return "#8a6238";
+    if (tile.id === "convL" || tile.id === "convR") return "#c98f4e";
     if (isHalfId(tile.id)) return "#7d92b5";
     if (isPortalId(tile.id)) return tile.id === "portalA" ? "#2e7bff" : "#ff7b2e";
     if (isGoalId(tile.id)) return "#ffd23c";
@@ -2808,6 +2900,23 @@
     } else if (isHalfId(tile.id)) {
       if (tile.id === "halfT") ctx.fillRect(x + 1, y + 1, size - 2, size / 2 - 1);
       else ctx.fillRect(x + 1, y + size / 2, size - 2, size / 2 - 1);
+    } else if (tile.id === "convL" || tile.id === "convR") {
+      ctx.fillRect(x + 1, y + 1, size - 2, size - 2);
+      // belt arrow
+      const dir = tile.id === "convL" ? -1 : 1;
+      ctx.fillStyle = "rgba(255,210,60,0.95)";
+      ctx.beginPath();
+      if (dir < 0) {
+        ctx.moveTo(x + size * 0.3, y + size * 0.5);
+        ctx.lineTo(x + size * 0.62, y + size * 0.28);
+        ctx.lineTo(x + size * 0.62, y + size * 0.72);
+      } else {
+        ctx.moveTo(x + size * 0.7, y + size * 0.5);
+        ctx.lineTo(x + size * 0.38, y + size * 0.28);
+        ctx.lineTo(x + size * 0.38, y + size * 0.72);
+      }
+      ctx.closePath();
+      ctx.fill();
     } else if (isPortalId(tile.id)) {
       ctx.beginPath();
       ctx.ellipse(x + size / 2, y + size / 2, size * 0.3, size * 0.42, 0, 0, Math.PI * 2);
@@ -3502,9 +3611,88 @@
     return true;
   }
 
+  // Effect zones overlay: translucent tint + flow chevrons, drawn in
+  // world space so players can see wind/low-g/flip regions in game.
+  const ZONE_COLORS = {
+    windL: "46,150,255",
+    windR: "46,150,255",
+    windU: "46,230,255",
+    windD: "46,230,255",
+    lowgrav: "180,92,255",
+    flip: "255,150,46",
+  };
+  function drawZones(ctx, level) {
+    const list = level.zones || [];
+    if (!list.length) return;
+    let flow = 0;
+    try {
+      flow = (Date.now() / 28) % 48;
+    } catch (e) {}
+    ctx.save();
+    ctx.lineWidth = 2;
+    ctx.font = "bold 10px Consolas, monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (const z of list) {
+      const col = ZONE_COLORS[z.kind] || "46,150,255";
+      const x = z.c * TILE;
+      const y = z.r * TILE;
+      const w = z.w * TILE;
+      const h = z.h * TILE;
+      ctx.fillStyle = "rgba(" + col + ",0.10)";
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = "rgba(" + col + ",0.65)";
+      try {
+        ctx.setLineDash([6, 4]);
+      } catch (e) {}
+      ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+      try {
+        ctx.setLineDash([]);
+      } catch (e) {}
+      ctx.fillStyle = "rgba(" + col + ",0.85)";
+      ctx.strokeStyle = "rgba(" + col + ",0.9)";
+      const cx = x + w / 2;
+      const cy = y + h / 2;
+      function chev(px, py, dx, dy, s) {
+        ctx.beginPath();
+        ctx.moveTo(px - dx * s - dy * s * 0.6, py - dy * s - dx * s * 0.6);
+        ctx.lineTo(px + dx * s, py + dy * s);
+        ctx.lineTo(px - dx * s + dy * s * 0.6, py - dy * s + dx * s * 0.6);
+        ctx.stroke();
+      }
+      if (z.kind === "windR" || z.kind === "windL") {
+        const dx = z.kind === "windR" ? 1 : -1;
+        for (let ay = y + 16; ay < y + h; ay += 28) {
+          for (let ax = x + 12 + ((flow * dx) % 48 + 48) % 48 - 24; ax < x + w; ax += 48) {
+            chev(ax, Math.min(ay, y + h - 8), dx, 0, 7);
+          }
+        }
+      } else if (z.kind === "windU" || z.kind === "windD") {
+        const dy = z.kind === "windD" ? 1 : -1;
+        for (let ax = x + 16; ax < x + w; ax += 28) {
+          for (let ay = y + 12 + ((flow * dy) % 48 + 48) % 48 - 24; ay < y + h; ay += 48) {
+            chev(Math.min(ax, x + w - 8), ay, 0, dy, 7);
+          }
+        }
+      } else if (z.kind === "lowgrav") {
+        chev(cx - 12, cy, 0, -1, 7);
+        chev(cx + 12, cy, 0, -1, 7);
+      } else if (z.kind === "flip") {
+        chev(cx - 12, cy - 6, 0, 1, 7);
+        chev(cx + 12, cy + 6, 0, -1, 7);
+      }
+      if (w >= 48 && h >= 24) {
+        const label = z.kind === "lowgrav" ? "LOW-G" : z.kind === "flip" ? "FLIP" : "WIND";
+        ctx.fillText(label, cx, y + 11);
+      }
+    }
+    ctx.restore();
+    ctx.textAlign = "start";
+    ctx.textBaseline = "alphabetic";
+  }
+
   function drawTile(ctx, images, tile, x, y, size, opts) {
-    size = size || TILE;
-    opts = opts || {};
+    size = size || TILE;    opts = opts || {};
     if (isInvisibleId(tile.id) && opts.hideInvisible) return;
     if (isCoinId(tile.id)) {
       if (opts.collected) {
@@ -3577,6 +3765,10 @@
         img = images.half;
       } else if (tile.id === "halfT") {
         img = images.halfT;
+      } else if (tile.id === "convL") {
+        img = images.convL;
+      } else if (tile.id === "convR") {
+        img = images.convR;
       } else if (isPortalId(tile.id)) {
         img = images[tile.id];
       } else if (isSlopeId(tile.id)) {
@@ -3594,7 +3786,7 @@
       img = realImg;
     }
     if (!img) {
-      if (isSlopeId(tile.id) || isPortalId(tile.id) || isGravOrbId(tile.id) || isDjOrbId(tile.id) || isSawId(tile.id) || tile.id === "platform" || tile.id === "crusher" || tile.id === "ice" || tile.id === "mud" || isHalfId(tile.id) || tile.id === "water" || tile.id === "lava") {
+      if (isSlopeId(tile.id) || isPortalId(tile.id) || isGravOrbId(tile.id) || isDjOrbId(tile.id) || isSawId(tile.id) || tile.id === "platform" || tile.id === "crusher" || tile.id === "ice" || tile.id === "mud" || tile.id === "convL" || tile.id === "convR" || isHalfId(tile.id) || tile.id === "water" || tile.id === "lava") {
         drawSimpleTile(ctx, tile, x, y, size, opts);
       }
       return;
@@ -3738,7 +3930,7 @@
           // All brick looks (including fakes, so they stay hidden) cast a shadow —
           // except invisible ones while playing, which must stay secret.
           // Slopes + platforms + new solids shadow as well.
-          if (tile && (isBrickId(tile.id) || isSlopeId(tile.id) || isHalfId(tile.id) || tile.id === "platform" || tile.id === "crusher" || tile.id === "ice" || tile.id === "mud") && !(hideInv && isInvisibleId(tile.id))) {
+          if (tile && (isBrickId(tile.id) || isSlopeId(tile.id) || isHalfId(tile.id) || tile.id === "platform" || tile.id === "crusher" || tile.id === "ice" || tile.id === "mud" || tile.id === "convL" || tile.id === "convR") && !(hideInv && isInvisibleId(tile.id))) {
             ctx.fillRect(cellX(c, tile) + 3, cellY(r, tile) + 4, TILE, TILE);
           }
         }
@@ -3826,6 +4018,8 @@
         });
       }
     }
+
+    if (gfx !== "simple") drawZones(ctx, level);
 
     if (extras.heat && extras.heat.length && gfx !== "simple") {
       let drawn = 0;
@@ -4007,6 +4201,9 @@
             const b = halfBox(c, r, tile);
             ctx.strokeStyle = "rgba(125,146,181,0.9)";
             ctx.strokeRect(b.x, b.y, b.w, b.h);
+          } else if (tile.id === "convL" || tile.id === "convR") {
+            ctx.strokeStyle = "rgba(201,143,78,0.9)";
+            ctx.strokeRect(cellX(c, tile), cellY(r, tile), TILE, TILE);
           } else if (tile.id === "pad") {
             const b = padBox(c, r, tile);
             ctx.strokeStyle = "rgba(255,157,46,0.9)";
@@ -4246,6 +4443,8 @@
     isOrbId,
     sanitizePlatforms,
     slopeSurfaceY,
+    ZONE_KINDS,
+    sanitizeZones,
     isFakeId,
     isInvisibleId,
     isCoinId,
@@ -4282,6 +4481,7 @@
     drawWorld,
     drawTile,
     drawTiledBg,
+    drawZones,
     spikeBox,
     goalBox,
     orbBox,

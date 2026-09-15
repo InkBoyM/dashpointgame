@@ -274,6 +274,9 @@
     stroke: null,
     selection: null,
     pathSel: null,
+    zoneKind: "windR",
+    zonePower: 2,
+    zoneDrag: null,
     selectedPictureId: null,
     picDrag: null,
     selectedWidgetId: null,
@@ -1049,6 +1052,7 @@
     image: "Click an image to move it, drag the handles to resize",
     html: "Click a block to move it, right-click for layer options",
     path: "Click a platform or saw, then click tiles to add stops (right-click removes)",
+    zone: "Drag to paint an effect zone (right-click a zone deletes it)",
   };
 
   function syncToolHint() {
@@ -1123,7 +1127,7 @@
     document.querySelectorAll(".tile-btn").forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.tile === id);
     });
-    if (state.tool === "spawn" || state.tool === "select" || state.tool === "picker" || state.tool === "path") setTool("paint");
+    if (state.tool === "spawn" || state.tool === "select" || state.tool === "picker" || state.tool === "path" || state.tool === "zone") setTool("paint");
     else syncToolHint();
   }
 
@@ -1398,6 +1402,126 @@
       }
     }
     ctx.restore();
+  }
+
+  // ---- Effect zones (Zone tool) ----
+  const ZONE_COLORS = {
+    windL: "46,150,255",
+    windR: "46,150,255",
+    windU: "46,230,255",
+    windD: "46,230,255",
+    lowgrav: "180,92,255",
+    flip: "255,150,46",
+  };
+  const ZONE_LABELS = { windL: "←W", windR: "W→", windU: "W↑", windD: "W↓", lowgrav: "LOW-G", flip: "FLIP" };
+
+  function zoneAtCell(c, r) {
+    const list = state.level.zones || [];
+    for (let i = list.length - 1; i >= 0; i--) {
+      const z = list[i];
+      if (c >= z.c && c < z.c + z.w && r >= z.r && r < z.r + z.h) return z;
+    }
+    return null;
+  }
+
+  function zoneDeleteAt(c, r) {
+    const list = state.level.zones || [];
+    for (let i = list.length - 1; i >= 0; i--) {
+      const z = list[i];
+      if (c >= z.c && c < z.c + z.w && r >= z.r && r < z.r + z.h) {
+        pushUndo();
+        list.splice(i, 1);
+        markDirty(true);
+        syncInspector();
+        setStatus("Zone deleted (" + list.length + " left)");
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function zoneFinishDrag() {
+    const d = state.zoneDrag;
+    state.zoneDrag = null;
+    if (!d) return;
+    let c0 = Math.min(d.c0, d.c1);
+    let r0 = Math.min(d.r0, d.r1);
+    let c1 = Math.max(d.c0, d.c1);
+    let r1 = Math.max(d.r0, d.r1);
+    const a = ensureContains(c0, r0);
+    const b = ensureContains(c1, r1);
+    c0 = Math.min(a.c, b.c);
+    r0 = Math.min(a.r, b.r);
+    c1 = Math.max(a.c, b.c);
+    r1 = Math.max(a.r, b.r);
+    const w = Math.min(64, c1 - c0 + 1);
+    const h = Math.min(64, r1 - r0 + 1);
+    pushUndo();
+    state.level.zones.push({ c: c0, r: r0, w: w, h: h, kind: state.zoneKind, power: state.zonePower });
+    markDirty(true);
+    syncInspector();
+    setStatus("Zone " + state.zoneKind + " " + w + "×" + h + " painted");
+  }
+
+  function drawZoneOverlay() {
+    const list = state.level.zones || [];
+    const drag = state.zoneDrag;
+    if (!list.length && !drag) return;
+    const S = TILE;
+    const active = state.tool === "zone";
+    ctx.save();
+    ctx.scale(state.cam.zoom, state.cam.zoom);
+    ctx.translate(-state.cam.x, -state.cam.y);
+    ctx.font = "bold 10px Consolas, monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    function rect(x, y, w, h, kind, preview) {
+      const col = ZONE_COLORS[kind] || "46,150,255";
+      ctx.fillStyle = "rgba(" + col + "," + (active ? 0.16 : 0.08) + ")";
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = "rgba(" + col + "," + (active ? 0.95 : 0.5) + ")";
+      ctx.lineWidth = (preview ? 2 : 1.5) / state.cam.zoom;
+      try {
+        ctx.setLineDash([6 / state.cam.zoom, 4 / state.cam.zoom]);
+      } catch (e) {}
+      ctx.strokeRect(x, y, w, h);
+      try {
+        ctx.setLineDash([]);
+      } catch (e) {}
+      if (w >= 48 && h >= 22) {
+        ctx.fillStyle = "rgba(" + col + ",0.95)";
+        ctx.fillText(ZONE_LABELS[kind] || kind, x + w / 2, y + 12);
+      }
+    }
+    for (const z of list) rect(z.c * S, z.r * S, z.w * S, z.h * S, z.kind, false);
+    if (drag) {
+      const c0 = Math.min(drag.c0, drag.c1);
+      const r0 = Math.min(drag.r0, drag.r1);
+      rect(c0 * S, r0 * S, (Math.abs(drag.c1 - drag.c0) + 1) * S, (Math.abs(drag.r1 - drag.r0) + 1) * S, state.zoneKind, true);
+    }
+    ctx.restore();
+  }
+
+  function bindZonePanel() {
+    const box = document.getElementById("zoneKinds");
+    if (box) {
+      box.addEventListener("click", (ev) => {
+        const btn = ev.target.closest("[data-zone]");
+        if (!btn) return;
+        state.zoneKind = btn.dataset.zone;
+        box.querySelectorAll(".chip").forEach((x) => x.classList.toggle("active", x === btn));
+        setTool("zone");
+        syncToolHint();
+      });
+    }
+    const sp = document.getElementById("zonePower");
+    const vs = document.getElementById("vZonePower");
+    if (sp) {
+      sp.addEventListener("input", () => {
+        state.zonePower = DP.clamp(parseInt(sp.value, 10) || 2, 1, 3);
+        if (vs) vs.textContent = String(state.zonePower);
+      });
+    }
   }
 
   function stampPrefab(origin, list) {
@@ -1820,6 +1944,17 @@
       if (!kept) state.pathSel = null;
       syncPathUI();
     }
+    // effect zones fully inside the moved area follow it
+    (state.level.zones || []).forEach((zn) => {
+      if (zn.c >= b.c0 && zn.c + zn.w - 1 <= b.c1 && zn.r >= b.r0 && zn.r + zn.h - 1 <= b.r1) {
+        const nc = zn.c + dc;
+        const nr = zn.r + dr;
+        if (state.level.inBounds(nc, nr) && state.level.inBounds(nc + zn.w - 1, nr + zn.h - 1)) {
+          zn.c = nc;
+          zn.r = nr;
+        }
+      }
+    });
     state.selection = {
       c0: b.c0 + dc,
       r0: b.r0 + dr,
@@ -1840,6 +1975,19 @@
     }
     if (state.tool === "path") {
       pathClick(cell, ev);
+      return;
+    }
+    if (state.tool === "zone") {
+      if (ev.button === 2 && !ev.ctrlKey) {
+        if (cell.inside && !zoneDeleteAt(cell.c, cell.r)) setStatus("No zone here");
+        return;
+      }
+      if (!cell.inside) {
+        setStatus("Drag inside the level");
+        return;
+      }
+      state.zoneDrag = { c0: cell.c, r0: cell.r, c1: cell.c, r1: cell.r };
+      els.canvas.classList.add("selecting");
       return;
     }
     const world = screenToWorld(ev.clientX, ev.clientY);
@@ -2007,6 +2155,11 @@
       state.selection.r1 = cell.r;
       return;
     }
+    if (state.zoneDrag) {
+      state.zoneDrag.c1 = cell.c;
+      state.zoneDrag.r1 = cell.r;
+      return;
+    }
     if (!state.stroke) return;
     if (state.stroke.kind === "rect" || state.stroke.kind === "line") {
       let c1 = cell.c;
@@ -2029,6 +2182,7 @@
 
   function endStroke() {
     if (state.selection) state.selection.dragging = false;
+    if (state.zoneDrag) zoneFinishDrag();
     if (state.stroke && (state.stroke.kind === "rect" || state.stroke.kind === "line")) {
       const pts =
         state.stroke.kind === "rect"
@@ -2094,6 +2248,7 @@
     setStat("cIOrb", v.counts.iorb);
     setStat("cIGoal", v.counts.igoal);
     setStat("cPlat", v.counts.platform);
+    setStat("cZones", (state.level.zones || []).length);
     setStat("cCoins", (v.counts.coin10 || 0) + (v.counts.coin50 || 0) + (v.counts.coin100 || 0) + (v.counts.coin500 || 0));
     syncThemeUI();
     document.getElementById("cText").textContent = v.counts.labels;
@@ -2146,6 +2301,7 @@
     state.level = level;
     state.selection = null;
     state.pathSel = null;
+    state.zoneDrag = null;
     state.selectedPictureId = null;
     state.picDrag = null;
     state.selectedWidgetId = null;
@@ -2213,6 +2369,7 @@
     state.redo = [];
     state.selection = null;
     state.pathSel = null;
+    state.zoneDrag = null;
     stopPlay();
     syncInspector();
     syncPathUI();
@@ -2236,6 +2393,7 @@
     state.redo = [];
     state.selection = null;
     state.pathSel = null;
+    state.zoneDrag = null;
     stopPlay();
     syncInspector();
     syncPathUI();
@@ -2516,6 +2674,7 @@
       else if (state.tool === "erase") ghost = [{ c: state.hover.c, r: state.hover.r, id: "erase" }];
       else if (state.tool === "spawn") ghost = [];
       else if (state.tool === "path") ghost = [];
+      else if (state.tool === "zone") ghost = [];
     }
 
     DP.drawWorld(ctx, state.engine ? state.engine.level : state.level, state.images, state.cam, {
@@ -2542,6 +2701,7 @@
     drawPictureChrome(ctx);
     drawWidgetChrome(ctx);
     if (!state.playing) drawPathOverlay();
+    if (!state.playing) drawZoneOverlay();
     try {
       const widgetBox = document.getElementById("widgetLayer");
       if (widgetBox) {
@@ -2712,7 +2872,7 @@
       });
       chipBox.appendChild(b);
     });
-    const BG_LABELS = { "": "None", meadow: "Grassy", glacier: "Icy", volcano: "Lava", desert: "Desert", cave: "Cave" };
+    const BG_LABELS = { "": "None", meadow: "Grassy", glacier: "Icy", volcano: "Lava", desert: "Desert", cave: "Cave", space: "Space", sunset: "Sunset" };
     const bgBox = document.getElementById("bgChips");
     if (bgBox && DP.BG_IDS) {
       DP.BG_IDS.forEach((id) => {
@@ -2898,6 +3058,7 @@
     if (ev.code === "KeyM") setTool("image");
     if (ev.code === "KeyU") setTool("html");
     if (ev.code === "KeyY") setTool("path");
+    if (ev.code === "KeyX") setTool("zone");
     if (ev.code === "Digit1") setTile("brick");
     if (ev.code === "Digit2") setTile("spike");
     if (ev.code === "Digit4") setTile("ispike");
@@ -2922,6 +3083,8 @@
         setStatus("Deleted HTML block");
       } else if (state.tool === "path" && selPlat()) {
         pathRemoveLast();
+      } else if (state.tool === "zone" && state.hover.inside && zoneAtCell(state.hover.c, state.hover.r)) {
+        zoneDeleteAt(state.hover.c, state.hover.r);
       } else if (state.selection) deleteSelection();
       else if (textAt(state.hover.c, state.hover.r)) {
         pushUndo();
@@ -3076,6 +3239,7 @@
       btn.addEventListener("click", () => setTile(btn.dataset.tile));
     });
     bindPathPanel();
+    bindZonePanel();
 
     els.name.addEventListener("input", () => {
       state.level.name = els.name.value.slice(0, 48);
@@ -3211,7 +3375,9 @@
       }
       state.level.triggers = [];
       state.level.platforms = [];
+      state.level.zones = [];
       state.pathSel = null;
+      state.zoneDrag = null;
       syncInspector();
       syncPathUI();
     });

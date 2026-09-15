@@ -111,7 +111,47 @@ def cave():
             stamp(cv,x,y-i,col,1)
     return cv
 
+def space():
+    cv=new((0,0,0,0))
+    grad(cv,(6,6,20),(20,12,48))
+    R=random.Random(26)
+    for _ in range(5):  # nebula blobs (wrapped)
+        x,y=R.randrange(S),R.randrange(S)
+        col=R.choice([(90,40,140,60),(40,90,180,60),(160,50,120,55)])
+        for i in range(40):
+            stamp(cv,x+R.randint(-26,26),y+R.randint(-18,18),col,6)
+    for _ in range(220):  # stars (wrapped points)
+        x,y=R.randrange(S),R.randrange(S)
+        b=150+R.randrange(106)
+        stamp(cv,x,y,(b,b,min(255,b+20),255),1)
+    for _ in range(24):
+        x,y=R.randrange(S),R.randrange(S)
+        for ox in (-S,0,S):
+            for oy in (-S,0,S):
+                xx,yy=x+ox,y+oy
+                if 0<=xx<S and 0<=yy<S:
+                    cv[yy][xx]=(255,255,255,255)
+                    if xx+1<S: cv[yy][xx+1]=(200,200,255,200)
+    return cv
+
+def sunset():
+    cv=new((0,0,0,0))
+    grad(cv,(64,30,110),(255,140,60))
+    R=random.Random(27)
+    for _ in range(12):  # cloud bands (periods divide S so they wrap)
+        y0=R.randrange(S); amp=R.uniform(4,10); per=R.choice([64,128,256]); ph=R.uniform(0,6)
+        for x in range(S):
+            y=int(y0+math.sin(x/per*math.pi*2+ph)*amp)
+            for ox in (-S,0,S):
+                for oy in (-S,0,S):
+                    xx,yy=x+ox,y+oy
+                    if 0<=xx<S and 0<=yy<S: cv[yy][xx]=(255,190,140,110)
+                    if 0<=xx<S and 0<=yy+2<S: cv[yy+2][xx]=(120,60,140,110)
+    for _ in range(160):
+        stamp(cv,R.randrange(S),R.randrange(S),(255,220,170,90),1)
+    return cv
+
 os.makedirs(OUT, exist_ok=True)
-for name,fn in [("bg-meadow",meadow),("bg-glacier",glacier),("bg-volcano",volcano),("bg-desert",desert),("bg-cave",cave)]:
+for name,fn in [("bg-meadow",meadow),("bg-glacier",glacier),("bg-volcano",volcano),("bg-desert",desert),("bg-cave",cave),("bg-space",space),("bg-sunset",sunset)]:
     wp(os.path.join(OUT,name+".png"),fn())
 print("done")
