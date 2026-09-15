@@ -617,6 +617,20 @@
     return (save_.data.trails || []).indexOf(id) !== -1;
   }
 
+  const SHOP_PACKS = [
+    { id: "drawing", label: "Drawing", cost: 100000, blurb: "B&W ink redraw" },
+    { id: "neon", label: "Neon", cost: 250000, blurb: "Dark glass + glow" },
+  ];
+
+  function findShopPack(id) {
+    for (let i = 0; i < SHOP_PACKS.length; i++) if (SHOP_PACKS[i].id === id) return SHOP_PACKS[i];
+    return null;
+  }
+
+  function ownsPack(id) {
+    return (save_.data.packs || []).indexOf(id) !== -1;
+  }
+
   function equippedTrailId() {
     return findShopTrail(save_.data.trail) ? save_.data.trail : "";
   }
@@ -757,7 +771,7 @@
   }
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", bellSeen: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", bellSeen: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
   }
 
   function touchUIDefaults() {
@@ -828,6 +842,9 @@
       s.frame = findShopFrame(s.frame) ? s.frame : "";
       s.trails = Array.isArray(s.trails) ? s.trails.filter(function (id) { return !!findShopTrail(id); }) : [];
       s.trail = findShopTrail(s.trail) ? s.trail : "";
+      s.packs = Array.isArray(s.packs) ? s.packs.filter(function (id) { return !!findShopPack(id); }) : [];
+      // grandfather: anyone already running a pack keeps it
+      if ((s.graphics === "drawing" || s.graphics === "neon") && s.packs.indexOf(s.graphics) === -1) s.packs.push(s.graphics);
       s.touchUI = Object.assign(touchUIDefaults(), (s.touchUI && typeof s.touchUI === "object") ? s.touchUI : {});
       s.touchMode = s.touchMode === "joystick" ? "joystick" : "buttons";
       s.tag = findShopTag(s.tag) && s.tags.indexOf(s.tag) !== -1 ? s.tag : "";
@@ -839,6 +856,7 @@
         king: Number(cf.king) || 0,
       };
       s.graphics = s.graphics === "good" || s.graphics === "simple" || s.graphics === "dlls5" || s.graphics === "ultra" || s.graphics === "drawing" || s.graphics === "neon" || s.graphics === "revamped" ? (s.graphics === "revamped" ? "neon" : s.graphics) : "normal";
+      if ((s.graphics === "drawing" || s.graphics === "neon") && s.packs.indexOf(s.graphics) === -1) s.graphics = "normal";
       s.ghostOpacity = clampGhostOpacity(s.ghostOpacity);
       return s;
     } catch (e) {
@@ -1805,6 +1823,7 @@
     renderShopColors();
     renderShopFrames();
     renderShopTrails();
+    renderShopPacks();
     syncCoinUI();
   }
 
@@ -1990,6 +2009,59 @@
     save_.data.trail = t.id;
     save();
     showNotice("Trail unlocked!", false);
+    renderShop();
+    syncHomeStats();
+    syncCoinUI();
+  }
+
+  function renderShopPacks() {
+    const box = el("shopPackGrid");
+    if (!box) return;
+    box.innerHTML = "";
+    SHOP_PACKS.forEach(function (p) {
+      const owned = ownsPack(p.id);
+      const active = save_.data.graphics === p.id;
+      const cost = coinAmount(p.cost);
+      const can = hasCoins(cost);
+      const b = document.createElement("button");
+      b.className = "skin-tile" + (active ? " selected" : "") + (!owned && !can ? " cant" : "");
+      const hint = owned ? (active ? "EQUIPPED" : "TAP TO EQUIP") : can ? "TAP TO BUY" : "NEED " + fmtCoins(cost);
+      b.innerHTML =
+        '<img src="assets/' + p.id + '/tiles/brick.png" alt="" />' +
+        '<span class="skin-name">' + escapeHtml(p.label) + "</span>" +
+        '<span class="skin-hint">' + escapeHtml(p.blurb) + "</span>" +
+        '<span class="shop-cost">' + coinIcon() + fmtCoins(cost) + "</span>" +
+        '<span class="skin-hint">' + escapeHtml(hint) + "</span>";
+      b.addEventListener("click", function () {
+        if (owned) {
+          save_.data.graphics = active ? "normal" : p.id;
+          save();
+          applyGraphics();
+          syncGfxUI();
+          renderShopPacks();
+          return;
+        }
+        buyShopPack(p);
+      });
+      box.appendChild(b);
+    });
+  }
+
+  function buyShopPack(p) {
+    if (!p || ownsPack(p.id)) return;
+    const cost = coinAmount(p.cost);
+    if (!hasCoins(cost)) {
+      showNotice("Not enough coins", true);
+      return;
+    }
+    subCoins(cost);
+    save_.data.packs = save_.data.packs || [];
+    save_.data.packs.push(p.id);
+    save_.data.graphics = p.id;
+    save();
+    applyGraphics();
+    syncGfxUI();
+    showNotice(p.label + " pack unlocked!", false);
     renderShop();
     syncHomeStats();
     syncCoinUI();
@@ -2257,7 +2329,11 @@
 
   function gfxMode() {
     const g = save_.data && save_.data.graphics;
-    if (g === "good" || g === "simple" || g === "dlls5" || g === "ultra" || g === "drawing" || g === "neon" || g === "revamped") return g === "revamped" ? "neon" : g;
+    if (g === "good" || g === "simple" || g === "dlls5" || g === "ultra" || g === "drawing" || g === "neon" || g === "revamped") {
+      const mode = g === "revamped" ? "neon" : g;
+      if ((mode === "drawing" || mode === "neon") && !ownsPack(mode)) return "normal";
+      return mode;
+    }
     return "normal";
   }
 
@@ -2303,9 +2379,13 @@
     else if (mode === "simple") hint.textContent = "Faster. Solid colors and fewer effects.";
     else if (mode === "dlls5") hint.textContent = "Realistic tiles: stone, metal, glass and gold. Skins stay the same.";
     else if (mode === "ultra") hint.textContent = "Photoreal tiles and a photo backdrop.";
-    else if (mode === "drawing") hint.textContent = "Drawing pack: the whole game redrawn in black-and-white ink."
-    else if (mode === "neon") hint.textContent = "Neon pack: dark glass tiles with glowing edges.";
+    else if (mode === "drawing") hint.textContent = ownsPack("drawing") ? "Drawing pack: the whole game redrawn in black-and-white ink." : "Drawing pack: unlock it in the SHOP.";
+    else if (mode === "neon") hint.textContent = ownsPack("neon") ? "Neon pack: dark glass tiles with glowing edges." : "Neon pack: unlock it in the SHOP.";
     else hint.textContent = "Default look.";
+    document.querySelectorAll(".gfx-opt").forEach(function (b) {
+      const id = b.getAttribute("data-gfx");
+      b.classList.toggle("cant", (id === "drawing" || id === "neon") && !ownsPack(id));
+    });
   }
 
   function playZoom() {
@@ -4345,6 +4425,10 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     document.querySelectorAll(".gfx-opt").forEach(function (b) {
       b.addEventListener("click", function () {
         const next = b.getAttribute("data-gfx");
+        if ((next === "drawing" || next === "neon") && !ownsPack(next)) {
+          showNotice("Unlock " + next + " in the SHOP first", true);
+          return;
+        }
         save_.data.graphics = next === "good" || next === "simple" || next === "dlls5" || next === "ultra" || next === "drawing" || next === "neon" ? next : "normal";
         save();
         applyGraphics();
