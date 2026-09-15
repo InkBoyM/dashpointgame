@@ -615,10 +615,11 @@
         } catch (e) {}
       })
     );
-    // "Drawing" texture pack: black-and-white ink redraw of every sprite,
-    // generated at load so it covers all present and future art.
+    // "Drawing" texture pack: hand-drawn B&W files where they exist
+    // (assets/drawing/**/…), ink-filtered base art everywhere else, so
+    // the pack covers all present and future sprites.
     try {
-      images.drawing = buildDrawingPack(images);
+      images.drawing = await buildDrawingPack(images);
     } catch (e) {
       images.drawing = null;
     }
@@ -673,16 +674,26 @@
     return c;
   }
 
-  function buildDrawingPack(images) {
+  async function buildDrawingPack(images) {
     const pack = {};
-    for (const key of Object.keys(ASSET_PATHS)) {
-      if (images[key]) {
+    async function fileOrSketch(key, src) {
+      const alt =
+        typeof src === "string"
+          ? src.replace("assets/tiles/", "assets/drawing/tiles/").replace("assets/bg/", "assets/drawing/bg/")
+          : src;
+      if (alt && alt !== src) {
         try {
-          pack[key] = sketchify(images[key]);
-        } catch (e) {
-          pack[key] = images[key];
-        }
+          return await loadImage(alt);
+        } catch (e) {}
       }
+      try {
+        return sketchify(images[key]);
+      } catch (e) {
+        return images[key];
+      }
+    }
+    for (const key of Object.keys(ASSET_PATHS)) {
+      if (images[key]) pack[key] = await fileOrSketch(key, ASSET_PATHS[key]);
     }
     pack.skins = [];
     pack.skinAnims = [];
