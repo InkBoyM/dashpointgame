@@ -62,6 +62,12 @@ img { image-rendering: pixelated; }
     var(--bg);
 }
 
+/* explicit rows: dock sits under the canvas regardless of DOM order */
+.topbar { grid-row: 1; }
+.viewport-wrap { grid-row: 2; }
+.dock { grid-row: 3; }
+.status { grid-row: 4; }
+
 .topbar {
   grid-column: 1 / -1;
   display: flex;
