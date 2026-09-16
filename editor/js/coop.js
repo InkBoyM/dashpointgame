@@ -20,6 +20,7 @@
     rev: 0,
     lastSeenRev: "",
     lastSnap: null,
+    pending: null, // snapshot received mid-playtest, applied on stop
     pushTimer: 0,
     lastCheck: 0,
     lastCursor: 0,
@@ -93,6 +94,21 @@
     if (dot) dot.classList.toggle("saved", !S.room);
   }
 
+  function isPlaying() {
+    try {
+      const ed = bridge();
+      const st = ed && ed.getState ? ed.getState() : null;
+      return !!(st && st.playing);
+    } catch (e) { return false; }
+  }
+
+  function applyRemote(v) {
+    S.lastSeenRev = v.rev;
+    S.lastSnap = v.json;
+    const ed = bridge();
+    if (ed && ed.loadSnapshot) ed.loadSnapshot(v.json, v.byName || "partner");
+  }
+
   function subscribe() {
     const ref = roomRef(S.room);
     S.refs = { ref: ref };
@@ -100,10 +116,12 @@
       const v = snap.val();
       if (!v || !v.json || v.rev === S.lastSeenRev) return;
       if (v.by === S.uid) return;
-      S.lastSeenRev = v.rev;
-      S.lastSnap = v.json;
-      const ed = bridge();
-      if (ed && ed.loadSnapshot) ed.loadSnapshot(v.json, v.byName || "partner");
+      if (isPlaying()) {
+        // never yank the level mid-playtest — apply on stop
+        S.pending = v;
+        return;
+      }
+      applyRemote(v);
     });
     ref.child("cursors").on("value", function (snap) {
       S.cursors = snap.val() || {};
@@ -170,6 +188,12 @@
     if (ed) {
       try {
         const st = ed.getState ? ed.getState() : null;
+        if (st && !st.playing && S.pending) {
+          // playtest ended: apply the edit that landed mid-run
+          const v = S.pending;
+          S.pending = null;
+          if (v.rev !== S.lastSeenRev && v.by !== S.uid) applyRemote(v);
+        }
         if (st && !st.playing && now - S.lastCheck > CHECK_MS) {
           S.lastCheck = now;
           let snap = null;
@@ -281,6 +305,7 @@
     const u = me();
     if (!u) { setStatus("Log in first (Post tab) to join a co-op room."); return; }
     if (S.room) { setStatus("Already in room " + S.room + " — leave first."); return; }
+    if (isPlaying()) { setStatus("Stop the playtest first, then join."); return; }
     const inp = document.getElementById("coopJoin");
     const code = String((inp && inp.value) || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
     if (!code) { setStatus("Type the room code first."); return; }
@@ -337,6 +362,7 @@
     unsubscribe();
     S.room = null;
     S.uid = null;
+    S.pending = null;
     S.users = {};
     S.cursors = {};
     updateCodeUI();
