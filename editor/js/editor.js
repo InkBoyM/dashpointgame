@@ -2552,6 +2552,7 @@
     state.playing = true;
     state.deaths = 0;
     els.app.classList.add("playing");
+    document.body.classList.remove("sheet-palette", "sheet-inspector");
     els.playHud.classList.add("visible");
     els.winCard.classList.remove("visible");
     els.playLabel.textContent = "Stop";
@@ -3307,6 +3308,21 @@
       });
     }
     applyTileFilter();
+    // mobile bottom sheets (GD-style builders)
+    const bsp = document.getElementById("btnSheetPalette");
+    if (bsp) {
+      bsp.addEventListener("click", () => {
+        document.body.classList.toggle("sheet-palette");
+        document.body.classList.remove("sheet-inspector");
+      });
+    }
+    const bsi = document.getElementById("btnSheetInspector");
+    if (bsi) {
+      bsi.addEventListener("click", () => {
+        document.body.classList.toggle("sheet-inspector");
+        document.body.classList.remove("sheet-palette");
+      });
+    }
     // inspector tabs
     try {
       const savedTab = localStorage.getItem("dashpoint.editor.instab");
