@@ -3670,7 +3670,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     like.className = "n-like";
     like.title = "Like";
     const paintRowLike = (liked, count) => {
-      like.innerHTML = '<img src="assets/ui/' + (liked ? "heart-full.png" : "heart.png") + '" alt="" /><span>' + count + "</span>";
+      like.innerHTML = '<img src="assets/ui/heart-full.png" alt="" /><span>' + count + "</span>";
       like.classList.toggle("liked", !!liked);
     };
     paintRowLike(false, (meta.likes | 0));
@@ -4237,7 +4237,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     const img = el("liLikeImg");
     const n = el("liLikeCount");
     if (!btn || !img || !n) return;
-    img.src = likeState.liked ? "assets/ui/heart-full.png" : "assets/ui/heart.png";
+    img.src = "assets/ui/heart-full.png";
     n.textContent = likeState.count;
     btn.classList.toggle("liked", !!likeState.liked);
   }

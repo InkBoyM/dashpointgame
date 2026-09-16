@@ -1161,9 +1161,11 @@ body.gfx-ultra canvas { image-rendering: auto; }
   border: 3px solid var(--ink-dark);
   box-shadow: inset -2px -2px 0 rgba(0,0,0,.25);
 }
-.n-like img { width: 16px; height: 16px; image-rendering: pixelated; }
+.n-like img { width: 16px; height: 16px; image-rendering: pixelated; filter: grayscale(1) brightness(.55); opacity: .75; }
+.n-like.liked img { filter: none; opacity: 1; }
 .n-like.liked { border-color: var(--pink, #ff5a6e); color: var(--pink, #ff5a6e); }
-.li-like img { width: 18px; height: 18px; image-rendering: pixelated; vertical-align: -3px; }
+.li-like img { width: 18px; height: 18px; image-rendering: pixelated; vertical-align: -3px; filter: grayscale(1) brightness(.55); opacity: .75; }
+.li-like.liked img { filter: none; opacity: 1; }
 .li-like.liked { border-color: var(--pink, #ff5a6e); color: var(--pink, #ff5a6e); }
 .n-opts { position: relative; flex: none; }
 .n-opts-btn {
