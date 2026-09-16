@@ -311,6 +311,56 @@ window.DPNet = (function () {
     } catch (e) {}
   }
 
+  // Likes: one per user. Dashpoint/levelLikes/<levelId>/<uid> = true tracks
+  // who liked; levelsIndex/<id>/likes mirrors the count for sorting.
+  function likeKey() { return "dashpoint.net.likes"; }
+  function likedLocal() {
+    try { return JSON.parse(localStorage.getItem(likeKey()) || "{}"); } catch (e) { return {}; }
+  }
+  function setLikedLocal(id, on) {
+    try {
+      const all = likedLocal();
+      if (on) all[id] = 1; else delete all[id];
+      localStorage.setItem(likeKey(), JSON.stringify(all));
+    } catch (e) {}
+  }
+  async function hasLiked(id) {
+    id = String(id || "");
+    if (!id) return false;
+    if (likedLocal()[id]) return true;
+    const u = getEffectiveUser() || getUser();
+    if (!u) return false;
+    try {
+      const v = await getJSON("/dashpoint/levelLikes/" + encodeURIComponent(id) + "/" + encodeURIComponent(u.uid));
+      if (v) setLikedLocal(id, true);
+      return !!v;
+    } catch (e) { return false; }
+  }
+  async function setLike(id, on) {
+    const u = getEffectiveUser() || getUser();
+    if (!u) throw new Error("Log in to like levels.");
+    id = String(id || "").trim();
+    if (!id) throw new Error("Missing level id.");
+    const markPath = "/dashpoint/levelLikes/" + encodeURIComponent(id) + "/" + encodeURIComponent(u.uid);
+    const countPath = "/dashpoint/levelsIndex/" + encodeURIComponent(id) + "/likes";
+    let cur = null;
+    try { cur = await getJSON(markPath); } catch (e) {}
+    if (!!cur === !!on) {
+      setLikedLocal(id, !!on);
+      try { return (await getJSON(countPath)) || 0; } catch (e) { return 0; }
+    }
+    if (on) await putJSON(markPath, true);
+    else await putJSON(markPath, null);
+    let n = 0;
+    try {
+      const c = (await getJSON(countPath)) || 0;
+      n = Math.max(0, (c | 0) + (on ? 1 : -1));
+      await putJSON(countPath, n);
+    } catch (e) {}
+    setLikedLocal(id, !!on);
+    return n;
+  }
+
   async function bumpDownloads(id) {
     try {
       const cur = (await getJSON("/dashpoint/levelsIndex/" + id + "/downloads")) || 0;
@@ -894,6 +944,8 @@ window.DPNet = (function () {
     updateLevel: updateLevel,
     bumpPlays: bumpPlays,
     bumpDownloads: bumpDownloads,
+    setLike: setLike,
+    hasLiked: hasLiked,
     loadUsersIndex: loadUsersIndex,
     getUserProfile: getUserProfile,
     syncStats: syncStats,

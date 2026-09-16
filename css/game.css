@@ -1153,6 +1153,18 @@ body.gfx-ultra canvas { image-rendering: auto; }
   justify-content: center;
 }
 .net-row .n-play.n-dl svg { display: block; }
+.n-like {
+  pointer-events: auto;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 9px; font-size: 12px; font-weight: 900;
+  background: var(--panel-2); color: var(--text);
+  border: 3px solid var(--ink-dark);
+  box-shadow: inset -2px -2px 0 rgba(0,0,0,.25);
+}
+.n-like img { width: 16px; height: 16px; image-rendering: pixelated; }
+.n-like.liked { border-color: var(--pink, #ff5a6e); color: var(--pink, #ff5a6e); }
+.li-like img { width: 18px; height: 18px; image-rendering: pixelated; vertical-align: -3px; }
+.li-like.liked { border-color: var(--pink, #ff5a6e); color: var(--pink, #ff5a6e); }
 .n-opts { position: relative; flex: none; }
 .n-opts-btn {
   background: var(--panel) !important;

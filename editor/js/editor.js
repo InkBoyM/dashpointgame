@@ -2702,6 +2702,9 @@
     drawWidgetChrome(ctx);
     if (!state.playing) drawPathOverlay();
     if (!state.playing) drawZoneOverlay();
+    if (!state.playing && window.DashPointCoop) {
+      try { window.DashPointCoop.draw(ctx); } catch (e) {}
+    }
     try {
       const widgetBox = document.getElementById("widgetLayer");
       if (widgetBox) {
@@ -3059,6 +3062,10 @@
     if (ev.code === "KeyU") setTool("html");
     if (ev.code === "KeyY") setTool("path");
     if (ev.code === "KeyX") setTool("zone");
+    if (ev.code === "KeyC" && !ctrl) {
+      if (window.DashPointCoop) openModal("modalCoop");
+      else setStatus("Co-op failed to load — hard refresh the editor.");
+    }
     if (ev.code === "Digit1") setTile("brick");
     if (ev.code === "Digit2") setTile("spike");
     if (ev.code === "Digit4") setTile("ispike");
@@ -3316,6 +3323,10 @@
     document.getElementById("btnAi").addEventListener("click", () => generateLevel());
     document.getElementById("btnLibrary").addEventListener("click", () => openModal("modalLibrary"));
     document.getElementById("btnImport").addEventListener("click", () => els.file.click());
+    document.getElementById("btnCoop").addEventListener("click", () => {
+      if (window.DashPointCoop) openModal("modalCoop");
+      else setStatus("Co-op failed to load — hard refresh the editor.");
+    });
     const addImg = document.getElementById("btnAddImage");
     if (addImg) {
       addImg.addEventListener("click", () => {
@@ -3551,6 +3562,29 @@
       markDirty: () => markDirty(true),
       getNetworkEdit: () => networkEdit,
       clearNetworkEdit: clearNetworkEdit,
+      TILE: TILE,
+      DP: DP,
+      snapshot: snapshot,
+      syncInspector: syncInspector,
+      setStatus: setStatus,
+      loadSnapshot: function (json, byName) {
+        try {
+          state.level = DP.Level.fromJSON(JSON.parse(json));
+        } catch (err) {
+          setStatus("Co-op sync failed: bad level data");
+          return false;
+        }
+        state.selection = null;
+        state.pathSel = null;
+        state.zoneDrag = null;
+        state.selectedPictureId = null;
+        state.selectedWidgetId = null;
+        syncInspector();
+        try { syncPathUI(); } catch (e) {}
+        markDirty(true);
+        setStatus("Synced from " + byName);
+        return true;
+      },
     };
     requestAnimationFrame(render);
   }

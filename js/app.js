@@ -3666,9 +3666,35 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       ev.stopPropagation();
       playNetworkLevel(meta);
     });
+    const like = document.createElement("button");
+    like.className = "n-like";
+    like.title = "Like";
+    const paintRowLike = (liked, count) => {
+      like.innerHTML = '<img src="assets/ui/' + (liked ? "heart-full.png" : "heart.png") + '" alt="" /><span>' + count + "</span>";
+      like.classList.toggle("liked", !!liked);
+    };
+    paintRowLike(false, (meta.likes | 0));
+    try {
+      if (NET.hasLiked) {
+        NET.hasLiked(meta.id).then(function (v) { paintRowLike(!!v, (meta.likes | 0)); }).catch(function () {});
+      }
+    } catch (e) {}
+    like.addEventListener("click", async (ev) => {
+      ev.stopPropagation();
+      try {
+        const st = await toggleLike(meta.id);
+        if (st) {
+          meta.likes = st.count;
+          paintRowLike(st.liked, st.count);
+        }
+      } catch (err) {
+        showNotice(NET.friendly(err), true);
+      }
+    });
     info.querySelector(".n-author").addEventListener("click", (ev) => { ev.stopPropagation(); openAccount(meta.authorUid); });
     row.appendChild(diff);
     row.appendChild(info);
+    row.appendChild(like);
     row.appendChild(play);
     row.appendChild(makeDownloadBtn(function () { downloadNetworkLevel(meta); }));
     const optItems = [];
@@ -3834,7 +3860,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         if (info) {
           const d = document.createElement("div");
           d.className = "n-sub";
-          d.textContent = (Number(s.meta.plays) || 0) + " plays · " + (Number(s.meta.downloads) || 0) + " downloads";
+          d.textContent = (Number(s.meta.plays) || 0) + " plays · " + (Number(s.meta.downloads) || 0) + " downloads · " + (Number(s.meta.likes) || 0) + " likes";
           info.appendChild(d);
         }
         box.appendChild(row);
@@ -4117,6 +4143,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     } catch(e){ el("btnLiDelete").style.display = "none"; }
     commentLevelId = sv.id || (sv.meta && sv.meta.id) || "";
     renderComments();
+    renderLike();
     el("modalLevelInfo").classList.add("visible");
   }
 
@@ -4200,6 +4227,49 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       if (acts.children.length) row.appendChild(acts);
       box.appendChild(row);
     });
+  }
+
+  /* ---------------- LEVEL LIKES ---------------- */
+  let likeState = { id: "", liked: false, count: 0 };
+
+  function paintLike() {
+    const btn = el("btnLiLike");
+    const img = el("liLikeImg");
+    const n = el("liLikeCount");
+    if (!btn || !img || !n) return;
+    img.src = likeState.liked ? "assets/ui/heart-full.png" : "assets/ui/heart.png";
+    n.textContent = likeState.count;
+    btn.classList.toggle("liked", !!likeState.liked);
+  }
+
+  async function toggleLike(id) {
+    const me = (NET.getEffectiveUser && NET.getEffectiveUser()) || (NET.getUser && NET.getUser());
+    if (!me) {
+      showNotice("Log in to like levels.", true);
+      return null;
+    }
+    const cur = likeState.id === id ? likeState.liked : false;
+    const n = await NET.setLike(id, !cur);
+    likeState = { id: id, liked: !cur, count: n | 0 };
+    try {
+      const hit = (levelIndexCache || []).find(function (l) { return l.id === id; });
+      if (hit) hit.likes = n | 0;
+    } catch (e) {}
+    return likeState;
+  }
+
+  async function renderLike() {
+    const id = commentLevelId;
+    if (!id || !el("btnLiLike")) return;
+    const meta = levelInfoMeta && levelInfoMeta.meta;
+    likeState = { id: id, liked: false, count: (meta && meta.likes) | 0 };
+    paintLike();
+    try {
+      const liked = await NET.hasLiked(id);
+      if (likeState.id !== id) return;
+      likeState.liked = !!liked;
+      paintLike();
+    } catch (e) {}
   }
 
   async function postLevelComment() {
@@ -4470,6 +4540,15 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnPauseQuit").addEventListener("click", quitToLevels);
     el("btnLiPlay").addEventListener("click", liPlay);
     el("btnLiComment").addEventListener("click", postLevelComment);
+    el("btnLiLike").addEventListener("click", async function () {
+      if (!likeState.id) return;
+      try {
+        const st = await toggleLike(likeState.id);
+        if (st) paintLike();
+      } catch (err) {
+        showNotice(NET.friendly(err), true);
+      }
+    });
     el("liCommentInput").addEventListener("keydown", function (ev) {
       ev.stopPropagation();
       if (ev.code === "Enter" || ev.key === "Enter") {

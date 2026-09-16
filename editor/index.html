@@ -21,6 +21,7 @@
         <button class="text-btn" id="btnImport" title="Import JSON (Ctrl+O)">Import</button>
         <button class="text-btn good" id="btnExport" title="Export JSON (Ctrl+E)">Export</button>
         <button class="text-btn gold" id="btnPost" title="Post to DashPoint Network">Post</button>
+        <button class="text-btn" id="btnCoop" title="Build together live (C)">Co-op</button>
         <button class="icon-btn" id="btnSkins" title="Playtest skin">
           <img src="assets/ui/character.png" alt="Skin" />
         </button>
@@ -487,6 +488,29 @@
     </div>
   </div>
 
+  <div class="modal-root" id="modalCoop">
+    <div class="modal">
+      <h2>Co-op building</h2>
+      <p class="hint" id="coopStatus">Host a room and share the code, or join with one.</p>
+      <div class="stat">Room <b id="coopCode" style="font-size:18px;letter-spacing:3px">—</b></div>
+      <div class="row" style="margin-top:10px">
+        <button class="text-btn gold grow" id="btnCoopHost">Host</button>
+        <button class="text-btn grow" id="btnCoopSync" title="Push your level to the room now">Sync now</button>
+        <button class="text-btn danger grow" id="btnCoopLeave">Leave</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input id="coopJoin" class="level-name" style="flex:1" maxlength="8" spellcheck="false" placeholder="ROOM CODE" />
+        <button class="text-btn good" id="btnCoopJoin">Join</button>
+      </div>
+      <div class="section-title" style="margin-top:14px">Builders</div>
+      <div id="coopUsers"><p class="hint">Nobody else here yet.</p></div>
+      <p class="hint">Everyone paints the same level — edits merge by latest sync, cursors show live. Log in via Post first. Rooms expire after 6 hours.</p>
+      <div class="row" style="margin-top:12px; justify-content:flex-end">
+        <button class="text-btn" data-close="modalCoop">Close</button>
+      </div>
+    </div>
+  </div>
+
   <div class="n-opts-menu" id="widgetMenu"></div>
 
   <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js"></script>
@@ -497,5 +521,6 @@
   <script src="js/network.js"></script>
   <script src="js/post.js"></script>
   <script src="js/editor.js"></script>
+  <script src="js/coop.js"></script>
 </body>
 </html>
