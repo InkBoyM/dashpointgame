@@ -3596,10 +3596,6 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
   }
 
   function openEditorWithJson(json, name) {
-    if (isTouch) {
-      showNotice("Downloaded. Open the editor on PC to edit it.", false);
-      return;
-    }
     try {
       localStorage.setItem("dashpoint.editor.openCopy", JSON.stringify({
         json: json,
@@ -3731,10 +3727,6 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
 
   async function startEditLevel(meta) {
     if (!meta) return;
-    if (isTouch) {
-      showNotice("Get on PC to edit levels — editing is desktop-only.", true);
-      return;
-    }
     if (!isMyLevel(meta)) {
       showNotice("You can only edit your own levels.", true);
       return;
@@ -4345,10 +4337,6 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     });
     el("btnNetBack").addEventListener("click", () => show("home"));
     el("netEditor").addEventListener("click", () => {
-      if (isTouch) {
-        showNotice("Get on PC to create levels — editing is desktop-only.", true);
-        return;
-      }
       window.open("editor/index.html", "_blank");
     });
     el("netSaved").addEventListener("click", () => {
