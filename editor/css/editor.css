@@ -306,15 +306,71 @@ button:focus-visible, [role="button"]:focus-visible {
 
 .tools {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
-  margin-bottom: 14px;
+  margin-bottom: 6px;
 }
 
 .tool {
-  min-height: 58px;
-  padding: 6px 4px;
+  min-height: 52px;
+  padding: 5px 2px;
+  gap: 3px;
 }
+
+.tool span { font-size: 9px; }
+
+.tool .k {
+  font-size: 9px;
+  padding: 0 4px;
+}
+
+.tabbar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+  position: sticky;
+  top: -14px;
+  padding: 10px 0 8px;
+  background: linear-gradient(180deg, var(--panel) 80%, transparent);
+  z-index: 2;
+}
+
+.tab {
+  flex: 1;
+  height: 32px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--inset);
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--hard);
+}
+
+.tab.active {
+  color: var(--ink);
+  background: linear-gradient(180deg, var(--cyan), #1aa8c0);
+  border-color: var(--ink);
+  text-shadow: none;
+}
+
+.insp-pane { display: none; }
+.insp-pane.active { display: block; }
+
+.tb-sep {
+  width: 2px;
+  align-self: stretch;
+  margin: 6px 2px;
+  background: var(--line);
+  border-radius: 1px;
+  flex: none;
+}
+
+#tileCount { min-height: 0; }
+.tile-btn[hidden] { display: none; }
 
 .hint {
   color: var(--muted);

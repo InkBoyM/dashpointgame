@@ -255,6 +255,9 @@
     ox: 0,
     oy: 0,
     prefab: "platform",
+    tileCat: "all",
+    tileQuery: "",
+    inspTab: "build",
     cam: { x: 0, y: 0, zoom: 2 },
     growAmount: 32,
     textDraft: "JUMP!",
@@ -1129,6 +1132,31 @@
     });
     if (state.tool === "spawn" || state.tool === "select" || state.tool === "picker" || state.tool === "path" || state.tool === "zone") setTool("paint");
     else syncToolHint();
+  }
+
+  function applyTileFilter() {
+    const q = (state.tileQuery || "").trim().toLowerCase();
+    let shown = 0;
+    let total = 0;
+    document.querySelectorAll(".tile-btn").forEach((btn) => {
+      total++;
+      const cat = btn.dataset.cat || "all";
+      const hay = ((btn.dataset.tile || "") + " " + (btn.textContent || "") + " " + (btn.title || "")).toLowerCase();
+      const ok = (state.tileCat === "all" || cat === state.tileCat) && (!q || hay.indexOf(q) !== -1);
+      btn.hidden = !ok;
+      if (ok) shown++;
+    });
+    const c = document.getElementById("tileCount");
+    if (c) c.textContent = shown === total ? "" : shown + " of " + total + " tiles";
+    document.querySelectorAll("#tileCats .chip").forEach((x) => x.classList.toggle("active", x.dataset.cat === state.tileCat));
+  }
+
+  function setInspTab(id) {
+    if (id !== "build" && id !== "feel" && id !== "check") id = "build";
+    state.inspTab = id;
+    document.querySelectorAll("#inspTabs .tab").forEach((x) => x.classList.toggle("active", x.dataset.pane === id));
+    document.querySelectorAll(".insp-pane").forEach((x) => x.classList.toggle("active", x.dataset.pane === id));
+    try { localStorage.setItem("dashpoint.editor.instab", id); } catch (e) {}
   }
 
   function setRot(rot) {
@@ -3062,6 +3090,11 @@
     if (ev.code === "KeyU") setTool("html");
     if (ev.code === "KeyY") setTool("path");
     if (ev.code === "KeyX") setTool("zone");
+    if (ev.code === "Slash" && !ev.shiftKey) {
+      ev.preventDefault();
+      const s = document.getElementById("tileSearch");
+      if (s) s.focus();
+    }
     if (ev.code === "KeyC" && !ctrl) {
       if (window.DashPointCoop) openModal("modalCoop");
       else setStatus("Co-op failed to load — hard refresh the editor.");
@@ -3247,6 +3280,42 @@
     });
     bindPathPanel();
     bindZonePanel();
+    // tile search + categories
+    try {
+      const savedCat = localStorage.getItem("dashpoint.editor.tilecat");
+      if (savedCat) state.tileCat = savedCat;
+    } catch (e) {}
+    const tcBox = document.getElementById("tileCats");
+    if (tcBox) {
+      tcBox.addEventListener("click", (ev) => {
+        const btn = ev.target.closest("[data-cat]");
+        if (!btn) return;
+        state.tileCat = btn.dataset.cat;
+        try { localStorage.setItem("dashpoint.editor.tilecat", state.tileCat); } catch (e) {}
+        applyTileFilter();
+      });
+    }
+    const ts = document.getElementById("tileSearch");
+    if (ts) {
+      ts.addEventListener("input", () => {
+        state.tileQuery = ts.value;
+        applyTileFilter();
+      });
+      ts.addEventListener("keydown", (ev) => {
+        ev.stopPropagation();
+        if (ev.code === "Escape") ts.blur();
+      });
+    }
+    applyTileFilter();
+    // inspector tabs
+    try {
+      const savedTab = localStorage.getItem("dashpoint.editor.instab");
+      if (savedTab) state.inspTab = savedTab;
+    } catch (e) {}
+    document.querySelectorAll("#inspTabs .tab").forEach((btn) => {
+      btn.addEventListener("click", () => setInspTab(btn.dataset.pane));
+    });
+    setInspTab(state.inspTab);
 
     els.name.addEventListener("input", () => {
       state.level.name = els.name.value.slice(0, 48);
