@@ -20,9 +20,6 @@
         <button class="text-btn" id="btnImport" title="Import JSON (Ctrl+O)">Import</button>
         <button class="text-btn good" id="btnExport" title="Export JSON (Ctrl+E)">Export</button>
         <span class="tb-sep"></span>
-        <button class="mini" id="btnUndo" title="Undo (Ctrl+Z)">↩</button>
-        <button class="mini" id="btnRedo" title="Redo (Ctrl+Y)">↪</button>
-        <span class="tb-sep"></span>
         <button class="text-btn gold" id="btnAi" title="Generate a random AI level (Ctrl+G)">AI</button>
         <button class="text-btn gold" id="btnPost" title="Post to DashPoint Network">Post</button>
         <button class="text-btn" id="btnCoop" title="Build together live (C)">Co-op</button>
@@ -40,28 +37,36 @@
       </div>
     </header>
 
-    <div class="dock" id="dock">
-      <div class="dock-tabs" id="dockTabs">
-        <button class="dock-tab active" data-page="build">Build</button>
-        <button class="dock-tab" data-page="edit">Edit</button>
-        <button class="dock-tab" data-page="world">World</button>
-        <button class="dock-tab" data-page="level">Level</button>
+    <aside class="palette">
+      <div class="section-title">Tools</div>
+      <div class="tools" id="tools">
+        <button class="tool active" data-tool="paint" title="Paint (B)"><span>Paint</span><b class="k">B</b></button>
+        <button class="tool" data-tool="erase" title="Erase (E)"><span>Erase</span><b class="k">E</b></button>
+        <button class="tool" data-tool="fill" title="Fill (F)"><span>Fill</span><b class="k">F</b></button>
+        <button class="tool" data-tool="rect" title="Rectangle (R)"><span>Rect</span><b class="k">R</b></button>
+        <button class="tool" data-tool="line" title="Line (L)"><span>Line</span><b class="k">L</b></button>
+        <button class="tool" data-tool="select" title="Select (V)"><span>Select</span><b class="k">V</b></button>
+        <button class="tool" data-tool="picker" title="Eyedropper (I)"><span>Pick</span><b class="k">I</b></button>
+        <button class="tool" data-tool="spawn" title="Spawn (P)"><span>Spawn</span><b class="k">P</b></button>
+        <button class="tool" data-tool="prefab" title="Prefabs (G)"><span>Prefab</span><b class="k">G</b></button>
+        <button class="tool" data-tool="text" title="Text (T)"><span>Text</span><b class="k">T</b></button>
+        <button class="tool" data-tool="image" title="Images (M)"><span>Image</span><b class="k">M</b></button>
+        <button class="tool" data-tool="html" title="HTML blocks (U)"><span>Html</span><b class="k">U</b></button>
+        <button class="tool" data-tool="path" title="Platform path (Y)"><span>Path</span><b class="k">Y</b></button>
+        <button class="tool" data-tool="zone" title="Effect zone (X)"><span>Zone</span><b class="k">X</b></button>
       </div>
-      <div class="dock-pages">
-        <div class="dock-page active" data-page="build">
-          <div class="build-side">
-            <input id="tileSearch" class="level-name" style="width:100%; margin-bottom:6px" maxlength="24" spellcheck="false" placeholder="Search tiles  ( / )" />
-            <div class="chips" id="tileCats">
-              <button class="chip active" data-cat="all">All</button>
-              <button class="chip" data-cat="terrain">Terrain</button>
-              <button class="chip" data-cat="danger">Danger</button>
-              <button class="chip" data-cat="move">Move</button>
-              <button class="chip" data-cat="items">Items</button>
-              <button class="chip" data-cat="trick">Trick</button>
-            </div>
-            <p class="hint" id="tileCount"></p>
-        </div>
-        <div class="tile-grid">
+
+      <div class="section-title">Tiles</div>
+      <input id="tileSearch" class="level-name" style="width:100%; margin-bottom:6px" maxlength="24" spellcheck="false" placeholder="Search tiles  ( / )" />
+      <div class="chips" id="tileCats" style="margin-bottom:6px">
+        <button class="chip active" data-cat="all">All</button>
+        <button class="chip" data-cat="terrain">Terrain</button>
+        <button class="chip" data-cat="danger">Danger</button>
+        <button class="chip" data-cat="move">Move</button>
+        <button class="chip" data-cat="items">Items</button>
+        <button class="chip" data-cat="trick">Trick</button>
+      </div>
+      <div class="tile-grid">
         <button class="tile-btn active" data-tile="brick" data-cat="terrain" title="Solid ground">
           <img src="assets/tiles/brick.png" alt="" />
           <span>Brick 1</span>
@@ -70,7 +75,7 @@
           <img src="assets/tiles/spike.png" alt="" id="spikeIcon" />
           <span>Spike 2</span>
         </button>
-        <button class="tile-btn" data-tile="ibrick" data-cat="trick" title="Invisible block ΓÇö solid, hidden while playing">
+        <button class="tile-btn" data-tile="ibrick" data-cat="trick" title="Invisible block — solid, hidden while playing">
           <img src="assets/tiles/brick.png" alt="" class="invis-icon" />
           <span>I-Blk 8</span>
         </button>
@@ -78,55 +83,55 @@
           <img src="assets/tiles/goal.png" alt="" />
           <span>Goal 3</span>
         </button>
-        <button class="tile-btn" data-tile="ispike" data-cat="trick" title="Invisible spike ΓÇö kills, hidden while playing">
+        <button class="tile-btn" data-tile="ispike" data-cat="trick" title="Invisible spike — kills, hidden while playing">
           <img src="assets/tiles/spike.png" alt="" id="ispikeIcon" class="invis-icon" />
           <span>Invis 4</span>
         </button>
-        <button class="tile-btn" data-tile="orb" data-cat="move" title="Bounce orb ΓÇö press jump while touching for a big bounce">
+        <button class="tile-btn" data-tile="orb" data-cat="move" title="Bounce orb — press jump while touching for a big bounce">
           <img src="assets/tiles/BounceOrb.png" alt="" />
           <span>Orb 5</span>
         </button>
-        <button class="tile-btn" data-tile="pad" data-cat="move" title="Bounce pad ΓÇö launches you automatically on touch">
+        <button class="tile-btn" data-tile="pad" data-cat="move" title="Bounce pad — launches you automatically on touch">
           <img src="assets/tiles/BouncePad.png" alt="" />
           <span>Pad 6</span>
         </button>
-        <button class="tile-btn" data-tile="dash" data-cat="move" title="Dash ΓÇö touch to lunge fast in the direction you're pressing">
+        <button class="tile-btn" data-tile="dash" data-cat="move" title="Dash — touch to lunge fast in the direction you're pressing">
           <img src="assets/tiles/DashIcon.png" alt="" />
           <span>Dash 7</span>
         </button>
-        <button class="tile-btn" data-tile="checkpoint" data-cat="items" title="Checkpoint ΓÇö respawn here after death">
+        <button class="tile-btn" data-tile="checkpoint" data-cat="items" title="Checkpoint — respawn here after death">
           <img src="assets/tiles/checkpoint.png" alt="" />
           <span>Checkpoint 9</span>
         </button>
-        <button class="tile-btn" data-tile="fbrick" data-cat="trick" title="Fake brick ΓÇö looks solid, no collision">
+        <button class="tile-btn" data-tile="fbrick" data-cat="trick" title="Fake brick — looks solid, no collision">
           <img src="assets/tiles/brick.png" alt="" />
           <span>F-Blk</span>
         </button>
-        <button class="tile-btn" data-tile="fspike" data-cat="trick" title="Fake spike ΓÇö looks deadly, does not kill">
+        <button class="tile-btn" data-tile="fspike" data-cat="trick" title="Fake spike — looks deadly, does not kill">
           <img src="assets/tiles/spike.png" alt="" id="fspikeIcon" />
           <span>F-Spk</span>
         </button>
-        <button class="tile-btn" data-tile="iorb" data-cat="trick" title="Invisible orb ΓÇö bounce orb, hidden while playing">
+        <button class="tile-btn" data-tile="iorb" data-cat="trick" title="Invisible orb — bounce orb, hidden while playing">
           <img src="assets/tiles/BounceOrb.png" alt="" class="invis-icon" />
           <span>I-Orb</span>
         </button>
-        <button class="tile-btn" data-tile="igoal" data-cat="trick" title="Invisible goal ΓÇö ends the level, hidden while playing">
+        <button class="tile-btn" data-tile="igoal" data-cat="trick" title="Invisible goal — ends the level, hidden while playing">
           <img src="assets/tiles/goal.png" alt="" class="invis-icon" />
           <span>I-Goal</span>
         </button>
-        <button class="tile-btn" data-tile="coin10" data-cat="items" title="Coin ΓÇö pick up for 10 coins">
+        <button class="tile-btn" data-tile="coin10" data-cat="items" title="Coin — pick up for 10 coins">
           <img src="assets/tiles/coin10.png" alt="" />
           <span>+10</span>
         </button>
-        <button class="tile-btn" data-tile="coin50" data-cat="items" title="Coin ΓÇö pick up for 50 coins">
+        <button class="tile-btn" data-tile="coin50" data-cat="items" title="Coin — pick up for 50 coins">
           <img src="assets/tiles/coin50.png" alt="" />
           <span>+50</span>
         </button>
-        <button class="tile-btn" data-tile="coin100" data-cat="items" title="Coin ΓÇö pick up for 100 coins">
+        <button class="tile-btn" data-tile="coin100" data-cat="items" title="Coin — pick up for 100 coins">
           <img src="assets/tiles/coin100.png" alt="" />
           <span>+100</span>
         </button>
-        <button class="tile-btn" data-tile="coin500" data-cat="items" title="Coin ΓÇö pick up for 500 coins">
+        <button class="tile-btn" data-tile="coin500" data-cat="items" title="Coin — pick up for 500 coins">
           <img src="assets/tiles/coin500.png" alt="" />
           <span>+500</span>
         </button>
@@ -134,155 +139,96 @@
           <img src="assets/tiles/grass.png" alt="" />
           <span>Grass</span>
         </button>
-        <button class="tile-btn" data-tile="slopeL" data-cat="terrain" title="Slope / ΓÇö 45┬░ slide, run up for a launch">
+        <button class="tile-btn" data-tile="slopeL" data-cat="terrain" title="Slope / — 45° slide, run up for a launch">
           <img src="assets/tiles/slopeL.png" alt="" />
           <span>Slope /</span>
         </button>
-        <button class="tile-btn" data-tile="slopeR" data-cat="terrain" title="Slope \ ΓÇö 45┬░ slide, run up for a launch">
+        <button class="tile-btn" data-tile="slopeR" data-cat="terrain" title="Slope \ — 45° slide, run up for a launch">
           <img src="assets/tiles/slopeR.png" alt="" />
           <span>Slope \</span>
         </button>
-        <button class="tile-btn" data-tile="ice" data-cat="terrain" title="Ice block ΓÇö nearly frictionless">
+        <button class="tile-btn" data-tile="ice" data-cat="terrain" title="Ice block — nearly frictionless">
           <img src="assets/tiles/ice.png" alt="" />
           <span>Ice</span>
         </button>
-        <button class="tile-btn" data-tile="mud" data-cat="terrain" title="Mud block ΓÇö heavy drag, slows you">
+        <button class="tile-btn" data-tile="mud" data-cat="terrain" title="Mud block — heavy drag, slows you">
           <img src="assets/tiles/mud.png" alt="" />
           <span>Mud</span>
         </button>
-        <button class="tile-btn" data-tile="half" data-cat="terrain" title="Half block ΓÇö 16px floor strip">
+        <button class="tile-btn" data-tile="half" data-cat="terrain" title="Half block — 16px floor strip">
           <img src="assets/tiles/half.png" alt="" />
           <span>Half</span>
         </button>
-        <button class="tile-btn" data-tile="halfT" data-cat="terrain" title="Half block ΓÇö 16px ceiling strip">
+        <button class="tile-btn" data-tile="halfT" data-cat="terrain" title="Half block — 16px ceiling strip">
           <img src="assets/tiles/halfT.png" alt="" />
           <span>HalfT</span>
         </button>
-        <button class="tile-btn" data-tile="gspike" data-cat="danger" title="Grassy spike ΓÇö kills on touch">
+        <button class="tile-btn" data-tile="gspike" data-cat="danger" title="Grassy spike — kills on touch">
           <img src="assets/tiles/gspike.png" alt="" />
           <span>G-Spk</span>
         </button>
-        <button class="tile-btn" data-tile="saw" data-cat="danger" title="Saw ΓÇö kills on touch; use Path tool for patrols">
+        <button class="tile-btn" data-tile="saw" data-cat="danger" title="Saw — kills on touch; use Path tool for patrols">
           <img src="assets/tiles/saw.png" alt="" />
           <span>Saw</span>
         </button>
-        <button class="tile-btn" data-tile="crusher" data-cat="danger" title="Crusher ΓÇö slams down when you pass under">
+        <button class="tile-btn" data-tile="crusher" data-cat="danger" title="Crusher — slams down when you pass under">
           <img src="assets/tiles/crusher.png" alt="" />
           <span>Crush</span>
         </button>
-        <button class="tile-btn" data-tile="lava" data-cat="danger" title="Lava ΓÇö insta-die on touch">
+        <button class="tile-btn" data-tile="lava" data-cat="danger" title="Lava — insta-die on touch">
           <img src="assets/tiles/lava.png" alt="" />
           <span>Lava</span>
         </button>
-        <button class="tile-btn" data-tile="platform" data-cat="move" title="Moving platform ΓÇö solid; use the Path tool (Y) to give it a route">
+        <button class="tile-btn" data-tile="platform" data-cat="move" title="Moving platform — solid; use the Path tool (Y) to give it a route">
           <img src="assets/tiles/platform.png" alt="" />
           <span>Plat</span>
         </button>
-        <button class="tile-btn" data-tile="portalA" data-cat="move" title="Portal A (blue) ΓÇö touch to teleport to Portal B">
+        <button class="tile-btn" data-tile="portalA" data-cat="move" title="Portal A (blue) — touch to teleport to Portal B">
           <img src="assets/tiles/portalA.png" alt="" />
           <span>Port A</span>
         </button>
-        <button class="tile-btn" data-tile="portalB" data-cat="move" title="Portal B (orange) ΓÇö touch to teleport to Portal A">
+        <button class="tile-btn" data-tile="portalB" data-cat="move" title="Portal B (orange) — touch to teleport to Portal A">
           <img src="assets/tiles/portalB.png" alt="" />
           <span>Port B</span>
         </button>
-        <button class="tile-btn" data-tile="gravOrb" data-cat="move" title="Gravity orb ΓÇö press jump while touching to flip gravity">
+        <button class="tile-btn" data-tile="gravOrb" data-cat="move" title="Gravity orb — press jump while touching to flip gravity">
           <img src="assets/tiles/gravOrb.png" alt="" />
           <span>Grav</span>
         </button>
-        <button class="tile-btn" data-tile="djOrb" data-cat="move" title="Double-jump orb ΓÇö touch to bank one air jump">
+        <button class="tile-btn" data-tile="djOrb" data-cat="move" title="Double-jump orb — touch to bank one air jump">
           <img src="assets/tiles/djOrb.png" alt="" />
           <span>2xJump</span>
         </button>
-        <button class="tile-btn" data-tile="convL" data-cat="move" title="Conveyor ΓÇö pushes left while you stand on it">
+        <button class="tile-btn" data-tile="convL" data-cat="move" title="Conveyor — pushes left while you stand on it">
           <img src="assets/tiles/convL.png" alt="" />
           <span>Conv &lt;</span>
         </button>
-        <button class="tile-btn" data-tile="convR" data-cat="move" title="Conveyor ΓÇö pushes right while you stand on it">
+        <button class="tile-btn" data-tile="convR" data-cat="move" title="Conveyor — pushes right while you stand on it">
           <img src="assets/tiles/convR.png" alt="" />
           <span>Conv &gt;</span>
         </button>
-        <button class="tile-btn" data-tile="water" data-cat="items" title="Water ΓÇö slow sink, hold jump to swim">
+        <button class="tile-btn" data-tile="water" data-cat="items" title="Water — slow sink, hold jump to swim">
           <img src="assets/tiles/water.png" alt="" />
           <span>Water</span>
         </button>
-        <button class="tile-btn" data-tile="igrass" data-cat="trick" title="Invisible grass ΓÇö solid, hidden while playing">
+        <button class="tile-btn" data-tile="igrass" data-cat="trick" title="Invisible grass — solid, hidden while playing">
           <img src="assets/tiles/grass.png" alt="" class="invis-icon" />
           <span>I-Grs</span>
         </button>
-        <button class="tile-btn" data-tile="fgrass" data-cat="trick" title="Fake grass ΓÇö looks solid, no collision">
+        <button class="tile-btn" data-tile="fgrass" data-cat="trick" title="Fake grass — looks solid, no collision">
           <img src="assets/tiles/grass.png" alt="" />
           <span>F-Grs</span>
         </button>
-        <button class="tile-btn" data-tile="igspike" data-cat="trick" title="Invisible grass spike ΓÇö kills, hidden while playing">
+        <button class="tile-btn" data-tile="igspike" data-cat="trick" title="Invisible grass spike — kills, hidden while playing">
           <img src="assets/tiles/gspike.png" alt="" class="invis-icon" />
           <span>IG-Spk</span>
         </button>
-        <button class="tile-btn" data-tile="fgspike" data-cat="trick" title="Fake grass spike ΓÇö looks deadly, does not kill">
+        <button class="tile-btn" data-tile="fgspike" data-cat="trick" title="Fake grass spike — looks deadly, does not kill">
           <img src="assets/tiles/gspike.png" alt="" />
           <span>FG-Spk</span>
         </button>
-      
-        </div>
       </div>
-        <div class="dock-page" data-page="edit">
-          <div class="edit-tools">
-        <div class="tools" id="toolsEdit">
-          <button class="tool active" data-tool="paint" title="Paint (B)"><span>Paint</span><b class="k">B</b></button>
-          <button class="tool" data-tool="erase" title="Erase (E)"><span>Erase</span><b class="k">E</b></button>
-          <button class="tool" data-tool="fill" title="Fill (F)"><span>Fill</span><b class="k">F</b></button>
-          <button class="tool" data-tool="rect" title="Rectangle (R)"><span>Rect</span><b class="k">R</b></button>
-          <button class="tool" data-tool="line" title="Line (L)"><span>Line</span><b class="k">L</b></button>
-          <button class="tool" data-tool="select" title="Select (V)"><span>Select</span><b class="k">V</b></button>
-          <button class="tool" data-tool="picker" title="Eyedropper (I)"><span>Pick</span><b class="k">I</b></button>
-          <button class="tool" data-tool="spawn" title="Spawn (P)"><span>Spawn</span><b class="k">P</b></button>
-          <button class="tool" data-tool="prefab" title="Prefabs (G)"><span>Prefab</span><b class="k">G</b></button>
-        </div>
-          </div>
-          <div class="edit-side"><div class="section-title" style="margin-top:14px">Spike rotation</div>
-      <div class="rot-preview" id="rotations"></div>
-      <p class="hint">Mouse wheel over canvas rotates spikes, invis spikes, and fake spikes. <span class="k">[</span> <span class="k">]</span> also work. Invisible tiles show as faded + INV and vanish in playtest. Fake bricks and spikes look real in play but have no collision.</p>
-
-      <div class="section-title" style="margin-top:14px">Offset</div>
-      <label>X <span id="vOffX">0</span></label>
-      <input type="range" id="offX" min="-24" max="24" step="1" value="0" />
-      <label>Y <span id="vOffY">0</span></label>
-      <input type="range" id="offY" min="-24" max="24" step="1" value="0" />
-      <button class="text-btn" id="btnOffReset" style="width:100%; margin-top:4px">Reset offset</button>
-      <p class="hint">Shift objects off the grid by up to 24 pixels. New tiles use this offset. Select tiles and press <span class="k">Shift+arrows</span> to nudge them (hold <span class="k">Alt</span> for 4px).</p>
-
-      <div class="section-title" style="margin-top:14px">Prefabs</div>
-      <button class="text-btn" id="btnSavePrefab" style="width:100%; margin-bottom:6px">Save selection (K)</button>
-      <div class="chips" id="prefabs"></div>
-      <p class="hint">Select tiles, then press <span class="k">K</span> (or the button) to keep them as a prefab for other levels. Click a prefab to stamp it. Right-click a saved one to delete it. Hold <span class="k">Alt</span> to play from the hovered cell.</p>          </div>
-        </div>
-        <div class="dock-page" data-page="world">
-          <div class="world-tools">
-        <div class="tools" id="toolsWorld">
-          <button class="tool" data-tool="text" title="Text (T)"><span>Text</span><b class="k">T</b></button>
-          <button class="tool" data-tool="image" title="Images (M)"><span>Image</span><b class="k">M</b></button>
-          <button class="tool" data-tool="html" title="HTML blocks (U)"><span>Html</span><b class="k">U</b></button>
-          <button class="tool" data-tool="path" title="Platform path (Y)"><span>Path</span><b class="k">Y</b></button>
-          <button class="tool" data-tool="zone" title="Effect zone (X)"><span>Zone</span><b class="k">X</b></button>
-        </div>
-          </div>
-          <div class="world-side"><div class="section-title" style="margin-top:14px">Level text</div>
-      <input id="textDraft" class="level-name" style="width:100%; margin-bottom:8px" maxlength="64" spellcheck="false" value="JUMP!" placeholder="Type a label" />
-      <div class="chips" id="textColors"></div>
-      <div class="chips" id="textSizes" style="margin-top:6px">
-        <button class="chip active" data-scale="1">S</button>
-        <button class="chip" data-scale="2">M</button>
-        <button class="chip" data-scale="3">L</button>
-      </div>
-      <p class="hint">No collision. Click to stamp. Erase, right-click, or Delete removes a label — click the letters, not just the center tile.</p>
-
-      <div class="section-title" style="margin-top:14px">Level images</div>
-      <button class="text-btn gold" id="btnAddImage" style="width:100%">Add image</button>
-      <p class="hint">PNG or JPG. Big files get compressed to base64. Click an image to move it; drag the 8 handles to resize. Delete removes the selected one. Up to 8 per level.</p>
-
-      <div class="section-title" style="margin-top:14px">Level HTML</div>
-      <button class="text-btn gold" id="btnAddHtml" style="width:100%">Add HTML</button>
-      <p class="hint">Embed styled text or boxes. Click to move it; drag the 8 handles to resize. Right-click it to pick a layer (In front = clickable links), edit, or delete. Double-click edits the code. Up to 8 per level.</p>
+      <p class="hint" id="tileCount"></p>
 
       <div class="section-title" style="margin-top:14px">Platform path</div>
       <p class="hint" id="pathStatus">Pick the Path tool (Y), paint a platform, then click it.</p>
@@ -310,11 +256,76 @@
       <input type="range" id="zonePower" min="1" max="3" step="1" value="2" />
       <p class="hint">Zone tool (X): drag a rect to paint the zone. Right-click a zone to delete it. Wind power 1–3.</p>
 
-                </div>
+      <div class="section-title" style="margin-top:14px">Level text</div>
+      <input id="textDraft" class="level-name" style="width:100%; margin-bottom:8px" maxlength="64" spellcheck="false" value="JUMP!" placeholder="Type a label" />
+      <div class="chips" id="textColors"></div>
+      <div class="chips" id="textSizes" style="margin-top:6px">
+        <button class="chip active" data-scale="1">S</button>
+        <button class="chip" data-scale="2">M</button>
+        <button class="chip" data-scale="3">L</button>
+      </div>
+      <p class="hint">No collision. Click to stamp. Erase, right-click, or Delete removes a label — click the letters, not just the center tile.</p>
+
+      <div class="section-title" style="margin-top:14px">Level images</div>
+      <button class="text-btn gold" id="btnAddImage" style="width:100%">Add image</button>
+      <p class="hint">PNG or JPG. Big files get compressed to base64. Click an image to move it; drag the 8 handles to resize. Delete removes the selected one. Up to 8 per level.</p>
+
+      <div class="section-title" style="margin-top:14px">Level HTML</div>
+      <button class="text-btn gold" id="btnAddHtml" style="width:100%">Add HTML</button>
+      <p class="hint">Embed styled text or boxes. Click to move it; drag the 8 handles to resize. Right-click it to pick a layer (In front = clickable links), edit, or delete. Double-click edits the code. Up to 8 per level.</p>
+
+      <div class="section-title" style="margin-top:14px">Spike rotation</div>
+      <div class="rot-preview" id="rotations"></div>
+      <p class="hint">Mouse wheel over canvas rotates spikes, invis spikes, and fake spikes. <span class="k">[</span> <span class="k">]</span> also work. Invisible tiles show as faded + INV and vanish in playtest. Fake bricks and spikes look real in play but have no collision.</p>
+
+      <div class="section-title" style="margin-top:14px">Offset</div>
+      <label>X <span id="vOffX">0</span></label>
+      <input type="range" id="offX" min="-24" max="24" step="1" value="0" />
+      <label>Y <span id="vOffY">0</span></label>
+      <input type="range" id="offY" min="-24" max="24" step="1" value="0" />
+      <button class="text-btn" id="btnOffReset" style="width:100%; margin-top:4px">Reset offset</button>
+      <p class="hint">Shift objects off the grid by up to 24 pixels. New tiles use this offset. Select tiles and press <span class="k">Shift+arrows</span> to nudge them (hold <span class="k">Alt</span> for 4px).</p>
+
+      <div class="section-title" style="margin-top:14px">Prefabs</div>
+      <button class="text-btn" id="btnSavePrefab" style="width:100%; margin-bottom:6px">Save selection (K)</button>
+      <div class="chips" id="prefabs"></div>
+      <p class="hint">Select tiles, then press <span class="k">K</span> (or the button) to keep them as a prefab for other levels. Click a prefab to stamp it. Right-click a saved one to delete it. Hold <span class="k">Alt</span> to play from the hovered cell.</p>
+    </aside>
+
+    <div class="viewport-wrap" id="viewportWrap">
+      <canvas id="view"></canvas>
+      <div id="widgetLayer"></div>
+      <div class="play-hud" id="playHud">
+        <div class="hud-chip">
+          <span id="hudTime">0.00</span>
+          <span id="hudDeaths">deaths 0</span>
+          <span id="hudState">PLAY</span>
         </div>
-        <div class="dock-page" data-page="level">
-<div class="insp-col">
-<div class="section-title">Level</div>
+        <div class="hud-chip">
+          <button class="mini" id="btnRestart">Restart (R)</button>
+          <button class="mini" id="btnStop">Edit (Esc)</button>
+        </div>
+      </div>
+      <div class="overlay-card" id="winCard">
+        <div class="card">
+          <h2>CLEARED</h2>
+          <p id="winText">Nice run.</p>
+          <div class="card-actions">
+            <button class="text-btn play" id="btnWinRestart">Restart</button>
+            <button class="text-btn" id="btnWinEdit">Back to editor</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="inspector">
+      <div class="tabbar" id="inspTabs">
+        <button class="tab active" data-pane="build">Build</button>
+        <button class="tab" data-pane="feel">Feel</button>
+        <button class="tab" data-pane="check">Check</button>
+      </div>
+      <div class="insp-pane active" data-pane="build">
+      <div class="section-title">Level</div>
       <label>Size (tiles)</label>
       <div class="row">
         <input id="cols" type="number" min="16" max="20000" />
@@ -350,9 +361,9 @@
         <button class="mini grow" id="btnGrid">Grid</button>
       </div>
       <div class="minimap-wrap"><canvas id="minimap"></canvas></div>
-</div>
-<div class="insp-col">
-<div class="section-title" style="margin-top:0">Gameplay</div>
+      </div>
+      <div class="insp-pane" data-pane="feel">
+      <div class="section-title">Gameplay</div>
       <label>Move speed <span id="vSpeed"></span></label>
       <input type="range" id="gSpeed" min="160" max="520" step="10" />
       <label>Jump <span id="vJump"></span></label>
@@ -372,9 +383,9 @@
       </div>
       <label style="margin-top:8px">Background (loops forever, any size)</label>
       <div class="chips" id="bgChips"></div>
-</div>
-<div class="insp-col">
-<div class="section-title" style="margin-top:0">Stats</div>
+      </div>
+      <div class="insp-pane" data-pane="check">
+      <div class="section-title">Stats</div>
       <div class="stat">Bricks <b id="cBrick">0</b></div>
       <div class="stat">I-Blk <b id="cIBrick">0</b></div>
       <div class="stat">Spikes <b id="cSpike">0</b></div>
@@ -402,38 +413,8 @@
         <button class="text-btn danger grow" id="btnClear">Clear</button>
       </div>
       <p class="hint">Autosaves to this browser. Export a <span class="k">.dashpoint.json</span> file and send it to add the level to the game.</p>
-</div>
-        </div>
       </div>
-    </div>
-
-    <div class="viewport-wrap" id="viewportWrap">
-      <canvas id="view"></canvas>
-      <div id="widgetLayer"></div>
-      <div class="play-hud" id="playHud">
-        <div class="hud-chip">
-          <span id="hudTime">0.00</span>
-          <span id="hudDeaths">deaths 0</span>
-          <span id="hudState">PLAY</span>
-        </div>
-        <div class="hud-chip">
-          <button class="mini" id="btnRestart">Restart (R)</button>
-          <button class="mini" id="btnStop">Edit (Esc)</button>
-        </div>
-      </div>
-      <div class="overlay-card" id="winCard">
-        <div class="card">
-          <h2>CLEARED</h2>
-          <p id="winText">Nice run.</p>
-          <div class="card-actions">
-            <button class="text-btn play" id="btnWinRestart">Restart</button>
-            <button class="text-btn" id="btnWinEdit">Back to editor</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    
+    </aside>
 
     <footer class="status">
       <span class="dot" id="dirtyDot"></span>
