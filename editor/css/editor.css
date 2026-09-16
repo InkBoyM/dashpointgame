@@ -900,6 +900,48 @@ hr.sep {
 /* ---------- MOBILE: GD-style bottom sheets ---------- */
 .sheet-tab { display: none; }
 
+/* ---------- playtest touch controls (touch devices only) ---------- */
+.touch-ui { display: none; }
+@media (pointer: coarse) {
+  .app.playing .touch-ui {
+    display: flex;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 14px;
+    z-index: 42;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding: 0 14px;
+    pointer-events: none;
+  }
+  .touch-ui .tc-left { display: flex; gap: 12px; }
+  .touch-ui .tbtn {
+    pointer-events: auto;
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    font-size: 24px;
+    color: var(--text);
+    background: rgba(16, 26, 44, 0.72);
+    border: 3px solid var(--line-hot);
+    box-shadow: var(--hard);
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .touch-ui .tbtn.jump {
+    width: 84px;
+    height: 84px;
+    font-size: 30px;
+    border-color: var(--good);
+  }
+  .touch-ui .tbtn.on {
+    background: rgba(46, 230, 255, 0.4);
+    border-color: var(--cyan);
+  }
+  .touch-ui .tbtn.jump.on { background: rgba(62, 224, 122, 0.45); }
+}
 @media (max-width: 900px) {
   .app { grid-template-columns: minmax(0, 1fr); }
   .topbar { overflow-x: auto; scrollbar-width: none; }
