@@ -1155,15 +1155,16 @@ body.gfx-ultra canvas { image-rendering: auto; }
 .net-row .n-play.n-dl svg { display: block; }
 .n-like {
   pointer-events: auto;
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 5px 9px; font-size: 12px; font-weight: 900;
+  align-self: center;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 10px; font-size: 13px; font-weight: 900;
   background: var(--panel-2); color: var(--text);
   border: 3px solid var(--ink-dark);
   box-shadow: inset -2px -2px 0 rgba(0,0,0,.25);
 }
-.n-like img { width: 16px; height: 16px; image-rendering: pixelated; filter: grayscale(1) brightness(.55); opacity: .75; }
+.n-like img { width: 18px; height: 18px; image-rendering: pixelated; filter: grayscale(1) brightness(.55); opacity: .75; }
 .n-like.liked img { filter: none; opacity: 1; }
-.n-like.liked { border-color: var(--pink, #ff5a6e); color: var(--pink, #ff5a6e); }
+.n-like.liked { background: var(--pink, #ff5a6e); border-color: var(--ink-dark); color: #2b0510; }
 .li-like img { width: 18px; height: 18px; image-rendering: pixelated; vertical-align: -3px; filter: grayscale(1) brightness(.55); opacity: .75; }
 .li-like.liked img { filter: none; opacity: 1; }
 .li-like.liked { border-color: var(--pink, #ff5a6e); color: var(--pink, #ff5a6e); }
