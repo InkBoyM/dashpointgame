@@ -258,6 +258,7 @@
     tileCat: "all",
     tileQuery: "",
     inspTab: "build",
+    dockPage: "build",
     cam: { x: 0, y: 0, zoom: 2 },
     growAmount: 32,
     textDraft: "JUMP!",
@@ -1157,6 +1158,14 @@
     document.querySelectorAll("#inspTabs .tab").forEach((x) => x.classList.toggle("active", x.dataset.pane === id));
     document.querySelectorAll(".insp-pane").forEach((x) => x.classList.toggle("active", x.dataset.pane === id));
     try { localStorage.setItem("dashpoint.editor.instab", id); } catch (e) {}
+  }
+
+  function setDockPage(id) {
+    if (id !== "build" && id !== "edit" && id !== "world" && id !== "level") id = "build";
+    state.dockPage = id;
+    document.querySelectorAll("#dockTabs .dock-tab").forEach((x) => x.classList.toggle("active", x.dataset.page === id));
+    document.querySelectorAll(".dock-page").forEach((x) => x.classList.toggle("active", x.dataset.page === id));
+    try { localStorage.setItem("dashpoint.editor.docktab", id); } catch (e) {}
   }
 
   function setRot(rot) {
@@ -3271,9 +3280,9 @@
       if (ev.buttons) jumpMinimap(ev);
     });
 
-    document.getElementById("tools").addEventListener("click", (ev) => {
-      const btn = ev.target.closest("[data-tool]");
-      if (btn) setTool(btn.dataset.tool);
+    document.addEventListener("click", (ev) => {
+      const btn = ev.target && ev.target.closest ? ev.target.closest("[data-tool]") : null;
+      if (btn && btn.classList.contains("tool")) setTool(btn.dataset.tool);
     });
     document.querySelectorAll(".tile-btn").forEach((btn) => {
       btn.addEventListener("click", () => setTile(btn.dataset.tile));
@@ -3316,6 +3325,19 @@
       btn.addEventListener("click", () => setInspTab(btn.dataset.pane));
     });
     setInspTab(state.inspTab);
+    try {
+      const savedDock = localStorage.getItem("dashpoint.editor.docktab");
+      if (savedDock) state.dockPage = savedDock;
+    } catch (e) {}
+    // dock tabs (GD-style bottom dock)
+    document.querySelectorAll("#dockTabs .dock-tab").forEach((btn) => {
+      btn.addEventListener("click", () => setDockPage(btn.dataset.page));
+    });
+    setDockPage(state.dockPage);
+    const bu = document.getElementById("btnUndo");
+    if (bu) bu.addEventListener("click", () => undo());
+    const br = document.getElementById("btnRedo");
+    if (br) br.addEventListener("click", () => redo());
 
     els.name.addEventListener("input", () => {
       state.level.name = els.name.value.slice(0, 48);
@@ -3636,6 +3658,8 @@
       snapshot: snapshot,
       syncInspector: syncInspector,
       setStatus: setStatus,
+      undo: undo,
+      redo: redo,
       loadSnapshot: function (json, byName) {
         try {
           state.level = DP.Level.fromJSON(JSON.parse(json));
