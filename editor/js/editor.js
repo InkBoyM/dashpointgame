@@ -274,9 +274,6 @@
     playFrom: null,
     keys: new Set(),
     pan: { on: false, lastX: 0, lastY: 0, space: false },
-    // multi-touch camera gesture (two-finger pan + pinch zoom)
-    touches: {},
-    gesture: null,
     stroke: null,
     selection: null,
     pathSel: null,
@@ -1994,60 +1991,8 @@
     };
   }
 
-  function trackTouch(ev) {
-    state.touches[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
-    const ids = Object.keys(state.touches);
-    if (ids.length === 2 && !state.gesture) {
-      const a = state.touches[ids[0]];
-      const b = state.touches[ids[1]];
-      state.gesture = {
-        midX: (a.x + b.x) / 2,
-        midY: (a.y + b.y) / 2,
-        dist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
-      };
-      // a second finger cancels any in-progress stroke, never paints
-      state.stroke = null;
-      state.selection = state.selection && state.selection.dragging ? null : state.selection;
-      state.picDrag = null;
-      state.widgetDrag = null;
-      state.zoneDrag = null;
-      state.pan.on = false;
-      els.canvas.classList.remove("painting", "selecting");
-      return true;
-    }
-    return !!state.gesture;
-  }
-
-  function moveTouch(ev) {
-    if (!state.touches[ev.pointerId]) return false;
-    state.touches[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
-    if (!state.gesture) return false;
-    const ids = Object.keys(state.touches);
-    if (ids.length < 2) return true;
-    const a = state.touches[ids[0]];
-    const b = state.touches[ids[1]];
-    const midX = (a.x + b.x) / 2;
-    const midY = (a.y + b.y) / 2;
-    const dist = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
-    state.cam.x -= (midX - state.gesture.midX) / state.cam.zoom;
-    state.cam.y -= (midY - state.gesture.midY) / state.cam.zoom;
-    if (state.gesture.dist > 0) zoomAt(midX, midY, state.cam.zoom * (dist / state.gesture.dist));
-    clampCam();
-    state.gesture.midX = midX;
-    state.gesture.midY = midY;
-    state.gesture.dist = dist;
-    return true;
-  }
-
-  function dropTouch(ev) {
-    delete state.touches[ev.pointerId];
-    if (state.gesture && Object.keys(state.touches).length < 2) state.gesture = null;
-  }
-
   function beginStroke(ev) {
     if (state.playing) return;
-    trackTouch(ev);
-    if (state.gesture) return;
     const cell = eventCell(ev);
     state.hover = cell;
     if (ev.button === 1 || state.pan.space) {
@@ -2191,7 +2136,6 @@
   }
 
   function moveStroke(ev) {
-    if (moveTouch(ev)) return;
     if (state.pan.on) {
       const dx = (ev.clientX - state.pan.lastX) / state.cam.zoom;
       const dy = (ev.clientY - state.pan.lastY) / state.cam.zoom;
@@ -2264,8 +2208,7 @@
     paintAt(cell, state.stroke.erase);
   }
 
-  function endStroke(ev) {
-    if (ev && ev.pointerId !== undefined) dropTouch(ev);
+  function endStroke() {
     if (state.selection) state.selection.dragging = false;
     if (state.zoneDrag) zoneFinishDrag();
     if (state.stroke && (state.stroke.kind === "rect" || state.stroke.kind === "line")) {
@@ -2609,7 +2552,6 @@
     state.playing = true;
     state.deaths = 0;
     els.app.classList.add("playing");
-    document.body.classList.remove("sheet-palette", "sheet-inspector");
     els.playHud.classList.add("visible");
     els.winCard.classList.remove("visible");
     els.playLabel.textContent = "Stop";
@@ -2621,8 +2563,6 @@
     if (DP.Music) DP.Music.stop();
     state.playing = false;
     state.engine = null;
-    touchState.left = touchState.right = touchState.jump = false;
-    document.querySelectorAll(".touch-ui .tbtn.on").forEach((b) => b.classList.remove("on"));
     if (state.savedCam) {
       state.cam.x = state.savedCam.x;
       state.cam.y = state.savedCam.y;
@@ -2651,33 +2591,7 @@
     for (const code of list) {
       if (state.keys.has(code)) return true;
     }
-    return !!touchState[action];
-  }
-
-  const touchState = { left: false, right: false, jump: false };
-
-  function bindTouchButtons() {
-    const pairs = [["tbtnLeft", "left"], ["tbtnRight", "right"], ["tbtnJump", "jump"]];
-    for (const [id, key] of pairs) {
-      const btn = document.getElementById(id);
-      if (!btn) continue;
-      const on = (ev) => {
-        ev.preventDefault();
-        touchState[key] = true;
-        btn.classList.add("on");
-        try { btn.setPointerCapture(ev.pointerId); } catch (e) {}
-      };
-      const off = (ev) => {
-        if (ev) ev.preventDefault();
-        touchState[key] = false;
-        btn.classList.remove("on");
-      };
-      btn.addEventListener("pointerdown", on);
-      btn.addEventListener("pointerup", off);
-      btn.addEventListener("pointercancel", off);
-      btn.addEventListener("lostpointercapture", () => off());
-      btn.addEventListener("contextmenu", (ev) => ev.preventDefault());
-    }
+    return false;
   }
 
   function followPlayer() {
@@ -3335,8 +3249,7 @@
     });
     els.canvas.addEventListener("pointerup", endStroke);
     els.canvas.addEventListener("pointercancel", endStroke);
-    els.canvas.addEventListener("pointerleave", (ev) => {
-      dropTouch(ev);
+    els.canvas.addEventListener("pointerleave", () => {
       if (!state.stroke) state.hover.inside = false;
     });
     els.canvas.addEventListener(
@@ -3394,21 +3307,6 @@
       });
     }
     applyTileFilter();
-    // mobile bottom sheets (GD-style builders)
-    const bsp = document.getElementById("btnSheetPalette");
-    if (bsp) {
-      bsp.addEventListener("click", () => {
-        document.body.classList.toggle("sheet-palette");
-        document.body.classList.remove("sheet-inspector");
-      });
-    }
-    const bsi = document.getElementById("btnSheetInspector");
-    if (bsi) {
-      bsi.addEventListener("click", () => {
-        document.body.classList.toggle("sheet-inspector");
-        document.body.classList.remove("sheet-palette");
-      });
-    }
     // inspector tabs
     try {
       const savedTab = localStorage.getItem("dashpoint.editor.instab");
@@ -3492,7 +3390,6 @@
 
     document.getElementById("btnNew").addEventListener("click", () => newLevel());
     document.getElementById("btnAi").addEventListener("click", () => generateLevel());
-    bindTouchButtons();
     document.getElementById("btnLibrary").addEventListener("click", () => openModal("modalLibrary"));
     document.getElementById("btnImport").addEventListener("click", () => els.file.click());
     document.getElementById("btnCoop").addEventListener("click", () => {
