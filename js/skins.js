@@ -48,4 +48,5 @@ window.DashPointSkins = [
   { id: 46, name: "Among Us", src: "assets/skins/skin-46.png", hint: "Redeem a code", unlock: { type: "code" }, anim: { src: "assets/skins/skin-46-strip.png", frames: 4, fps: 6 } },
   { id: 47, name: "Nyan Cat", src: "assets/skins/skin-47.png", hint: "Buy in the shop", unlock: { type: "shop", cost: 30000 }, anim: { src: "assets/skins/skin-47-strip.png", frames: 4, fps: 8 } },
   { id: 48, name: "shocked", src: "assets/skins/skin-48.png", hint: "Buy in the shop", unlock: { type: "shop", cost: 100000 } },
+  { id: 49, name: "Wink", src: "assets/skins/skin-49.gif", hint: "Buy in the shop", unlock: { type: "shop", cost: 100000000000 } },
 ];
