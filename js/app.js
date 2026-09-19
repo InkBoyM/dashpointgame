@@ -2417,6 +2417,7 @@
       syncFxUI();
       syncTouchUI();
       syncCtlUI();
+      syncInstallUI();
       el("advFx").style.display = "none";
       el("btnAdvFx").innerHTML = "ADVANCED &#9656;";
       syncSpaceSettings();
@@ -4916,12 +4917,90 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     requestAnimationFrame(frame);
     setTimeout(function () { try { checkBell(); } catch (e) {} }, 12000);
     try {
-      if ("serviceWorker" in navigator && /^https:$/.test(window.location.protocol)) {
+      if ("serviceWorker" in navigator && (/^https:$/.test(window.location.protocol) || /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname))) {
         window.addEventListener("load", function () {
           navigator.serviceWorker.register("sw.js").catch(function () {});
         });
       }
     } catch (e) {}
+
+    // ---- PWA install: mobile Settings -> INSTALL APP ----
+    var deferredInstallPrompt = null;
+    function isMobileDevice() {
+      try {
+        if (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) return true;
+      } catch (e) {}
+      return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+    }
+    function isIosDevice() {
+      return /iPhone|iPad|iPod/i.test(navigator.userAgent || "");
+    }
+    function isAppInstalled() {
+      try {
+        if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true;
+      } catch (e) {}
+      return !!window.navigator.standalone;
+    }
+    function syncInstallUI() {
+      var sec = el("appSection");
+      if (!sec) return;
+      if (!isMobileDevice()) { sec.style.display = "none"; return; }
+      sec.style.display = "";
+      var btn = el("btnInstallApp"), hint = el("installHint"), ios = el("installIosHint");
+      var installed = isAppInstalled();
+      var canPrompt = !!deferredInstallPrompt && !installed;
+      if (btn) btn.style.display = canPrompt ? "" : "none";
+      if (ios) ios.style.display = (!installed && isIosDevice()) ? "" : "none";
+      if (hint) {
+        hint.textContent = installed
+          ? "Installed — launch DashPoint from your home screen."
+          : canPrompt
+            ? "Install DashPoint like an app for fullscreen + offline play."
+            : (isIosDevice()
+              ? "Install DashPoint like an app for fullscreen + offline play."
+              : "App install isn't available in this browser yet — open this page in Chrome (Android) to install.");
+      }
+    }
+    window.addEventListener("beforeinstallprompt", function (ev) {
+      ev.preventDefault();
+      deferredInstallPrompt = ev;
+      syncInstallUI();
+    });
+    window.addEventListener("appinstalled", function () {
+      deferredInstallPrompt = null;
+      try { showNotice("DashPoint installed — find it on your home screen"); } catch (e) {}
+      syncInstallUI();
+    });
+    try {
+      var dmm = window.matchMedia && window.matchMedia("(display-mode: standalone)");
+      if (dmm && dmm.addEventListener) dmm.addEventListener("change", syncInstallUI);
+      else if (dmm && dmm.addListener) dmm.addListener(syncInstallUI);
+    } catch (e) {}
+    (function () {
+      var bi = el("btnInstallApp");
+      if (!bi) return;
+      bi.addEventListener("click", function () {
+        var p = deferredInstallPrompt;
+        if (!p) { syncInstallUI(); return; }
+        deferredInstallPrompt = null;
+        syncInstallUI();
+        try {
+          var pr = p.prompt();
+          var done = function () { deferredInstallPrompt = null; syncInstallUI(); };
+          if (pr && typeof pr.then === "function") {
+            pr.then(function () {
+              if (p.userChoice && typeof p.userChoice.then === "function") {
+                p.userChoice.then(function () { done(); }, function () { done(); });
+              } else done();
+            }, function () { done(); });
+          } else done();
+        } catch (e) {
+          deferredInstallPrompt = p;
+          syncInstallUI();
+        }
+      });
+    })();
+    syncInstallUI();
   }
 
 boot();

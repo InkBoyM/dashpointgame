@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>DashPoint</title>
   <link rel="icon" href="assets/ui/favicon.png" type="image/png" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#05080d" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="DashPoint" />
+  <link rel="apple-touch-icon" href="assets/ui/icon-192.png" />
   <link rel="stylesheet" href="css/game.css" />
 </head>
 <body>
@@ -384,6 +391,14 @@
       <input type="range" id="tcRy" min="0" max="200" step="2" value="14" />
       <div class="row-end"><button class="px-btn small" id="btnTouchReset">RESET BUTTONS</button></div>
       <p class="hint">Move and resize the on-screen buttons (mobile). Changes apply instantly.</p>
+      <div id="appSection" style="display:none">
+        <div class="section-title">APP</div>
+        <p class="hint" id="installHint">Install DashPoint like an app for fullscreen + offline play.</p>
+        <div class="row-gap">
+          <button class="px-btn small good" id="btnInstallApp">INSTALL APP</button>
+        </div>
+        <p class="hint" id="installIosHint" style="display:none">On iPhone/iPad: tap Share, then “Add to Home Screen”.</p>
+      </div>
       <div class="section-title">WHAT'S NEW <span id="verTag"></span></div>
       <div id="releaseLog"></div>
       <button type="button" class="px-btn small" id="btnAdvFx">ADVANCED &#9656;</button>

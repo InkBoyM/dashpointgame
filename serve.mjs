@@ -12,6 +12,7 @@ const mime = {
   ".css": "text/css; charset=utf-8",
   ".png": "image/png",
   ".json": "application/json; charset=utf-8",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
   ".svg": "image/svg+xml",
   ".ico": "image/x-icon",
   ".m4a": "audio/mp4",

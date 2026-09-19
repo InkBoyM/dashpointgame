@@ -11,6 +11,9 @@ const CACHE = "dashpoint-v1";
 const CORE = [
   "./",
   "index.html",
+  "manifest.webmanifest",
+  "assets/ui/icon-192.png",
+  "assets/ui/icon-512.png",
   "css/game.css",
   "js/app.js",
   "js/game.js",
