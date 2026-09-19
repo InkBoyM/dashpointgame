@@ -126,6 +126,7 @@
           <button class="px-btn small" id="btnWinMenu">LEVELS</button>
           <button class="px-btn small" id="btnWinNext">NEXT &#9654;</button>
           <button class="px-btn small gold" id="btnWinShare">SHARE</button>
+          <button class="px-btn small gold" id="btnWinEdit">EDIT</button>
         </div>
       </div>
     </div>
@@ -609,6 +610,18 @@
       <div class="row-end">
         <button class="px-btn small good" id="btnMainLbPlay">PLAY</button>
         <button class="px-btn small" data-close="modalMainLb">BACK</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-root" id="modalEdit">
+    <div class="modal">
+      <h2>TUFF EDIT</h2>
+      <p class="hint" id="editStatus">Cooking your edit…</p>
+      <video id="editPreview" controls playsinline style="width:100%;border-radius:8px;display:none"></video>
+      <div class="row-end">
+        <a class="px-btn small good" id="btnEditDownload" style="display:none">DOWNLOAD</a>
+        <button class="px-btn small" data-close="modalEdit">CLOSE</button>
       </div>
     </div>
   </div>

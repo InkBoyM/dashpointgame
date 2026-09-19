@@ -1188,9 +1188,326 @@
     lastGhostPoint = 0;
     ghostTrail.push({ x: state.engine.player.x, y: state.engine.player.y, rot: state.engine.player.rot, t: state.engine.time });
     if (ghostTrail.length > 4000) ghostTrail.shift();
+    tuffSample();
   }
-  function getGhostForLevel(file){
+  // ---- Tuff edits: 20s win-recap video (tracking zooms, shake,
+  // grayscale pause gags with skull/trollface, random song slice) ----
+  var TUFF_LEN = 20;
+  var TUFF_SONGS = [
+    "https://transfer.inkboym.org/file/HoSXrcaNFaMr/raw",
+    "https://transfer.inkboym.org/file/H3TA8PpYF7hP/raw",
+    "https://transfer.inkboym.org/file/-npgcSmbT8ci/raw",
+    "https://transfer.inkboym.org/file/e-qaifZ9GTwA/raw"
+  ];
+  var TUFF_TROLLS = [
+    "https://preview.redd.it/hated-designs-these-trollfaces-that-some-people-use-in-v0-xek4eqfgo6md1.png?width=453&format=png&auto=webp&s=d3925260d7279a137ac3aa38d8178feee9526ac7",
+    "https://media.tenor.com/gtKQ-V66IhUAAAAe/tuff-troll-face.png",
+    "https://media.tenor.com/oGrBWUWwyOkAAAAm/troll-face.webp",
+    "https://transfer.inkboym.org/file/vp-AV5xOpzML/raw",
+    "https://i.ytimg.com/vi/UjSS3DUyTn8/maxresdefault.jpg",
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQmrZopUttzsDpEKQtUb54giTn3ENzAEEGqUtjTjH92wQ&s=10"
+  ];
+  var tuff = { rec: null, chunks: [], first: null, track: [], recording: false, vw: 0, vh: 0, runStart: 0, winStamp: 0, winEng: 0 };
+  function tuffMime() {
+    var cands = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
     try {
+      if (!window.MediaRecorder) return "";
+      for (var i = 0; i < cands.length; i++) {
+        try { if (MediaRecorder.isTypeSupported(cands[i])) return cands[i]; } catch (e) {}
+      }
+    } catch (e) {}
+    return "";
+  }
+  function tuffStop() {
+    try { if (tuff.rec && tuff.rec.state !== "inactive") tuff.rec.stop(); } catch (e) {}
+    tuff.rec = null;
+    tuff.recording = false;
+  }
+  function tuffDiscard() {
+    tuffStop();
+    tuff.chunks = []; tuff.first = null; tuff.track = [];
+  }
+  function tuffStartRun() {
+    tuffDiscard();
+    try {
+      var view = el("view");
+      if (!view || !view.captureStream || !window.MediaRecorder) return;
+      var stream = view.captureStream(30);
+      var mime = tuffMime();
+      var rec = mime ? new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 1500000 }) : new MediaRecorder(stream);
+      tuff.vw = view.width; tuff.vh = view.height;
+      tuff.runStart = performance.now();
+      tuff.recording = true;
+      rec.ondataavailable = function (ev) {
+        try {
+          if (!ev.data || !ev.data.size) return;
+          var now = performance.now();
+          if (!tuff.first) tuff.first = { blob: ev.data, t: now };
+          tuff.chunks.push({ blob: ev.data, t: now });
+          while (tuff.chunks.length > 2 && tuff.chunks[1].t < now - 22000) tuff.chunks.splice(1, 1);
+        } catch (e) {}
+      };
+      rec.start(500);
+      tuff.rec = rec;
+    } catch (e) { tuff.recording = false; tuff.rec = null; }
+  }
+  function tuffSample() {
+    if (!tuff.recording) return;
+    try {
+      if (!state.playing || !state.engine) return;
+      var v = el("view");
+      if (!v || !v.width || !v.height) return;
+      var p = state.engine.player;
+      tuff.track.push({
+        t: state.engine.time,
+        fx: (p.x + p.w / 2 - cam.x) * cam.zoom / v.width,
+        fy: (p.y + p.h / 2 - cam.y) * cam.zoom / v.height
+      });
+      while (tuff.track.length > 2 && tuff.track[0].t < state.engine.time - 35) tuff.track.shift();
+    } catch (e) {}
+  }
+  function tuffFinishRun() {
+    try {
+      tuff.winStamp = performance.now();
+      tuff.winEng = state.engine ? state.engine.time : 0;
+      if (tuff.rec) { try { tuff.rec.requestData(); } catch (e) {} }
+    } catch (e) {}
+    tuffStop();
+  }
+  function tuffTimeout(promise, ms) {
+    return Promise.race([promise, new Promise(function (_, rej) { setTimeout(function () { rej(new Error("timeout")); }, ms); })]);
+  }
+  function tuffTrackAt(runT) {
+    var tr = tuff.track;
+    if (!tr.length) return { x: 0.5, y: 0.5 };
+    if (runT <= tr[0].t) return { x: tr[0].fx, y: tr[0].fy };
+    var last = tr[tr.length - 1];
+    if (runT >= last.t) return { x: last.fx, y: last.fy };
+    for (var i = 1; i < tr.length; i++) {
+      if (tr[i].t >= runT) {
+        var a = tr[i - 1], b = tr[i], k = (runT - a.t) / Math.max(1e-6, b.t - a.t);
+        return { x: a.fx + (b.fx - a.fx) * k, y: a.fy + (b.fy - a.fy) * k };
+      }
+    }
+    return { x: last.fx, y: last.fy };
+  }
+  function tuffLoadImage(url, ms) {
+    return new Promise(function (res, rej) {
+      var to = setTimeout(function () { rej(new Error("timeout")); }, ms || 6000);
+      var img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = function () { clearTimeout(to); res(img); };
+      img.onerror = function () { clearTimeout(to); rej(new Error("img")); };
+      img.src = url;
+    });
+  }
+  function tuffBuildEdit() {
+    openModal("modalEdit");
+    var status = el("editStatus"), prev = el("editPreview"), dl = el("btnEditDownload");
+    if (prev) { try { prev.pause(); } catch (e) {} prev.removeAttribute("src"); prev.style.display = "none"; }
+    if (dl) dl.style.display = "none";
+    function fail(msg) {
+      if (status) status.textContent = msg;
+      try { showNotice(msg, true); } catch (e) {}
+    }
+    if (!tuff.chunks.length || !tuff.first || tuff.track.length < 2) { fail("No footage recorded — finish a level first."); return; }
+    if (status) status.textContent = "Cooking your edit…";
+    var sel = [];
+    try {
+      for (var i = 0; i < tuff.chunks.length; i++) {
+        if (tuff.chunks[i].t >= tuff.winStamp - (TUFF_LEN * 1000 + 500)) sel.push(tuff.chunks[i].blob);
+      }
+    } catch (e) {}
+    if (!sel.length) { fail("No footage recorded — finish a level first."); return; }
+    var clipUrl;
+    try { clipUrl = URL.createObjectURL(new Blob([tuff.first.blob].concat(sel), { type: "video/webm" })); }
+    catch (e) { fail("Couldn't cut the footage."); return; }
+    var video = document.createElement("video");
+    video.playsInline = true; video.preload = "auto"; video.src = clipUrl;
+    function meta(el2, ms) {
+      return tuffTimeout(new Promise(function (res, rej) {
+        el2.onloadedmetadata = function () { res(); };
+        el2.onerror = function () { rej(new Error("meta")); };
+      }), ms);
+    }
+    meta(video, 8000).then(function () {
+      var vw = video.videoWidth || tuff.vw || 640, vh = video.videoHeight || tuff.vh || 360;
+      var songUrl = TUFF_SONGS[Math.floor(Math.random() * TUFF_SONGS.length)];
+      var song = new Audio();
+      var songOk = false, songOff = 0;
+      try { song.crossOrigin = "anonymous"; song.preload = "auto"; song.src = songUrl; } catch (e) { song = null; }
+      var songReady = song ? meta(song, 8000).then(function () {
+        var d = song.duration;
+        songOk = isFinite(d) && d > 0;
+        songOff = (songOk && d > TUFF_LEN + 0.5) ? Math.random() * (d - TUFF_LEN) : 0;
+      }).catch(function () { songOk = false; song = null; }) : Promise.resolve();
+      var trollUrls = TUFF_TROLLS.slice().sort(function () { return Math.random() - 0.5; });
+      var trollReady = Promise.all(trollUrls.map(function (u) { return tuffLoadImage(u, 6000).catch(function () { return null; }); }));
+      return Promise.all([songReady, trollReady]).then(function (arr) {
+        var trollImgs = (arr[1] || []).filter(function (x) { return !!x; });
+        tuffRenderEdit(video, vw, vh, songOk ? song : null, songOff, trollImgs, status, prev, dl, clipUrl);
+      });
+    }).catch(function () {
+      try { URL.revokeObjectURL(clipUrl); } catch (e) {}
+      fail("Couldn't cut the footage.");
+    });
+  }
+  function tuffRenderEdit(video, vw, vh, song, songOff, trollImgs, status, prev, dl, clipUrl) {
+    var OW = 640, OH = 360;
+    var out = document.createElement("canvas");
+    out.width = OW; out.height = OH;
+    var ctx = out.getContext("2d");
+    var ctx2 = null, dest = null;
+    try {
+      if (song && (window.AudioContext || window.webkitAudioContext)) {
+        ctx2 = new (window.AudioContext || window.webkitAudioContext)();
+        var src = ctx2.createMediaElementSource(song);
+        var g = ctx2.createGain(); g.gain.value = 0.9;
+        dest = ctx2.createMediaStreamDestination();
+        src.connect(g); g.connect(dest); g.connect(ctx2.destination);
+      }
+    } catch (e) { ctx2 = null; dest = null; }
+    var vstream;
+    try { vstream = out.captureStream(30); } catch (e) { fail2("This browser can't export video."); return; }
+    function fail2(msg) {
+      if (status) status.textContent = msg;
+      try { showNotice(msg, true); } catch (e) {}
+      try { URL.revokeObjectURL(clipUrl); } catch (e) {}
+      try { if (ctx2) ctx2.close(); } catch (e) {}
+    }
+    var tracks = vstream.getVideoTracks().slice();
+    if (dest) { try { tracks = tracks.concat(dest.stream.getAudioTracks()); } catch (e) {} }
+    var mime = tuffMime(), rec2;
+    try { rec2 = mime ? new MediaRecorder(new MediaStream(tracks), { mimeType: mime, videoBitsPerSecond: 2500000 }) : new MediaRecorder(new MediaStream(tracks)); }
+    catch (e) { fail2("This browser can't export video."); return; }
+    var parts = [];
+    rec2.ondataavailable = function (ev) { if (ev.data && ev.data.size) parts.push(ev.data); };
+    // timeline: pauses + zoom keys + shake impulses
+    var pauses = [];
+    (function () {
+      var n = 2 + Math.floor(Math.random() * 3), last = -10;
+      for (var i = 0; i < 8 && pauses.length < n; i++) {
+        var at = 2 + Math.random() * 15.5;
+        if (at - last < 1.6) continue;
+        last = at;
+        pauses.push({ at: Math.min(at, TUFF_LEN - 1.5), dur: 0.4 + Math.random() * 0.5, kind: (Math.random() < 0.5 || !trollImgs.length) ? "skull" : "troll" });
+      }
+      pauses.sort(function (a, b) { return a.at - b.at; });
+    })();
+    var keys = [{ t: 0, s: 1.0 }];
+    (function () {
+      var t = 0;
+      while (t < TUFF_LEN) { t += 1.2 + Math.random() * 1.3; keys.push({ t: Math.min(t, TUFF_LEN), s: 1.15 + Math.random() * 0.55 }); }
+    })();
+    function inPause(et) {
+      for (var i = 0; i < pauses.length; i++) {
+        if (et >= pauses[i].at && et < pauses[i].at + pauses[i].dur) return pauses[i];
+      }
+      return null;
+    }
+    var px = 0.5, py = 0.5, sc = 1.0, boost = 0, trauma = 0, nextShake = 0.8 + Math.random(), ki = 0;
+    var lastT = performance.now(), t0 = lastT, done = false, finUrl = null;
+    function draw(et, dt) {
+      var runT = tuff.winEng - (TUFF_LEN - et);
+      var tgt = tuffTrackAt(runT);
+      px += (tgt.x - px) * Math.min(1, dt * 5);
+      py += (tgt.y - py) * Math.min(1, dt * 5);
+      while (ki + 1 < keys.length && keys[ki + 1].t <= et) { ki++; trauma = Math.min(1, trauma + 0.35); }
+      var goal = keys[ki].s + boost;
+      sc += (goal - sc) * Math.min(1, dt * 2.5);
+      boost = Math.max(0, boost - dt * 1.2);
+      if (et >= nextShake) { trauma = Math.min(1, trauma + 0.5 + Math.random() * 0.5); nextShake = et + 0.8 + Math.random() * 1.4; }
+      trauma = Math.max(0, trauma - dt * 1.4);
+      var shx = 0, shy = 0;
+      if (trauma > 0.01) {
+        var a = 14 * trauma * trauma;
+        shx = (Math.random() * 2 - 1) * a; shy = (Math.random() * 2 - 1) * a;
+      }
+      var p = inPause(et);
+      if (p) {
+        try { if (!video.paused) video.pause(); } catch (e) {}
+        try {
+          ctx.save();
+          ctx.filter = "grayscale(1)";
+          ctx.drawImage(video, 0, 0, vw, vh, 0, 0, OW, OH);
+          ctx.restore();
+        } catch (e) {}
+        try {
+          ctx.save();
+          ctx.fillStyle = "rgba(0,0,0,0.25)";
+          ctx.fillRect(0, 0, OW, OH);
+          if (p.kind === "troll" && trollImgs.length) {
+            var im = trollImgs[Math.floor(Math.random() * trollImgs.length)];
+            var h = OH * 0.55, w = h * (im.width / Math.max(1, im.height));
+            ctx.drawImage(im, (OW - w) / 2, (OH - h) / 2, w, h);
+          } else {
+            ctx.font = "130px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.fillText("💀", OW / 2, OH / 2 - 10);
+          }
+          ctx.restore();
+        } catch (e) {}
+        return p;
+      }
+      try { if (video.paused && !video.ended) video.play().catch(function () {}); } catch (e) {}
+      try {
+        ctx.save();
+        ctx.filter = "none";
+        var sEff = Math.max(1.0, sc);
+        var dw = vw / sEff, dh = vh / sEff;
+        if (dw / dh > OW / OH) dw = dh * OW / OH; else dh = dw * OH / OW;
+        var cx = Math.min(Math.max(px * vw + shx, dw / 2), vw - dw / 2);
+        var cy = Math.min(Math.max(py * vh + shy, dh / 2), vh - dh / 2);
+        if (dw >= vw) cx = vw / 2;
+        if (dh >= vh) cy = vh / 2;
+        ctx.drawImage(video, cx - dw / 2, cy - dh / 2, dw, dh, 0, 0, OW, OH);
+        ctx.restore();
+      } catch (e) {}
+      return null;
+    }
+    var wasPause = false;
+    function frame() {
+      if (done) return;
+      var now = performance.now();
+      var dt = Math.min(0.1, (now - lastT) / 1000); lastT = now;
+      var et = (now - t0) / 1000;
+      if (et >= TUFF_LEN) { finish(); return; }
+      var p = draw(et, dt);
+      if (wasPause && !p) { boost = 0.3; trauma = Math.min(1, trauma + 0.6); }
+      wasPause = !!p;
+      requestAnimationFrame(frame);
+    }
+    function finish() {
+      if (done) return; done = true;
+      try { if (song) song.pause(); } catch (e) {}
+      try { video.pause(); } catch (e) {}
+      try { rec2.stop(); } catch (e) { fail2("Couldn't finish the video."); return; }
+    }
+    rec2.onstop = function () {
+      try {
+        finUrl = URL.createObjectURL(new Blob(parts, { type: "video/webm" }));
+        if (prev) { prev.src = finUrl; prev.style.display = ""; }
+        if (dl) {
+          var nm = "dashpoint-edit";
+          try { nm += "-" + String(state.currentFile || "level").replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase(); } catch (e) {}
+          dl.href = finUrl; dl.download = nm + ".webm"; dl.style.display = "";
+        }
+        if (status) status.textContent = "Your 20s tuff edit is ready. It always ends on the win.";
+      } catch (e) { fail2("Couldn't finish the video."); }
+      try { URL.revokeObjectURL(clipUrl); } catch (e) {}
+      try { vstream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
+      try { if (ctx2) ctx2.close(); } catch (e) {}
+    };
+    try {
+      if (song) { try { song.currentTime = songOff; } catch (e) {} }
+      var pr = video.play();
+      if (pr && pr.then) pr.catch(function () { fail2("Couldn't play the footage."); });
+    } catch (e) { fail2("Couldn't play the footage."); return; }
+    if (song) { try { var sp = song.play(); if (sp && sp.catch) sp.catch(function () {}); } catch (e) {} }
+    try { rec2.start(250); } catch (e) { fail2("This browser can't export video."); return; }
+    if (status) status.textContent = "Rendering your 20s edit…";
+    requestAnimationFrame(frame);
+  }
+  function getGhostForLevel(file){    try {
       var local = null;
       if (window.DPNet && DPNet.getGhostLocal) local = DPNet.getGhostLocal(file);
       return local;
@@ -2584,6 +2901,7 @@
     syncAuthorChip();
     setStatusHud();
     showIntro(entry);
+    tuffStartRun();
   }
 
   let introTimer = null;
@@ -2674,6 +2992,7 @@
     el("pauseCard").classList.remove("visible");
     state.paused = false;
     if (!ghostMode) resetGhostTrail();
+    tuffStartRun();
   }
 
   function restartToCheckpoint() {
@@ -2728,6 +3047,7 @@
     state.engine = null;
     state.paused = false;
     state.practice = false;
+    tuffDiscard();
     el("pauseCard").classList.remove("visible");
     ghostMode = false; ghostPlayback = null; if (ghostCountdownTimer){ clearInterval(ghostCountdownTimer); ghostCountdownTimer=null; var cd=el("ghostCountdown"); if(cd) cd.classList.add("hidden"); }
     MP.clearCube();
@@ -2744,6 +3064,7 @@
   }
 
   function onWin() {
+    tuffFinishRun();
     const entry = state.netEntry || state.levels[state.current];
     if (!entry) return;
     flushPlaytime();
@@ -4575,6 +4896,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnAdConfirm").addEventListener("click", adminDeleteLevel);
     el("btnWinRestart").addEventListener("click", restartLevel);
     el("btnWinMenu").addEventListener("click", quitToLevels);
+    el("btnWinEdit").addEventListener("click", tuffBuildEdit);
     el("btnMainLbPlay").addEventListener("click", function () {
       closeModal("modalMainLb");
       if (mainLbPlayIndex >= 0) startLevel(mainLbPlayIndex);
