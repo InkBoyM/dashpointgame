@@ -108,6 +108,7 @@
     r4nd0mk3y: { keys: 1 },
     openthechampionchest: { keys: 1 },
     triplekey: { keys: 3 },
+    "999keys": { keys: 999 },
     thebestskinever: { skin: 29 },
     discord: { skin: 35 },
     nerd: { skin: 37 },
