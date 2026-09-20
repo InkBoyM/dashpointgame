@@ -1260,7 +1260,9 @@
       tuff.track.push({
         t: state.engine.time,
         fx: (p.x + p.w / 2 - cam.x) * cam.zoom / v.width,
-        fy: (p.y + p.h / 2 - cam.y) * cam.zoom / v.height
+        fy: (p.y + p.h / 2 - cam.y) * cam.zoom / v.height,
+        pw: p.w * cam.zoom / v.width,
+        ph: p.h * cam.zoom / v.height
       });
       while (tuff.track.length > 2 && tuff.track[0].t < state.engine.time - 35) tuff.track.shift();
     } catch (e) {}
@@ -1278,17 +1280,22 @@
   }
   function tuffTrackAt(runT) {
     var tr = tuff.track;
-    if (!tr.length) return { x: 0.5, y: 0.5 };
-    if (runT <= tr[0].t) return { x: tr[0].fx, y: tr[0].fy };
+    if (!tr.length) return { x: 0.5, y: 0.5, pw: 0.06, ph: 0.1 };
+    function full(p) { return { x: p.fx, y: p.fy, pw: p.pw || 0.06, ph: p.ph || 0.1 }; }
+    if (runT <= tr[0].t) return full(tr[0]);
     var last = tr[tr.length - 1];
-    if (runT >= last.t) return { x: last.fx, y: last.fy };
+    if (runT >= last.t) return full(last);
     for (var i = 1; i < tr.length; i++) {
       if (tr[i].t >= runT) {
         var a = tr[i - 1], b = tr[i], k = (runT - a.t) / Math.max(1e-6, b.t - a.t);
-        return { x: a.fx + (b.fx - a.fx) * k, y: a.fy + (b.fy - a.fy) * k };
+        return {
+          x: a.fx + (b.fx - a.fx) * k, y: a.fy + (b.fy - a.fy) * k,
+          pw: (a.pw || 0.06) + ((b.pw || 0.06) - (a.pw || 0.06)) * k,
+          ph: (a.ph || 0.1) + ((b.ph || 0.1) - (a.ph || 0.1)) * k
+        };
       }
     }
-    return { x: last.fx, y: last.fy };
+    return full(last);
   }
   function tuffLoadImage(url, ms) {
     return new Promise(function (res, rej) {
@@ -1421,12 +1428,23 @@
       return null;
     }
     var px = 0.5, py = 0.5, sc = 1.3, boost = 0, trauma = 0, nextShake = 0.4 + Math.random() * 0.6, ki = 0;
+    var lvx = 0, lvy = 0, ptx = 0.5, pty = 0.5;
     var lastT = performance.now(), t0 = lastT, done = false, finUrl = null;
     function draw(et, dt) {
       var runT = tuff.winEng - (TUFF_LEN - et);
       var tgt = tuffTrackAt(runT);
-      px += (tgt.x - px) * Math.min(1, dt * 5);
-      py += (tgt.y - py) * Math.min(1, dt * 5);
+      // Velocity lead: aim slightly ahead of the player so fast moves at
+      // high zoom don't outrun the smoothed camera.
+      if (dt > 0) {
+        var ivx = (tgt.x - ptx) / dt, ivy = (tgt.y - pty) / dt;
+        var lk = Math.min(1, dt * 8);
+        lvx += (ivx - lvx) * lk; lvy += (ivy - lvy) * lk;
+      }
+      ptx = tgt.x; pty = tgt.y;
+      var ax = tgt.x + lvx * 0.12, ay = tgt.y + lvy * 0.12;
+      var ck = Math.min(1, dt * 10);
+      px += (ax - px) * ck;
+      py += (ay - py) * ck;
       while (ki + 1 < keys.length && keys[ki + 1].t <= et) { ki++; trauma = Math.min(1, trauma + 0.6); }
       var goal = keys[ki].s + boost;
       sc += (goal - sc) * Math.min(1, dt * 3);
@@ -1471,6 +1489,13 @@
         var sEff = Math.max(1.0, sc);
         var dw = vw / sEff, dh = vh / sEff;
         if (dw / dh > OW / OH) dw = dh * OW / OH; else dh = dw * OH / OW;
+        // Never crop tighter than ~2.4x the player size, so the character
+        // plus a margin always stays in frame no matter the zoom.
+        var needW = (tgt.pw || 0.06) * vw * 2.4, needH = (tgt.ph || 0.1) * vh * 2.4;
+        if (dw < needW || dh < needH) {
+          var kk = Math.max(needW / dw, needH / dh);
+          dw *= kk; dh *= kk;
+        }
         var cx = Math.min(Math.max(px * vw + shx, dw / 2), vw - dw / 2);
         var cy = Math.min(Math.max(py * vh + shy, dh / 2), vh - dh / 2);
         if (dw >= vw) cx = vw / 2;
