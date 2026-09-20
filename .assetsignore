@@ -1,0 +1,9 @@
+# Kept out of the Cloudflare Workers deploy (assets directory is the repo root).
+# Without this, wrangler tries to upload .git and fails on the 25 MiB per-file limit.
+.git
+.github
+serve.mjs
+make_torture.py
+torture-route.json
+*.md
+.wrangler
