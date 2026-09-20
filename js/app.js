@@ -1194,10 +1194,10 @@
   // grayscale pause gags with skull/trollface, random song slice) ----
   var TUFF_LEN = 20;
   var TUFF_SONGS = [
-    "https://transfer.inkboym.org/file/HoSXrcaNFaMr/raw",
-    "https://transfer.inkboym.org/file/H3TA8PpYF7hP/raw",
-    "https://transfer.inkboym.org/file/-npgcSmbT8ci/raw",
-    "https://transfer.inkboym.org/file/e-qaifZ9GTwA/raw"
+    "assets/music/song1.m4a",
+    "assets/music/song2.m4a",
+    "assets/music/song3.m4a",
+    "assets/music/song4.m4a"
   ];
   var TUFF_TROLLS = [
     "https://preview.redd.it/hated-designs-these-trollfaces-that-some-people-use-in-v0-xek4eqfgo6md1.png?width=453&format=png&auto=webp&s=d3925260d7279a137ac3aa38d8178feee9526ac7",
@@ -1310,6 +1310,16 @@
       if (status) status.textContent = msg;
       try { showNotice(msg, true); } catch (e) {}
     }
+    // Create/resume audio routing inside the click gesture so the song
+    // is allowed to play and be captured (same-origin files, no CORS issue).
+    var actx = null;
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) {
+        actx = new AC();
+        if (actx.resume) { try { var arp = actx.resume(); if (arp && arp.catch) arp.catch(function () {}); } catch (e) {} }
+      }
+    } catch (e) { actx = null; }
     if (!tuff.chunks.length || !tuff.first || tuff.track.length < 2) { fail("No footage recorded — finish a level first."); return; }
     if (status) status.textContent = "Cooking your edit…";
     var sel = [];
@@ -1335,7 +1345,7 @@
       var songUrl = TUFF_SONGS[Math.floor(Math.random() * TUFF_SONGS.length)];
       var song = new Audio();
       var songOk = false, songOff = 0;
-      try { song.crossOrigin = "anonymous"; song.preload = "auto"; song.src = songUrl; } catch (e) { song = null; }
+      try { song.preload = "auto"; song.src = songUrl; } catch (e) { song = null; }
       var songReady = song ? meta(song, 8000).then(function () {
         var d = song.duration;
         songOk = isFinite(d) && d > 0;
@@ -1345,26 +1355,28 @@
       var trollReady = Promise.all(trollUrls.map(function (u) { return tuffLoadImage(u, 6000).catch(function () { return null; }); }));
       return Promise.all([songReady, trollReady]).then(function (arr) {
         var trollImgs = (arr[1] || []).filter(function (x) { return !!x; });
-        tuffRenderEdit(video, vw, vh, songOk ? song : null, songOff, trollImgs, status, prev, dl, clipUrl);
+        tuffRenderEdit(video, vw, vh, songOk ? song : null, songOff, trollImgs, status, prev, dl, clipUrl, actx);
       });
     }).catch(function () {
       try { URL.revokeObjectURL(clipUrl); } catch (e) {}
       fail("Couldn't cut the footage.");
     });
   }
-  function tuffRenderEdit(video, vw, vh, song, songOff, trollImgs, status, prev, dl, clipUrl) {
-    var OW = 640, OH = 360;
+  function tuffRenderEdit(video, vw, vh, song, songOff, trollImgs, status, prev, dl, clipUrl, actx) {
+    var OW = 540, OH = 960;
     var out = document.createElement("canvas");
     out.width = OW; out.height = OH;
     var ctx = out.getContext("2d");
-    var ctx2 = null, dest = null;
+    // Route the song ONLY into the recording (never to the speakers), so
+    // playback is silent and the browser lets it play without a gesture.
+    var ctx2 = actx || null, dest = null;
     try {
-      if (song && (window.AudioContext || window.webkitAudioContext)) {
-        ctx2 = new (window.AudioContext || window.webkitAudioContext)();
+      if (song && ctx2) {
+        if (ctx2.resume) { try { var rp2 = ctx2.resume(); if (rp2 && rp2.catch) rp2.catch(function () {}); } catch (e) {} }
         var src = ctx2.createMediaElementSource(song);
         var g = ctx2.createGain(); g.gain.value = 0.9;
         dest = ctx2.createMediaStreamDestination();
-        src.connect(g); g.connect(dest); g.connect(ctx2.destination);
+        src.connect(g); g.connect(dest);
       }
     } catch (e) { ctx2 = null; dest = null; }
     var vstream;
@@ -1390,14 +1402,17 @@
         var at = 2 + Math.random() * 15.5;
         if (at - last < 1.6) continue;
         last = at;
-        pauses.push({ at: Math.min(at, TUFF_LEN - 1.5), dur: 0.4 + Math.random() * 0.5, kind: (Math.random() < 0.5 || !trollImgs.length) ? "skull" : "troll" });
+        // Lock ONE face per pause so they never strobe/flash through all of them.
+        var tim = trollImgs.length ? trollImgs[Math.floor(Math.random() * trollImgs.length)] : null;
+        var kd = (tim && Math.random() < 0.6) ? "troll" : "skull";
+        pauses.push({ at: Math.min(at, TUFF_LEN - 1.5), dur: 0.4 + Math.random() * 0.5, kind: kd, img: tim });
       }
       pauses.sort(function (a, b) { return a.at - b.at; });
     })();
-    var keys = [{ t: 0, s: 1.0 }];
+    var keys = [{ t: 0, s: 1.3 }];
     (function () {
       var t = 0;
-      while (t < TUFF_LEN) { t += 1.2 + Math.random() * 1.3; keys.push({ t: Math.min(t, TUFF_LEN), s: 1.15 + Math.random() * 0.55 }); }
+      while (t < TUFF_LEN) { t += 1.2 + Math.random() * 1.3; keys.push({ t: Math.min(t, TUFF_LEN), s: 1.6 + Math.random() * 0.9 }); }
     })();
     function inPause(et) {
       for (var i = 0; i < pauses.length; i++) {
@@ -1405,23 +1420,24 @@
       }
       return null;
     }
-    var px = 0.5, py = 0.5, sc = 1.0, boost = 0, trauma = 0, nextShake = 0.8 + Math.random(), ki = 0;
+    var px = 0.5, py = 0.5, sc = 1.3, boost = 0, trauma = 0, nextShake = 0.4 + Math.random() * 0.6, ki = 0;
     var lastT = performance.now(), t0 = lastT, done = false, finUrl = null;
     function draw(et, dt) {
       var runT = tuff.winEng - (TUFF_LEN - et);
       var tgt = tuffTrackAt(runT);
       px += (tgt.x - px) * Math.min(1, dt * 5);
       py += (tgt.y - py) * Math.min(1, dt * 5);
-      while (ki + 1 < keys.length && keys[ki + 1].t <= et) { ki++; trauma = Math.min(1, trauma + 0.35); }
+      while (ki + 1 < keys.length && keys[ki + 1].t <= et) { ki++; trauma = Math.min(1, trauma + 0.6); }
       var goal = keys[ki].s + boost;
-      sc += (goal - sc) * Math.min(1, dt * 2.5);
+      sc += (goal - sc) * Math.min(1, dt * 3);
       boost = Math.max(0, boost - dt * 1.2);
-      if (et >= nextShake) { trauma = Math.min(1, trauma + 0.5 + Math.random() * 0.5); nextShake = et + 0.8 + Math.random() * 1.4; }
-      trauma = Math.max(0, trauma - dt * 1.4);
-      var shx = 0, shy = 0;
+      if (et >= nextShake) { trauma = Math.min(1, trauma + 0.7 + Math.random() * 0.5); nextShake = et + 0.5 + Math.random() * 1.0; }
+      trauma = Math.max(0, trauma - dt * 0.9);
+      var shx = 0, shy = 0, rot = 0;
       if (trauma > 0.01) {
-        var a = 14 * trauma * trauma;
+        var a = 30 * trauma * trauma;
         shx = (Math.random() * 2 - 1) * a; shy = (Math.random() * 2 - 1) * a;
+        rot = (Math.random() * 2 - 1) * 0.03 * trauma;
       }
       var p = inPause(et);
       if (p) {
@@ -1436,12 +1452,12 @@
           ctx.save();
           ctx.fillStyle = "rgba(0,0,0,0.25)";
           ctx.fillRect(0, 0, OW, OH);
-          if (p.kind === "troll" && trollImgs.length) {
-            var im = trollImgs[Math.floor(Math.random() * trollImgs.length)];
-            var h = OH * 0.55, w = h * (im.width / Math.max(1, im.height));
+          if (p.kind === "troll" && p.img) {
+            var im = p.img;
+            var h = OH * 0.5, w = h * (im.width / Math.max(1, im.height));
             ctx.drawImage(im, (OW - w) / 2, (OH - h) / 2, w, h);
           } else {
-            ctx.font = "130px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.font = "200px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
             ctx.fillText("💀", OW / 2, OH / 2 - 10);
           }
           ctx.restore();
@@ -1459,7 +1475,8 @@
         var cy = Math.min(Math.max(py * vh + shy, dh / 2), vh - dh / 2);
         if (dw >= vw) cx = vw / 2;
         if (dh >= vh) cy = vh / 2;
-        ctx.drawImage(video, cx - dw / 2, cy - dh / 2, dw, dh, 0, 0, OW, OH);
+        if (rot) { ctx.translate(OW / 2, OH / 2); ctx.rotate(rot); ctx.translate(-OW / 2, -OH / 2); }
+        ctx.drawImage(video, cx - dw / 2, cy - dh / 2, dw, dh, -40, -40, OW + 80, OH + 80);
         ctx.restore();
       } catch (e) {}
       return null;
@@ -1472,7 +1489,7 @@
       var et = (now - t0) / 1000;
       if (et >= TUFF_LEN) { finish(); return; }
       var p = draw(et, dt);
-      if (wasPause && !p) { boost = 0.3; trauma = Math.min(1, trauma + 0.6); }
+      if (wasPause && !p) { boost = 0.35; trauma = Math.min(1, trauma + 1.0); }
       wasPause = !!p;
       requestAnimationFrame(frame);
     }
