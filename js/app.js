@@ -1206,7 +1206,7 @@
     "https://i.ytimg.com/vi/UjSS3DUyTn8/maxresdefault.jpg",
     "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQmrZopUttzsDpEKQtUb54giTn3ENzAEEGqUtjTjH92wQ&s=10"
   ];
-  var tuff = { rec: null, chunks: [], first: null, track: [], recording: false, vw: 0, vh: 0, runStart: 0, winStamp: 0, winEng: 0 };
+  var tuff = { rec: null, chunks: [], first: null, track: [], deaths: [], recording: false, vw: 0, vh: 0, runStart: 0, winStamp: 0, winEng: 0, winDeaths: 0, levelName: "" };
   function tuffMime() {
     var cands = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
     try {
@@ -1224,7 +1224,7 @@
   }
   function tuffDiscard() {
     tuffStop();
-    tuff.chunks = []; tuff.first = null; tuff.track = [];
+    tuff.chunks = []; tuff.first = null; tuff.track = []; tuff.deaths = [];
   }
   function tuffStartRun() {
     tuffDiscard();
@@ -1257,20 +1257,45 @@
       var v = el("view");
       if (!v || !v.width || !v.height) return;
       var p = state.engine.player;
+      var pr = 0;
+      try {
+        var lw = state.engine.level && state.engine.level.cols ? state.engine.level.cols * TILE : 1;
+        pr = Math.max(0, Math.min(1, p.x / lw));
+      } catch (e) {}
       tuff.track.push({
         t: state.engine.time,
         fx: (p.x + p.w / 2 - cam.x) * cam.zoom / v.width,
         fy: (p.y + p.h / 2 - cam.y) * cam.zoom / v.height,
         pw: p.w * cam.zoom / v.width,
-        ph: p.h * cam.zoom / v.height
+        ph: p.h * cam.zoom / v.height,
+        pr: pr
       });
       while (tuff.track.length > 2 && tuff.track[0].t < state.engine.time - 35) tuff.track.shift();
+    } catch (e) {}
+  }
+  function tuffLogDeath() {
+    try {
+      if (!state.playing || !state.engine) return;
+      var v = el("view");
+      if (!v || !v.width || !v.height) return;
+      var p = state.engine.player;
+      tuff.deaths.push({
+        e: state.engine.time,
+        fx: (p.x + p.w / 2 - cam.x) * cam.zoom / v.width,
+        fy: (p.y + p.h / 2 - cam.y) * cam.zoom / v.height
+      });
+      if (tuff.deaths.length > 200) tuff.deaths.shift();
     } catch (e) {}
   }
   function tuffFinishRun() {
     try {
       tuff.winStamp = performance.now();
       tuff.winEng = state.engine ? state.engine.time : 0;
+      tuff.winDeaths = state.deaths | 0;
+      try {
+        var entry = state.netEntry || state.levels[state.current];
+        tuff.levelName = (entry && entry.level && entry.level.name) || (entry && entry.meta && entry.meta.title) || "LEVEL";
+      } catch (e) { tuff.levelName = "LEVEL"; }
       if (tuff.rec) { try { tuff.rec.requestData(); } catch (e) {} }
     } catch (e) {}
     tuffStop();
@@ -1280,18 +1305,19 @@
   }
   function tuffTrackAt(runT) {
     var tr = tuff.track;
-    if (!tr.length) return { x: 0.5, y: 0.5, pw: 0.06, ph: 0.1 };
-    function full(p) { return { x: p.fx, y: p.fy, pw: p.pw || 0.06, ph: p.ph || 0.1 }; }
+    if (!tr.length) return { x: 0.5, y: 0.5, pw: 0.06, ph: 0.1, pr: 0 };
+    function full(p) { return { x: p.fx, y: p.fy, pw: p.pw || 0.06, ph: p.ph || 0.1, pr: (p.pr == null ? 0 : p.pr) }; }
     if (runT <= tr[0].t) return full(tr[0]);
     var last = tr[tr.length - 1];
     if (runT >= last.t) return full(last);
     for (var i = 1; i < tr.length; i++) {
       if (tr[i].t >= runT) {
         var a = tr[i - 1], b = tr[i], k = (runT - a.t) / Math.max(1e-6, b.t - a.t);
+        var apw = a.pw || 0.06, bpw = b.pw || 0.06, aph = a.ph || 0.1, bph = b.ph || 0.1;
+        var apr = (a.pr == null ? 0 : a.pr), bpr = (b.pr == null ? 0 : b.pr);
         return {
           x: a.fx + (b.fx - a.fx) * k, y: a.fy + (b.fy - a.fy) * k,
-          pw: (a.pw || 0.06) + ((b.pw || 0.06) - (a.pw || 0.06)) * k,
-          ph: (a.ph || 0.1) + ((b.ph || 0.1) - (a.ph || 0.1)) * k
+          pw: apw + (bpw - apw) * k, ph: aph + (bph - aph) * k, pr: apr + (bpr - apr) * k
         };
       }
     }
@@ -1376,7 +1402,7 @@
     var ctx = out.getContext("2d");
     // Route the song ONLY into the recording (never to the speakers), so
     // playback is silent and the browser lets it play without a gesture.
-    var ctx2 = actx || null, dest = null;
+    var ctx2 = actx || null, dest = null, an = null;
     try {
       if (song && ctx2) {
         if (ctx2.resume) { try { var rp2 = ctx2.resume(); if (rp2 && rp2.catch) rp2.catch(function () {}); } catch (e) {} }
@@ -1384,6 +1410,7 @@
         var g = ctx2.createGain(); g.gain.value = 0.9;
         dest = ctx2.createMediaStreamDestination();
         src.connect(g); g.connect(dest);
+        try { an = ctx2.createAnalyser(); an.fftSize = 256; an.smoothingTimeConstant = 0.75; g.connect(an); } catch (e) { an = null; }
       }
     } catch (e) { ctx2 = null; dest = null; }
     var vstream;
@@ -1421,6 +1448,44 @@
       var t = 0;
       while (t < TUFF_LEN) { t += 1.2 + Math.random() * 1.3; keys.push({ t: Math.min(t, TUFF_LEN), s: 1.6 + Math.random() * 0.9 }); }
     })();
+    // Deaths mapped to export time, slow-mo + boring windows, shared FX state
+    var clipDur = TUFF_LEN, dEvents = [], slowWins = [], boreWins = [];
+    var curPr = 0, ccx = 0, ccy = 0, cdw = 1, cdh = 1;
+    var hitstop = 0, flash = 0, parts = [], deathPtr = 0, deathsShown = 0, lastRate = 1;
+    var beatCool = 0, bassHist = [], freqBuf = null;
+    (function () {
+      try {
+        if (video.duration && isFinite(video.duration)) clipDur = video.duration;
+        var i, at;
+        for (i = 0; i < tuff.deaths.length; i++) {
+          // video-time of the death inside the clip, so FX fire on the footage even during ramps
+          var vt = clipDur - (tuff.winEng - tuff.deaths[i].e);
+          if (vt < -0.5 || vt > clipDur) continue;
+          dEvents.push({ vt: Math.max(0, vt), at: TUFF_LEN - (tuff.winEng - tuff.deaths[i].e), fx: tuff.deaths[i].fx, fy: tuff.deaths[i].fy });
+        }
+        dEvents.sort(function (a, b) { return a.vt - b.vt; });
+        var base = 0;
+        for (i = 0; i < tuff.deaths.length; i++) { if (tuff.winEng - tuff.deaths[i].e > clipDur) base++; }
+        deathsShown = base;
+        for (i = 0; i < dEvents.length; i++) slowWins.push({ at: dEvents[i].at - 0.7, dur: 0.8, rate: 0.35 });
+        for (i = 0; i < 2; i++) slowWins.push({ at: 2 + Math.random() * 15, dur: 0.6, rate: 0.6 });
+        var bStart = -1;
+        for (var t = 0; t <= TUFF_LEN; t += 0.5) {
+          var r0 = tuff.winEng - (TUFF_LEN - t);
+          var pa = tuffTrackAt(r0 - 0.3), pb = tuffTrackAt(r0 + 0.3);
+          var spd = Math.sqrt(Math.pow(pb.x - pa.x, 2) + Math.pow(pb.y - pa.y, 2)) / 0.6;
+          if (spd < 0.06) { if (bStart < 0) bStart = t; }
+          else { if (bStart >= 0 && t - bStart >= 1.5) boreWins.push({ at: bStart, dur: t - bStart }); bStart = -1; }
+        }
+        if (bStart >= 0 && TUFF_LEN - bStart >= 1.5) boreWins.push({ at: bStart, dur: TUFF_LEN - bStart });
+      } catch (e) {}
+    })();
+    function inWin(wins, et) {
+      for (var i = 0; i < wins.length; i++) {
+        if (et >= wins[i].at && et < wins[i].at + wins[i].dur) return wins[i];
+      }
+      return null;
+    }
     function inPause(et) {
       for (var i = 0; i < pauses.length; i++) {
         if (et >= pauses[i].at && et < pauses[i].at + pauses[i].dur) return pauses[i];
@@ -1430,9 +1495,10 @@
     var px = 0.5, py = 0.5, sc = 1.3, boost = 0, trauma = 0, nextShake = 0.4 + Math.random() * 0.6, ki = 0;
     var lvx = 0, lvy = 0, ptx = 0.5, pty = 0.5;
     var lastT = performance.now(), t0 = lastT, done = false, finUrl = null;
-    function draw(et, dt) {
+    function draw(et, dt, hold) {
       var runT = tuff.winEng - (TUFF_LEN - et);
       var tgt = tuffTrackAt(runT);
+      curPr = tgt.pr || 0;
       // Velocity lead: aim slightly ahead of the player so fast moves at
       // high zoom don't outrun the smoothed camera.
       if (dt > 0) {
@@ -1482,7 +1548,7 @@
         } catch (e) {}
         return p;
       }
-      try { if (video.paused && !video.ended) video.play().catch(function () {}); } catch (e) {}
+      if (!hold) { try { if (video.paused && !video.ended) video.play().catch(function () {}); } catch (e) {} }
       try {
         ctx.save();
         ctx.filter = "none";
@@ -1500,6 +1566,7 @@
         var cy = Math.min(Math.max(py * vh + shy, dh / 2), vh - dh / 2);
         if (dw >= vw) cx = vw / 2;
         if (dh >= vh) cy = vh / 2;
+        ccx = cx; ccy = cy; cdw = dw; cdh = dh;
         if (rot) { ctx.translate(OW / 2, OH / 2); ctx.rotate(rot); ctx.translate(-OW / 2, -OH / 2); }
         ctx.drawImage(video, cx - dw / 2, cy - dh / 2, dw, dh, -40, -40, OW + 80, OH + 80);
         ctx.restore();
@@ -1507,15 +1574,150 @@
       return null;
     }
     var wasPause = false;
+    function boom() {
+      try {
+        if (!ctx2 || !dest) return;
+        var t = ctx2.currentTime;
+        var o = ctx2.createOscillator(), bg = ctx2.createGain();
+        o.type = "sine";
+        o.frequency.setValueAtTime(70, t);
+        o.frequency.exponentialRampToValueAtTime(28, t + 0.35);
+        bg.gain.setValueAtTime(0.9, t);
+        bg.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+        o.connect(bg); bg.connect(dest);
+        o.start(t); o.stop(t + 0.45);
+      } catch (e) {}
+    }
+    function fireDeath(d) {
+      deathsShown++;
+      flash = 1; hitstop = 0.12; trauma = 1;
+      try {
+        var ox = -40 + ((d.fx * vw - (ccx - cdw / 2)) / cdw) * (OW + 80);
+        var oy = -40 + ((d.fy * vh - (ccy - cdh / 2)) / cdh) * (OH + 80);
+        if (ox > -30 && ox < OW + 30 && oy > -30 && oy < OH + 30) {
+          for (var i = 0; i < 46; i++) {
+            var a2 = Math.random() * Math.PI * 2, sp = 120 + Math.random() * 380;
+            var lf = 0.5 + Math.random() * 0.4;
+            parts.push({ x: ox, y: oy, vx: Math.cos(a2) * sp, vy: Math.sin(a2) * sp - 160, life: lf, max: lf, sz: 3 + Math.random() * 5, col: ["#ffffff", "#ffd23f", "#ff4b4b", "#ff9f1c"][i % 4] });
+          }
+        }
+      } catch (e) {}
+      boom();
+    }
+    function drawParts(dt) {
+      if (!parts.length) return;
+      try {
+        ctx.save();
+        for (var i = parts.length - 1; i >= 0; i--) {
+          var q = parts[i];
+          q.life -= dt;
+          if (q.life <= 0) { parts.splice(i, 1); continue; }
+          q.vy += 900 * dt; q.x += q.vx * dt; q.y += q.vy * dt;
+          ctx.globalAlpha = Math.max(0, q.life / q.max);
+          ctx.fillStyle = q.col;
+          ctx.fillRect(q.x - q.sz / 2, q.y - q.sz / 2, q.sz, q.sz);
+        }
+        ctx.restore();
+      } catch (e) {}
+    }
+    function tuffFmtT(t) {
+      t = Math.max(0, t);
+      var m = Math.floor(t / 60), s = t - m * 60;
+      return m + ":" + (s < 10 ? "0" : "") + s.toFixed(2);
+    }
+    function drawHud(et, runT) {
+      try {
+        ctx.save();
+        ctx.textBaseline = "top";
+        ctx.font = "bold 30px monospace"; ctx.textAlign = "left";
+        ctx.lineWidth = 5; ctx.strokeStyle = "rgba(0,0,0,0.8)";
+        var ts = tuffFmtT(runT);
+        ctx.strokeText(ts, 16, 14); ctx.fillStyle = "#fff"; ctx.fillText(ts, 16, 14);
+        ctx.textAlign = "right";
+        var ds = "💀 " + deathsShown;
+        ctx.strokeText(ds, OW - 16, 14); ctx.fillText(ds, OW - 16, 14);
+        if (et < 2.5) {
+          var ba = et < 2 ? 1 : 1 - (et - 2) / 0.5;
+          ctx.globalAlpha = Math.max(0, ba);
+          ctx.textAlign = "center";
+          ctx.font = "bold 26px monospace";
+          ctx.strokeText("TUFF EDIT", OW / 2, 64); ctx.fillStyle = "#ffd23f"; ctx.fillText("TUFF EDIT", OW / 2, 64);
+          ctx.font = "bold 40px monospace"; ctx.fillStyle = "#fff";
+          var nm = String(tuff.levelName || "LEVEL").toUpperCase().slice(0, 24);
+          ctx.strokeText(nm, OW / 2, 100); ctx.fillText(nm, OW / 2, 100);
+          ctx.globalAlpha = 1;
+        }
+        var bw2 = OW - 120, bx = 30, by = OH - 40;
+        var prc = Math.max(0, Math.min(1, curPr));
+        ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(bx - 4, by - 4, bw2 + 8, 22);
+        ctx.fillStyle = "#3a3a3a"; ctx.fillRect(bx, by, bw2, 14);
+        ctx.fillStyle = "#ffd23f"; ctx.fillRect(bx, by, bw2 * prc, 14);
+        ctx.font = "24px serif"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+        ctx.fillText("💀", bx + bw2 * prc - 12, by + 7);
+        ctx.font = "bold 22px monospace"; ctx.textAlign = "right"; ctx.textBaseline = "top";
+        ctx.fillStyle = "#fff";
+        ctx.fillText(Math.floor(prc * 100) + "%", OW - 16, by - 4);
+        ctx.restore();
+      } catch (e) { try { ctx.restore(); } catch (e2) {} }
+    }
     function frame() {
       if (done) return;
       var now = performance.now();
       var dt = Math.min(0.1, (now - lastT) / 1000); lastT = now;
       var et = (now - t0) / 1000;
       if (et >= TUFF_LEN) { finish(); return; }
-      var p = draw(et, dt);
+      var runT = tuff.winEng - (TUFF_LEN - et);
+      var vNow = -1;
+      try { vNow = video.currentTime; } catch (e) {}
+      // Track/HUD follow the FOOTAGE (video time), not export time, so ramps stay in sync.
+      if (vNow >= 0) runT = tuff.winEng - (clipDur - vNow);
+      // Speed ramps: slow-mo into kills, fast-forward boring bits,
+      // debt catch-up so the edit still lands exactly on the win.
+      var gz = inPause(et);
+      var rate = 1;
+      try {
+        var expV = clipDur - (TUFF_LEN - et);
+        if (expV < 0) expV = 0;
+        var debt = expV - video.currentTime;
+        var sw = inWin(slowWins, et), bw = inWin(boreWins, et);
+        if (sw) rate = sw.rate;
+        else if (bw) rate = 1.6;
+        else rate = Math.max(0.9, Math.min(1.8, 1 + debt * 1.5));
+      } catch (e) { rate = 1; }
+      while (deathPtr < dEvents.length && vNow >= 0 && dEvents[deathPtr].vt <= vNow) { fireDeath(dEvents[deathPtr]); deathPtr++; }
+      if (hitstop > 0) { hitstop -= dt; try { video.pause(); } catch (e) {} }
+      else {
+        try { if (Math.abs(video.playbackRate - rate) > 0.05) video.playbackRate = rate; } catch (e) {}
+        if (!gz) { try { if (video.paused && !video.ended) video.play().catch(function () {}); } catch (e) {} }
+      }
+      lastRate = rate;
+      // Beat-synced punches off the song's live bass energy.
+      beatCool -= dt;
+      if (an && beatCool <= 0) {
+        try {
+          if (!freqBuf || freqBuf.length !== an.frequencyBinCount) freqBuf = new Uint8Array(an.frequencyBinCount);
+          an.getByteFrequencyData(freqBuf);
+          var bb = 0, bn = 0;
+          for (var bi = 1; bi < 5 && bi < freqBuf.length; bi++) { bb += freqBuf[bi]; bn++; }
+          bb = bn ? bb / bn : 0;
+          bassHist.push(bb); if (bassHist.length > 24) bassHist.shift();
+          var av = 0;
+          for (var hi = 0; hi < bassHist.length; hi++) av += bassHist[hi];
+          av = bassHist.length ? av / bassHist.length : 0;
+          if (bb > 45 && bb > av * 1.35) {
+            boost = Math.min(0.5, boost + 0.28); trauma = Math.min(1, trauma + 0.5); beatCool = 0.28;
+          }
+        } catch (e) {}
+      }
+      var p = draw(et, dt, hitstop > 0);
       if (wasPause && !p) { boost = 0.35; trauma = Math.min(1, trauma + 1.0); }
       wasPause = !!p;
+      drawParts(dt);
+      if (flash > 0) {
+        flash = Math.max(0, flash - dt * 3);
+        try { ctx.save(); ctx.fillStyle = "rgba(255,30,30," + (flash * 0.45).toFixed(3) + ")"; ctx.fillRect(0, 0, OW, OH); ctx.restore(); } catch (e) {}
+      }
+      drawHud(et, runT);
       requestAnimationFrame(frame);
     }
     function finish() {
@@ -3634,6 +3836,7 @@
       addShake(12); // death juice
       haptic("death");
       recordHeatDeath();
+      try { tuffLogDeath(); } catch (e) {}
     }
     if (state.engine.dead && save_.data.autoRespawn && state.engine.deathTimer > 0.55) respawn();
     if (state.engine.won && !state.winShown) {
