@@ -1188,7 +1188,6 @@
     lastGhostPoint = 0;
     ghostTrail.push({ x: state.engine.player.x, y: state.engine.player.y, rot: state.engine.player.rot, t: state.engine.time });
     if (ghostTrail.length > 4000) ghostTrail.shift();
-    tuffSample();
   }
   // ---- Tuff edits: 20s win-recap video (tracking zooms, shake,
   // grayscale pause gags with skull/trollface, random song slice) ----
@@ -1320,13 +1319,14 @@
         if (actx.resume) { try { var arp = actx.resume(); if (arp && arp.catch) arp.catch(function () {}); } catch (e) {} }
       }
     } catch (e) { actx = null; }
-    if (!tuff.chunks.length || !tuff.first || tuff.track.length < 2) { fail("No footage recorded — finish a level first."); return; }
+    if (!tuff.chunks.length || !tuff.first) { fail("No footage recorded — finish a level first."); return; }
     if (status) status.textContent = "Cooking your edit…";
     var sel = [];
     try {
       for (var i = 0; i < tuff.chunks.length; i++) {
         if (tuff.chunks[i].t >= tuff.winStamp - (TUFF_LEN * 1000 + 500)) sel.push(tuff.chunks[i].blob);
       }
+      if (!sel.length) sel = tuff.chunks.slice(-40).map(function (c) { return c.blob; });
     } catch (e) {}
     if (!sel.length) { fail("No footage recorded — finish a level first."); return; }
     var clipUrl;
@@ -3620,6 +3620,7 @@
 
     followPlayer();
     if (!state.practice) { try{ recordGhost(dt); }catch(e){} }
+    try { tuffSample(); } catch (e) {} // runs in practice too, so EDIT always has tracking
     tickShake(dt);
     trackPlaytime(dt);
     setStatusHud();
