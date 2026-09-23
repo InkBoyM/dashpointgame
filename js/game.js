@@ -1884,6 +1884,14 @@
       this.skin = validSkinId(opts && opts.skin);
       this.trail = (opts && opts.trail) || "";
       if (!TRAILS[this.trail]) this.trail = "";
+      this.pet = (opts && opts.pet) || "";
+      this.petX = 0;
+      this.petY = 0;
+      this.petInit = false;
+      this.pet = (opts && opts.pet) || "";
+      this.petX = 0;
+      this.petY = 0;
+      this.petInit = false;
       this.trailParts = [];
       this.trailTick = 0;
       this.trailHue = 0;
@@ -1952,6 +1960,7 @@
       this.crushers = [];
       this.trailParts = [];
       this.trailTick = 0;
+      this.petInit = false;
       const triggers = this.level.triggers || [];
       for (const tg of triggers) {
         let ty = tg.tr;
@@ -2915,6 +2924,23 @@
       this.updateCrushers(dt);
       this.checkTriggers();
       this.tickTrail(dt);
+      this.tickPet(dt);
+    }
+
+    tickPet(dt) {
+      // Cosmetic follower: springy chase behind the player with a hover bob.
+      // No collision, no gameplay effect.
+      if (!this.pet) return;
+      const p = this.player;
+      const pcx = p.x + p.w / 2, pcy = p.y + p.h / 2;
+      if (!this.petInit) { this.petX = pcx; this.petY = pcy; this.petInit = true; }
+      const lead = (p.facing || 1) >= 0 ? -1 : 1;
+      const tx = pcx + lead * 34;
+      const ty = pcy - 20 + Math.sin((this.time || 0) * 5) * 4;
+      const step = Math.min(0.05, Math.max(0.001, dt));
+      const k = 1 - Math.exp(-8 * step);
+      this.petX += (tx - this.petX) * k;
+      this.petY += (ty - this.petY) * k;
     }
 
     tickTrail(dt) {
@@ -4478,6 +4504,9 @@
       } else {
         ctx.fillStyle = "#fff";
         ctx.fillRect(p.x, p.y, p.w, p.h);
+      }
+      if (engine.pet && !engine.dead && images.pets && images.pets[engine.pet]) {
+        ctx.drawImage(images.pets[engine.pet], engine.petX - 8, engine.petY - 8, 16, 16);
       }
       if (extras.hitboxes) {
         ctx.strokeStyle = "#2ee6ff";

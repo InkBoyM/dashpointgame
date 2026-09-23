@@ -636,6 +636,44 @@
     return findShopTrail(save_.data.trail) ? save_.data.trail : "";
   }
 
+  const SHOP_PETS = [
+    { id: "wisp", label: "Wisp", cost: 10000, src: "assets/pets/pet-wisp.png" },
+    { id: "chick", label: "Chick", cost: 50000, src: "assets/pets/pet-chick.png" },
+    { id: "bot", label: "Bit Bot", cost: 500000, src: "assets/pets/pet-bot.png" },
+    { id: "bat", label: "Bat", cost: 5000000, src: "assets/pets/pet-bat.png" },
+  ];
+
+  function findShopPet(id) {
+    for (let i = 0; i < SHOP_PETS.length; i++) if (SHOP_PETS[i].id === id) return SHOP_PETS[i];
+    return null;
+  }
+
+  function ownsPet(id) {
+    return (save_.data.pets || []).indexOf(id) !== -1;
+  }
+
+  function equippedPetId() {
+    return findShopPet(save_.data.pet) ? save_.data.pet : "";
+  }
+
+  function loadPetImages() {
+    try {
+      if (!state.images) return;
+      state.images.pets = state.images.pets || {};
+      SHOP_PETS.forEach(function (p) {
+        if (state.images.pets[p.id]) return;
+        var img = new Image();
+        img.onload = function () {
+          try {
+            state.images.pets[p.id] = img;
+            if (el("modalShop") && el("modalShop").classList.contains("visible")) renderShop();
+          } catch (e) {}
+        };
+        img.src = p.src;
+      });
+    } catch (e) {}
+  }
+
   function ownsTag(id) {
     return (save_.data.tags || []).indexOf(id) !== -1;
   }
@@ -843,6 +881,8 @@
       s.frame = findShopFrame(s.frame) ? s.frame : "";
       s.trails = Array.isArray(s.trails) ? s.trails.filter(function (id) { return !!findShopTrail(id); }) : [];
       s.trail = findShopTrail(s.trail) ? s.trail : "";
+      s.pets = Array.isArray(s.pets) ? s.pets.filter(function (id) { return !!findShopPet(id); }) : [];
+      s.pet = findShopPet(s.pet) ? s.pet : "";
       s.packs = Array.isArray(s.packs) ? s.packs.filter(function (id) { return !!findShopPack(id); }) : [];
       // grandfather: anyone already running a pack keeps it
       if ((s.graphics === "drawing" || s.graphics === "neon") && s.packs.indexOf(s.graphics) === -1) s.packs.push(s.graphics);
@@ -2781,6 +2821,7 @@
     renderShopColors();
     renderShopFrames();
     renderShopTrails();
+    renderShopPets();
     renderShopPacks();
     syncCoinUI();
   }
@@ -2967,6 +3008,54 @@
     save_.data.trail = t.id;
     save();
     showNotice("Trail unlocked!", false);
+    renderShop();
+    syncHomeStats();
+    syncCoinUI();
+  }
+
+  function renderShopPets() {
+    const box = el("shopPetGrid");
+    if (!box) return;
+    box.innerHTML = "";
+    SHOP_PETS.forEach(function (t) {
+      const owned = ownsPet(t.id);
+      const equipped = save_.data.pet === t.id;
+      const cost = coinAmount(t.cost);
+      const can = hasCoins(cost);
+      const b = document.createElement("button");
+      b.className = "skin-tile" + (equipped ? " selected" : "") + (!owned && !can ? " cant" : "");
+      const hint = owned ? (equipped ? "EQUIPPED" : "TAP TO EQUIP") : can ? "TAP TO BUY" : "NEED " + fmtCoins(cost);
+      b.innerHTML =
+        '<img src="' + t.src + '" alt="" />' +
+        '<span class="skin-name">' + escapeHtml(t.label) + "</span>" +
+        '<span class="shop-cost">' + coinIcon() + fmtCoins(cost) + "</span>" +
+        '<span class="skin-hint">' + escapeHtml(hint) + "</span>";
+      b.addEventListener("click", function () {
+        if (owned) {
+          save_.data.pet = equipped ? "" : t.id;
+          save();
+          renderShopPets();
+          return;
+        }
+        buyShopPet(t);
+      });
+      box.appendChild(b);
+    });
+  }
+
+  function buyShopPet(t) {
+    if (!t || ownsPet(t.id)) return;
+    const cost = coinAmount(t.cost);
+    if (!hasCoins(cost)) {
+      showNotice("Not enough coins", true);
+      return;
+    }
+    subCoins(cost);
+    save_.data.pets = save_.data.pets || [];
+    save_.data.pets.push(t.id);
+    save_.data.pet = t.id;
+    save();
+    showNotice(t.label + " joined you!", false);
     renderShop();
     syncHomeStats();
     syncCoinUI();
@@ -3401,7 +3490,7 @@
     if (!entry) return;
     state.currentFile = entry.id ? "net:" + entry.id : entry.file;
     state.currentMeta = entry.meta || null;
-    state.engine = new DP.Engine(entry.level.clone(), { skin: save_.data.skin, trail: equippedTrailId() });
+    state.engine = new DP.Engine(entry.level.clone(), { skin: save_.data.skin, trail: equippedTrailId(), pet: equippedPetId() });
     if (DP.Music) DP.Music.play(entry.level.song);
     state.playing = true;
     state.deaths = 0;
@@ -5843,6 +5932,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       .then((images) => {
         state.images = images;
         ensureCustomSkin();
+        loadPetImages();
         loadLevels();
       })
       .catch((err) => {
