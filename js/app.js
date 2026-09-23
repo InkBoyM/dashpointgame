@@ -3121,7 +3121,6 @@
     state.winShown = false;
     state.paused = false;
     state.practice = false;
-    state.botplay = false; botResetRun(); botR = []; botS.attempt = 0; botS.wasDead = false;
     state.heatmap = null;
     heatLocal = {};
     heatPending = 0;
@@ -3146,7 +3145,6 @@
     syncAuthorChip();
     setStatusHud();
     showIntro(entry);
-    syncBotplayUI();
     tuffStartRun();
   }
 
@@ -3183,7 +3181,7 @@
   function setStatusHud() {
     el("hudTime").textContent = (state.engine ? state.engine.time : 0).toFixed(2);
     el("hudDeaths").textContent = "deaths " + state.deaths;
-    el("hudPractice").classList.toggle("hidden", !state.practice && !state.botplay);
+    el("hudPractice").classList.toggle("hidden", !state.practice);
   }
 
   function syncPracticeUI() {
@@ -3195,592 +3193,12 @@
   function togglePractice() {
     if (!state.engine || !state.playing) return;
     state.practice = !state.practice;
-    if (state.botplay) { state.botplay = false; botResetRun(); }
     if (!state.practice && state.engine.checkpoint && state.engine.checkpoint.practice) {
       state.engine.checkpoint = null;
     }
     if (state.practice) showNotice("Practice ON — press X (or tap PRACTICE) to drop checkpoints, no records", false);
     else showNotice("Practice OFF", false);
     syncPracticeUI();
-    syncBotplayUI();
-  }
-
-  // ---- BOTPLAY: demo autopilot (route-following steering core, same family
-  // as the headless clearance bot). Beats levels fast for show. Records are
-  // never saved (onWin early-returns for botplay, coins/leaderboard skipped).
-  let botR = [], botRKey = "";
-  const botS = { wi: 1, prevJump: false, holdT: 0, stuck: 0, lastD: 1e9,
-    backoff: 0, backoffDir: 0, dropDir: 0, dropWi: -1, slideT: 0, slideX0: 0,
-    stillT: 0, wait: 0, deadT: 0, justBounced: false, prevFlash: 0,
-    touchStreak: 0, retreat: 0, attempt: 0, wasDead: false };
-  function botResetRun() {
-    botS.wi = 1; botS.prevJump = false; botS.holdT = 0; botS.stuck = 0; botS.lastD = 1e9;
-    botS.backoff = 0; botS.backoffDir = 0; botS.dropDir = 0; botS.dropWi = -1;
-    botS.slideT = 0; botS.slideX0 = 0; botS.stillT = 0; botS.wait = 0; botS.deadT = 0;
-    botS.justBounced = false; botS.prevFlash = 0; botS.touchStreak = 0; botS.retreat = 0;
-    botS.snipeWait = 0; botS.snipeHold = 10; botS.simCool = 0; botS.wasG = false;
-  }
-  function botTile(e, c, r) {
-    try {
-      if (c < 0 || r < 0 || c >= e.level.cols || r >= e.level.rows) return null;
-      return e.level.grid[r][c];
-    } catch (err) { return null; }
-  }
-  function botSolid(e, c, r) { const t = botTile(e, c, r); return !!(t && DP.TILE_TYPES[t.id] && DP.TILE_TYPES[t.id].solid); }
-  function botSlope(e, c, r) { const t = botTile(e, c, r); return !!(t && (t.id === "slopeL" || t.id === "slopeR")); }
-  function botHaz(e, c, r) {
-    const t = botTile(e, c, r);
-    if (!t) return false;
-    return (DP.isSpikeId(t.id) && DP.TILE_TYPES[t.id].hazard) || t.id === "saw" || t.id === "lava" || t.id === "crusher";
-  }
-  function botOrbAbove(e, cx, cy) {
-    const T = TILE;
-    const feetY = cy + 12;
-    const oc = Math.floor(cx / T), or0 = Math.floor(cy / T);
-    for (let dr = -6; dr <= -1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        const ot = botTile(e, oc + dc, or0 + dr);
-        if (ot && (ot.id === "orb" || ot.id === "iorb")) {
-          const b = DP.orbBox(oc + dc, or0 + dr, ot);
-          if (feetY - (b.y + b.h) > 115) continue;
-          const dx = (b.x + b.w / 2) - cx;
-          if (Math.abs(dx) < 44) return dx;
-        }
-      }
-    }
-    return null;
-  }
-  // Route: spawn -> checkpoints (file order) -> goal, with A* air-path legs
-  // decimated to waypoints. Checkpoints are designer breadcrumbs; A* legs
-  // route AROUND walls through open air so steering gets maze guidance.
-  // Hazards cost extra (avoided when a detour exists, crossed otherwise).
-  function botRouteCost(e, c, r) {
-    const t = botTile(e, c, r);
-    if (!t) return 1;
-    if (t.solid || (DP.TILE_TYPES[t.id] && DP.TILE_TYPES[t.id].solid)) return -1;
-    const id = t.id;
-    if (id === "saw" || id === "lava" || id === "crusher" || (DP.isSpikeId(id) && DP.TILE_TYPES[id] && DP.TILE_TYPES[id].hazard)) return 8;
-    if (id === "water") return 2;
-    return 1;
-  }
-  function botAirPath(e, c0, r0, c1, r1) {
-    // A* over cells (4-dir). Returns cell list or null.
-    const L = e.level;
-    function open(c, r) { return botRouteCost(e, c, r) >= 0; }
-    if (!open(c0, r0)) {
-      let found = null, bd = 1e9;
-      for (let r = r0 - 2; r <= r0 + 2 && !found; r++) for (let c = c0 - 2; c <= c0 + 2; c++) {
-        if (c < 0 || r < 0 || c >= L.cols || r >= L.rows || !open(c, r)) continue;
-        const d = Math.abs(c - c0) + Math.abs(r - r0);
-        if (d < bd) { bd = d; found = [c, r]; }
-      }
-      if (!found) return null;
-      c0 = found[0]; r0 = found[1];
-    }
-    const key = (c, r) => r * L.cols + c;
-    const gS = {}, came = {};
-    const openH = [[Math.abs(c1 - c0) + Math.abs(r1 - r0), c0, r0]];
-    gS[key(c0, r0)] = 0;
-    const closed = {};
-    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-    let guard = L.cols * L.rows * 2;
-    while (openH.length && guard-- > 0) {
-      let bi = 0;
-      for (let i = 1; i < openH.length; i++) if (openH[i][0] < openH[bi][0]) bi = i;
-      const cur = openH.splice(bi, 1)[0];
-      const cc = cur[1], cr = cur[2], ck = key(cc, cr);
-      if (closed[ck]) continue;
-      closed[ck] = true;
-      if (cc === c1 && cr === r1) {
-        const path = [[cc, cr]];
-        let k = ck;
-        while (came[k] !== undefined) {
-          k = came[k];
-          path.push([k % L.cols, Math.floor(k / L.cols)]);
-        }
-        path.reverse();
-        return path;
-      }
-      for (const d of dirs) {
-        const nc = cc + d[0], nr = cr + d[1];
-        if (nc < 0 || nr < 0 || nc >= L.cols || nr >= L.rows) continue;
-        const step = botRouteCost(e, nc, nr);
-        if (step < 0) continue;
-        const nk = key(nc, nr);
-        if (closed[nk]) continue;
-        const ng = gS[ck] + step;
-        if (gS[nk] === undefined || ng < gS[nk]) {
-          gS[nk] = ng; came[nk] = ck;
-          openH.push([ng + Math.abs(c1 - nc) + Math.abs(r1 - nr), nc, nr]);
-        }
-      }
-    }
-    return null;
-  }
-  function botBuildRoute(e) {
-    const key = state.currentFile || "";
-    if (botR.length && botRKey === key) return botR;
-    botRKey = key; botR = [];
-    try {
-      const L = e.level;
-      let sp = { c: 1, r: 1 };
-      try { if (L.spawn && L.spawn.c !== undefined) sp = { c: L.spawn.c, r: L.spawn.r }; } catch (err) {}
-      botR.push([sp.c, sp.r, "S"]);
-      const stops = [];
-      for (let r = 0; r < L.rows; r++) for (let c = 0; c < L.cols; c++) {
-        const t = L.grid[r][c];
-        if (t && t.id === "checkpoint") stops.push([c, r]);
-      }
-      for (let r = 0; r < L.rows; r++) for (let c = 0; c < L.cols; c++) {
-        const t = L.grid[r][c];
-        if (t && (t.id === "goal" || t.id === "igoal")) { stops.push([c, r]); r = L.rows; break; }
-      }
-      // legs: A* air-path per stop pair, decimated (turns + every 8th cell)
-      let px = sp.c, py = sp.r;
-      for (let si = 0; si < stops.length; si++) {
-        const last = si === stops.length - 1;
-        const path = botAirPath(e, px, py, stops[si][0], stops[si][1]);
-        px = stops[si][0]; py = stops[si][1];
-        if (!path || path.length < 2) {
-          botR.push([stops[si][0], stops[si][1], last ? "G" : "W"]);
-          continue;
-        }
-        let pdx = 0, pdy = 0;
-        for (let i = 1; i < path.length - 1; i++) {
-          const dx = Math.sign(path[i + 1][0] - path[i][0]), dy = Math.sign(path[i + 1][1] - path[i][1]);
-          if ((dx !== pdx || dy !== pdy) || i % 8 === 0) {
-            botR.push([path[i][0], path[i][1], "W"]);
-            pdx = dx; pdy = dy;
-          }
-        }
-        botR.push([stops[si][0], stops[si][1], last ? "G" : "W"]);
-      }
-    } catch (err) {}
-    botFixNodes(e);
-    return botR;
-  }
-  // Nudge solid-embedded nodes to the nearest open cell (a node inside a
-  // brick can never be "reached", and segments ending near one hand off badly)
-  function botFixNodes(e) {
-    for (const n of botR) {
-      if (!botSolid(e, n[0], n[1])) continue;
-      let done = false;
-      for (let rad = 1; rad <= 3 && !done; rad++) {
-        for (let dr = -rad; dr <= rad && !done; dr++) for (let dc = -rad; dc <= rad; dc++) {
-          if (Math.max(Math.abs(dc), Math.abs(dr)) !== rad) continue;
-          if (!botSolid(e, n[0] + dc, n[1] + dr)) { n[0] += dc; n[1] += dr; done = true; break; }
-        }
-      }
-    }
-  }
-  function botNearestWi(e) {
-    const p = e.player, cx = p.x + p.w / 2, cy = p.y + p.h / 2;
-    let bi = 1, bd = 1e18;
-    for (let i = 1; i < botR.length; i++) {
-      const d = Math.hypot((botR[i][0] + 0.5) * TILE - cx, (botR[i][1] + 0.5) * TILE - cy);
-      if (d < bd) { bd = d; bi = i; }
-    }
-    return bi;
-  }
-  function botNewAttempt(e) {
-    botS.attempt++;
-    botResetRun();
-    botS.wait = (botS.attempt * 7) % 35;
-    try { botS.wi = botNearestWi(e); } catch (err) { botS.wi = 1; }
-    botS.lastD = 1e9; botS.stuck = 0;
-  }
-  function syncBotplayUI() {
-    const b = el("btnPauseBotplay");
-    if (b) b.textContent = state.botplay ? "BOTPLAY: ON" : "BOTPLAY: OFF";
-    const h = el("hudPractice");
-    if (h) h.textContent = state.botplay ? "BOTPLAY" : "PRACTICE";
-    setStatusHud();
-  }
-  function toggleBotplay() {
-    if (!state.engine || !state.playing) return;
-    state.botplay = !state.botplay;
-    botResetRun(); botR = []; botS.attempt = 0; botS.wasDead = false;
-    if (state.botplay && state.practice) { state.practice = false; syncPracticeUI(); }
-    if (state.botplay) { showNotice("BOTPLAY ON — demo mode, no records", false); restartLevel(); }
-    else showNotice("BOTPLAY OFF", false);
-    syncBotplayUI();
-  }
-  const BOT_SIM_FIELDS = ["time", "dead", "deathReason", "deathTimer", "won", "winTimer",
-    "collected", "checkpoint", "pendingJumps", "pendingCoinGrant",
-    "orbFlash", "padFlash", "dashFlash", "inWater", "coyote", "buffer",
-    "wasJump", "groundMat", "groundConv"];
-  function botSnap(e) {
-    const s = { p: {} };
-    try { for (const k in e.player) s.p[k] = e.player[k]; } catch (err) {}
-    for (const k of BOT_SIM_FIELDS) {
-      try {
-        if (!(k in e)) continue;
-        s[k] = (k === "collected") ? new Set(e.collected)
-             : (k === "checkpoint" && e.checkpoint) ? { ...e.checkpoint }
-             : e[k];
-      } catch (err) {}
-    }
-    return s;
-  }
-  function botRestore(e, s) {
-    try { for (const k in s.p) e.player[k] = s.p[k]; } catch (err) {}
-    for (const k of BOT_SIM_FIELDS) {
-      if (!(k in s)) continue;
-      try { e[k] = s[k]; } catch (err) {}
-    }
-  }
-  // Simulate a jump (wait frames, then hold frames) holding dir. Returns
-  // {score, landed, dead, won, snap} — snap is the END state for chaining.
-  // Restore erases it all; the real run never sees simulations.
-  function botSim(e, dir, hold, wait) {
-    const s0 = botSnap(e);
-    const x0 = e.player.x;
-    let ht = 0, score = -1e9, landed = false, dead = false, won = false;
-    for (let f = 0; f < 90; f++) {
-      let j = false;
-      if (f >= wait && ht < hold) { j = true; ht++; }
-      e.setInput({ left: dir < 0, right: dir > 0, jump: j });
-      e.update(1 / 60);
-      if (e.dead) { score = -5000 + f; dead = true; break; }
-      if (e.won) { score = 5000; won = true; break; }
-      const adv = (e.player.x - x0) * (dir || 1);
-      if (e.player.onGround && f > 8) {
-        if (adv <= 24) { score = adv - f * 2; break; }
-        landed = true;
-        // runway past the landing to the next face/hazard: room for the
-        // NEXT takeoff matters as much as this jump's distance
-        const lx = e.player.x + (dir > 0 ? e.player.w : 0);
-        const fr = Math.floor((e.player.y + e.player.h - 6) / 32);
-        let run = 160;
-        for (let k = 1; k <= 6; k++) {
-          const cc2 = Math.floor(lx / 32) + dir * k;
-          if (botSolid(e, cc2, fr) || botHaz(e, cc2, fr) || botSolid(e, cc2, fr - 1) || botHaz(e, cc2, fr - 1)) { run = k * 32 - 24; break; }
-        }
-        score = 1000 + adv - f * 2 + Math.min(run, 80) * 3;
-        break;
-      }
-      score = adv - f * 1.5;
-    }
-    const snap = botSnap(e);
-    botRestore(e, s0);
-    return { score: score, landed: landed, dead: dead, won: won, snap: snap };
-  }
-  // Two-ply pick: first jump + best follow-up from its landing. Combos
-  // (hop + face jump) need the second ply — single jumps can't see them.
-  function botPick(e, dir) {
-    const s0 = botSnap(e);
-    const cands = [];
-    const holds = [6, 10, 14], waits = [0];
-    for (let hi2 = 0; hi2 < holds.length; hi2++) for (let wi2 = 0; wi2 < waits.length; wi2++) {
-      const r = botSim(e, dir, holds[hi2], waits[wi2]);
-      cands.push({ h: holds[hi2], w: waits[wi2], score: r.score, landed: r.landed, dead: r.dead, won: r.won, snap: r.snap });
-    }
-    cands.sort((a, b) => b.score - a.score);
-    let n2 = 0;
-    for (const c of cands) {
-      if (n2 >= 2 || !c.landed || c.dead || c.won) continue;
-      botRestore(e, c.snap);
-      let b2 = -1e18;
-      for (const h2 of [6, 10, 14]) {
-        const r2 = botSim(e, dir, h2, 0);
-        if (r2.score > b2) b2 = r2.score;
-      }
-      c.total = c.score + 0.7 * b2;
-      n2++;
-    }
-    botRestore(e, s0);
-    let best = cands[0];
-    for (const c of cands) {
-      const t = (c.total === undefined ? c.score : c.total);
-      const bt = (best.total === undefined ? best.score : best.total);
-      if (t > bt) best = c;
-    }
-    return { hold: best.h, wait: best.w };
-  }
-  function botInput(e) {
-    const T = TILE;
-    const p = e.player;
-    if (e.dead) { botS.wasDead = true; return { left: false, right: false, jump: false }; }
-    if (botS.wasDead) { botS.wasDead = false; botNewAttempt(e); }
-    if (botS.simCool > 0) botS.simCool--;
-    // touchdown = brand-new situation: decide fresh immediately (chains)
-    if (!botS.wasG && p.onGround) botS.simCool = 0;
-    botS.wasG = p.onGround;
-    const nodes = botBuildRoute(e);
-    if (nodes.length < 2) return { left: false, right: false, jump: false };
-    const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
-    // advance waypoints by passing their plane (flyovers count for walks;
-    // climbs/orbs need proximity so fly-pasts don't strand the route)
-    while (botS.wi < nodes.length - 1) {
-      const n = nodes[botS.wi], pv = nodes[botS.wi - 1] || nodes[0];
-      if (n[2] === "O" && e.orbFlash <= 0.18) break;
-      const dxn = n[0] - pv[0], dyn = n[1] - pv[1];
-      const len = Math.hypot(dxn, dyn) || 1;
-      const along = ((cx - (n[0] + 0.5) * T) * dxn + (cy - (n[1] + 0.5) * T) * dyn) / len;
-      const dist = Math.hypot((n[0] + 0.5) * T - cx, (n[1] + 0.5) * T - cy);
-      const touchNode = (n[2] === "J2" || n[2] === "H" || n[2] === "O") && botSolid(e, n[0], n[1]);
-      if ((!touchNode && (along > -12 || dist < 30)) || (touchNode && dist < 44)) botS.wi++;
-      else break;
-    }
-    const end = nodes[nodes.length - 1];
-    const ex = (end[0] + 0.5) * T, ey = (end[1] + 0.5) * T;
-    const dEnd = Math.hypot(ex - cx, ey - cy);
-    // stuck tolerance 3px (0.5px swimming: water climbs ~1.4px/frame)
-    const stuckTol = e.inWater ? 0.5 : 3;
-    if (dEnd < botS.lastD - stuckTol) { botS.lastD = dEnd; botS.stuck = 0; }
-    else if (++botS.stuck > 360) { botNewAttempt(e); return { left: false, right: false, jump: false }; }
-    if (Math.abs(p.vx) < 30) botS.stillT++; else botS.stillT = 0;
-    if (botS.stuck === 240 && !botS.retreat && !e.inWater) botS.retreat = 150;
-    let tgt = nodes[Math.min(botS.wi, nodes.length - 1)];
-    let tgtIdx = Math.min(botS.wi, nodes.length - 1);
-    if (botS.retreat > 0) {
-      botS.retreat--;
-      tgt = nodes[Math.max(1, botS.wi - 2)];
-      tgtIdx = Math.max(1, botS.wi - 2);
-      const rcx = p.x + p.w / 2;
-      if (Math.abs((tgt[0] + 0.5) * T - rcx) < 14 && p.onGround) {
-        botS.retreat = 0; botS.stuck = 0; botS.lastD = 1e9;
-      }
-      if (botS.retreat === 0) { botS.stuck = 0; botS.lastD = 1e9; }
-    }
-    if (botS.wait > 0) { botS.wait--; botS.prevJump = false; return { left: false, right: false, jump: false }; }
-    const tx = (tgt[0] + 0.5) * T;
-    const tKind = tgt[2];
-    const nxt = nodes[Math.min(tgtIdx + 1, nodes.length - 1)];
-    // orb touch scan first: near-orbs enable chain steering (directionally
-    // filtered so off-route shafts don't hijack, e.g. climbing under one)
-    let orbNear = false, orbTouch = false;
-    {
-      const oc0 = Math.floor(cx / T), or0 = Math.floor(cy / T);
-      const offs = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [2, 0], [-2, 0], [0, 2], [0, -2]];
-      for (let oi = 0; oi < offs.length; oi++) {
-        const ot = botTile(e, oc0 + offs[oi][0], or0 + offs[oi][1]);
-        if (ot && (ot.id === "orb" || ot.id === "iorb")) {
-          const b = DP.orbBox(oc0 + offs[oi][0], or0 + offs[oi][1], ot);
-          if (cx + 56 > b.x && cx - 56 < b.x + b.w && cy + 56 > b.y && cy - 56 < b.y + b.h) orbNear = true;
-          if (cx + 12 > b.x && cx - 12 < b.x + b.w && cy + 12 > b.y && cy - 12 < b.y + b.h) orbTouch = true;
-        }
-      }
-    }
-    const orbMode = tKind === "O" || nxt[2] === "O" || orbNear || orbTouch;
-    let nOx = 0, nOd = 130;
-    if (!p.onGround && orbMode) {
-      for (let aax = -4; aax <= 4; aax++) for (let aay = -4; aay <= 4; aay++) {
-        const ot2 = botTile(e, Math.floor(cx / T) + aax, Math.floor(cy / T) + aay);
-        if (ot2 && (ot2.id === "orb" || ot2.id === "iorb")) {
-          const bb = DP.orbBox(Math.floor(cx / T) + aax, Math.floor(cy / T) + aay, ot2);
-          const ox = bb.x + bb.w / 2, oy = bb.y + bb.h / 2;
-          if (oy > cy + 10) continue;
-          if ((ox - cx) * (tx - cx) < 0 && Math.abs(tx - cx) > 40) continue;
-          const dd = Math.hypot(ox - cx, oy - cy);
-          if (dd < nOd) { nOd = dd; nOx = ox; }
-        }
-      }
-    }
-    let dir = 0;
-    if (!p.onGround && nOd < 130) {
-      if (Math.abs(nOx - cx) > 10) dir = Math.sign(nOx - cx);
-      else dir = p.vx > 150 ? -1 : p.vx < -150 ? 1 : 0;
-    } else if (tKind === "O") {
-      if (p.onGround) dir = Math.abs(tx - cx) < 7 ? 0 : Math.sign(tx - cx);
-      else if (Math.abs(tx - cx) > 10) dir = Math.sign(tx - cx);
-      else dir = p.vx > 150 ? -1 : p.vx < -150 ? 1 : 0;
-    } else {
-      const ty0 = (tgt[1] + 0.5) * T;
-      if (tKind === "D" && p.onGround) {
-        if (botS.wi !== botS.dropWi) { botS.dropWi = botS.wi; botS.dropDir = tx >= cx ? 1 : -1; }
-        dir = botS.dropDir;
-      } else if (ty0 > cy + 40) {
-        const nx0 = (nodes[Math.min(tgtIdx + 1, nodes.length - 1)][0] + 0.5) * T;
-        dir = Math.abs(nx0 - cx) < 7 ? (Math.abs(tx - cx) < 7 ? 0 : Math.sign(tx - cx)) : Math.sign(nx0 - cx);
-      } else {
-        dir = Math.abs(tx - cx) < 7 ? 0 : Math.sign(tx - cx);
-      }
-      if (dir === 0) {
-        const ty = (tgt[1] + 0.5) * T;
-        if (ty > cy + 40) {
-          const nx = (nodes[Math.min(tgtIdx + 1, nodes.length - 1)][0] + 0.5) * T;
-          if (Math.abs(nx - cx) >= 7) dir = Math.sign(nx - cx);
-        }
-      }
-    }
-    let want = false, hold = 14;
-    const feetY = p.y + p.h;
-    const ac = Math.floor((cx + dir * 26) / T), br = Math.floor((feetY + 6) / T);
-    if (e.inWater) {
-      return { left: dir < 0, right: dir > 0, jump: true };
-    }
-    if (p.onGround) {
-      if (orbTouch) { want = true; hold = 4; }
-      else {
-        const aboveDx = botOrbAbove(e, cx, cy);
-        if (aboveDx !== null) {
-          if (Math.abs(aboveDx) > 22) dir = Math.sign(aboveDx);
-          else { want = true; hold = 14; dir = 0; }
-        } else {
-          let hz = null;
-          const hds = [10, 24, 40];
-          for (let hi = 0; hi < hds.length; hi++) {
-            const ddx = hds[hi];
-            const hc0 = Math.floor((cx + dir * ddx) / T);
-            const h = botHaz(e, hc0, Math.floor((feetY - 6) / T)) ||
-                      botHaz(e, hc0, Math.floor((feetY - 20) / T));
-            if (h) { hz = { h: h, d: ddx, c: hc0 }; break; }
-          }
-          // retry variation: shift takeoff gates per attempt so repeats
-          // don't die on the exact same pixel (edge gates 16/24/32-ish)
-          const gateShift = ((botS.attempt % 3) - 1) * 8;
-          const gate = 24 + gateShift;
-          if (hz) {
-            // edge distance (body edge -> hazard col), not center probes.
-            // Decide EARLY (64px): the simulator's waits time the takeoff.
-            const hzEdge = dir > 0 ? hz.c * T - (p.x + p.w) : p.x - (hz.c + 1) * T;
-            if (hzEdge > 64 + gateShift) { /* too far: keep running */ }
-            else if (botS.snipeWait > 0) { /* countdown below fires it */ }
-            else if (botS.simCool > 0) { /* hold course */ }
-            else {
-              // hazard width sets the hop (measured mapping); the wall
-              // branch's MPC handles combos past the landing
-              let hw = 0;
-              for (let k = 0; k < 6; k++) {
-                const hc = hz.c + dir * k;
-                if (botHaz(e, hc, Math.floor((feetY - 6) / T)) || botHaz(e, hc, Math.floor((feetY - 22) / T))) hw++;
-                else break;
-              }
-              want = true; hold = hw * 32 <= 32 ? 6 : hw * 32 <= 96 ? 10 : 14;
-            }
-          } else {
-            let wc = Math.floor((cx + dir * 46) / T);
-            const pds = [14, 22, 30, 38];
-            for (let pi = 0; pi < pds.length; pi++) {
-              const pc = Math.floor((cx + dir * pds[pi]) / T);
-              if (botSolid(e, pc, Math.floor((cy - 4) / T)) || botSolid(e, pc, Math.floor((cy - 16) / T)) || botSolid(e, pc, Math.floor((cy - 24) / T))) { wc = pc; break; }
-            }
-            const wall = dir !== 0 && (botSolid(e, wc, Math.floor((cy - 4) / T)) || botSolid(e, wc, Math.floor((cy - 16) / T)) || botSolid(e, wc, Math.floor((cy - 24) / T))) && !botSlope(e, wc, br);
-            const stepFace = dir !== 0 && p.onGround && botSolid(e, wc, br) && !botSlope(e, wc, br) && (br * T < feetY - 2);
-            let low = false;
-            for (let k = 1; k <= 2; k++) if (botSolid(e, Math.floor(cx / T), Math.floor((p.y - k * 32) / T))) low = true;
-            let holdWall = 14;
-            let top = null;
-            if (wall || stepFace) {
-              const brow = Math.floor(feetY / T);
-              for (let r = brow; r >= brow - 4; r--) {
-                if (botSolid(e, wc, r) && !botSlope(e, wc, r)) top = r;
-              }
-              if (dir !== 0) {
-                for (let r = brow; r >= brow - 4; r--) {
-                  if (botSolid(e, wc + dir, r) && !botSlope(e, wc + dir, r)) top = top === null ? r : Math.min(top, r);
-                }
-              }
-              if (top !== null) {
-                const rise = feetY - top * T;
-                holdWall = rise <= 25 ? 2 : rise <= 41 ? 4 :
-                           rise <= 48 ? 5 : rise <= 56 ? 6 : rise <= 68 ? 7 :
-                           rise <= 79 ? 10 : rise <= 88 ? 12 : 14;
-              }
-            }
-            if (wall || stepFace) {
-              // model-predictive mount: decide early (70px), the simulator's
-              // waits time the takeoff; cooldown avoids re-deciding per frame
-              const faceDist0 = dir > 0 ? wc * T - (p.x + p.w) : p.x - (wc + 1) * T;
-              if (faceDist0 > 70 + gateShift) { /* too far: keep running */ }
-              else if (botS.snipeWait > 0) { want = false; }
-              else if (botS.simCool > 0) { want = false; }
-              else {
-                botS.simCool = 8;
-                const pick = botPick(e, dir || 1);
-                if (pick.wait > 0) { botS.snipeWait = pick.wait; botS.snipeHold = pick.hold; want = false; }
-                else { want = true; hold = pick.hold; }
-              }
-              if (want && Math.abs(p.vx) < 100) {
-                const faceDist2 = dir > 0 ? wc * T - (p.x + p.w) : p.x - (wc + 1) * T;
-                if (faceDist2 < 28 && botS.stuck > 90 && botS.stillT > 90 && (holdWall !== 4 || faceDist2 < 6)) {
-                  want = false; botS.backoff = 14; botS.backoffDir = -dir; botS.stuck = 60;
-                }
-              }
-            } else if (dir !== 0) {
-              let ground = false;
-              const gds = [34, 50];
-              for (let gi = 0; gi < gds.length; gi++) {
-                const gc = Math.floor((cx + dir * gds[gi]) / T);
-                if (botSolid(e, gc, br) || botSolid(e, gc, br + 1) || botSolid(e, gc, br + 2) || botSlope(e, gc, br)) { ground = true; break; }
-              }
-              if (!ground && !botSlope(e, ac, br) && tKind !== "D") { want = true; hold = 10; }
-            }
-            if (!want) {
-              const tyC = (tgt[1] + 0.5) * T;
-              if (tyC < feetY - 28 && Math.abs(tx - cx) < 26) {
-                want = true; hold = low ? 4 : 14;
-                if (dir === 0) {
-                  const nxC = (nodes[Math.min(tgtIdx + 1, nodes.length - 1)][0] + 0.5) * T;
-                  if (Math.abs(nxC - cx) >= 7) dir = Math.sign(nxC - cx);
-                }
-              }
-            }
-          }
-        }
-      }
-    } else if (orbTouch && p.vy > -150) {
-      want = true; hold = 4;
-    }
-    // airborne climb (swim dead bands, step stacks): target above, we're under it
-    if (!want && !p.onGround && !orbMode) {
-      const tyC2 = (tgt[1] + 0.5) * T;
-      if (tyC2 < feetY - 28 && Math.abs(tx - cx) < 26) { want = true; hold = 14; }
-    }
-    // prefire face: descending toward a wall/hazard — pulse jump (2 on, 2 off)
-    // so a fresh edge always lands in the jump buffer right before touchdown.
-    // Pulsing mid-air is free (no air-jump to cut); it only arms the landing.
-    let prefire = false;
-    if (!p.onGround && p.vy > 100 && !orbMode && !orbTouch && dir !== 0) {
-      const fc = Math.floor((cx + dir * 44) / T);
-      const frA = Math.floor((feetY - 6) / T), frB = Math.floor((feetY - 22) / T);
-      prefire = botHaz(e, fc, frA) || botHaz(e, fc, frB) || botSolid(e, fc, frA) || botSolid(e, fc, frB);
-    }
-    if (orbTouch) botS.touchStreak++;
-    else botS.touchStreak = 0;
-    let stutterCut = false;
-    if (orbTouch && botS.touchStreak % 6 === 5) {
-      botS.holdT = 0;
-      stutterCut = true;
-    }
-    if (!p.onGround && !orbTouch && orbNear && botS.holdT === 0) {
-      want = true; hold = 4;
-    }
-    // planned delayed takeoff from the simulator: keep running, fire on zero
-    if (botS.snipeWait > 0) {
-      botS.snipeWait--;
-      if (botS.snipeWait === 0) { want = true; hold = botS.snipeHold || 10; }
-    }
-    if (want && !botS.prevJump) botS.holdT = hold;
-    const flashed = e.orbFlash > 0.21 || e.padFlash > 0.24;
-    if (flashed && !botS.prevFlash) botS.justBounced = true;
-    botS.prevFlash = Math.max(e.orbFlash, e.padFlash);
-    if (botS.justBounced) {
-      if (p.vy >= -50 || p.onGround || e.dead) botS.justBounced = false;
-      else { botS.holdT = Math.max(botS.holdT, 2); }
-    }
-    let jump = botS.holdT > 0;
-    if (stutterCut && !botS.justBounced) { jump = false; botS.holdT = 0; }
-    if (jump) botS.holdT--;
-    if (!p.onGround && !orbMode && dir !== 0 && p.vy < -150 && Math.abs(p.vx) < 60 && botS.holdT > 0) {
-      const fx = dir > 0 ? p.x + p.w + 2 : p.x - 2;
-      const ft = botTile(e, Math.floor(fx / T), Math.floor(cy / T));
-      if (ft && DP.TILE_TYPES[ft.id] && DP.TILE_TYPES[ft.id].solid) {
-        if (botS.slideT === 0) botS.slideX0 = p.x;
-        if (++botS.slideT > 5 && Math.abs(p.x - botS.slideX0) < 6) {
-          botS.holdT = 0; jump = false; botS.backoff = 18; botS.backoffDir = -dir; botS.slideT = 0;
-        }
-      } else botS.slideT = 0;
-    } else botS.slideT = 0;
-    if (botS.backoff > 0) { botS.backoff--; dir = botS.backoffDir; jump = false; botS.holdT = 0; }
-    botS.tick = (botS.tick || 0) + 1;
-    if (prefire) {
-      jump = ((botS.tick & 3) < 2);
-      botS.holdT = jump ? 2 : 0;
-    }
-    botS.prevJump = jump;
-    return { left: dir < 0, right: dir > 0, jump: jump };
   }
 
   function placePracticeCheckpoint() {
@@ -3873,7 +3291,6 @@
     state.engine = null;
     state.paused = false;
     state.practice = false;
-    state.botplay = false;
     tuffDiscard();
     el("pauseCard").classList.remove("visible");
     ghostMode = false; ghostPlayback = null; if (ghostCountdownTimer){ clearInterval(ghostCountdownTimer); ghostCountdownTimer=null; var cd=el("ghostCountdown"); if(cd) cd.classList.add("hidden"); }
@@ -3897,10 +3314,8 @@
     flushPlaytime();
     try { flushHeat(); } catch (e) {}
     const t = state.engine.time;
-    if (state.practice || state.botplay) {
-      el("winText").textContent = state.botplay
-        ? "BOTPLAY CLEAR in " + fmtTime(t) + " — demo, no records saved."
-        : "PRACTICE CLEAR in " + fmtTime(t) + " — no records saved.";
+    if (state.practice) {
+      el("winText").textContent = "PRACTICE CLEAR in " + fmtTime(t) + " — no records saved.";
       el("winCard").classList.add("visible");
       return;
     }
@@ -4372,15 +3787,11 @@
     }
 
     const pad = padState();
-    if (state.botplay && !state.engine.dead && !state.engine.won) {
-      state.engine.setInput(botInput(state.engine));
-    } else {
-      state.engine.setInput({
+    state.engine.setInput({
         left: bindPressed("left") || !!(pad && pad.left) || state.touch.left,
         right: bindPressed("right") || !!(pad && pad.right) || state.touch.right,
         jump: bindPressed("jump") || !!(pad && pad.jump) || state.touch.jump,
       });
-    }
     if (pad && pad.startEdge && state.screen === "game" && !el("winCard").classList.contains("visible")) {
       restartLevel();
     }
@@ -4406,7 +3817,7 @@
     if (state.engine.pendingCoinGrant) {
       const n = state.engine.pendingCoinGrant | 0;
       state.engine.pendingCoinGrant = 0;
-      if (n > 0 && !state.practice && !state.botplay) {
+      if (n > 0 && !state.practice) {
         const got = grantCoins(n);
         if (got) {
           save();
@@ -4427,7 +3838,7 @@
       recordHeatDeath();
       try { tuffLogDeath(); } catch (e) {}
     }
-    if (state.engine.dead && (save_.data.autoRespawn || state.botplay) && state.engine.deathTimer > 0.55) respawn();
+    if (state.engine.dead && save_.data.autoRespawn && state.engine.deathTimer > 0.55) respawn();
     if (state.engine.won && !state.winShown) {
       state.winShown = true;
       haptic("win");
@@ -5690,7 +5101,6 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnPauseResume").addEventListener("click", resumeGame);
     el("btnPauseRestart").addEventListener("click", () => { resumeGame(); restartLevel(); });
     el("btnPausePractice").addEventListener("click", togglePractice);
-    el("btnPauseBotplay").addEventListener("click", toggleBotplay);
     el("btnPauseHeat").addEventListener("click", toggleHeat);
     el("hudPractice").addEventListener("click", () => {
       if (state.practice && state.playing && !state.paused) placePracticeCheckpoint();
