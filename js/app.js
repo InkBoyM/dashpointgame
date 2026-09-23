@@ -1828,134 +1828,6 @@
     }
     return null;
   }
-  // ---- Theater: watch saved ghosts (cinematic, no physics) ----
-  let theater = null;
-  function theaterEntryName(entry) {
-    try {
-      if (entry.level && entry.level.name) return entry.level.name;
-      if (entry.meta && entry.meta.title) return entry.meta.title;
-    } catch (e) {}
-    return entry.file || "level";
-  }
-  function openTheater() {
-    const box = el("theaterList");
-    if (!box) return;
-    box.innerHTML = "";
-    let count = 0;
-    (state.levels || []).forEach(function (entry, i) {
-      let ghost = null;
-      try { ghost = getGhostForLevel(entry.file); } catch (e) {}
-      if (!ghost || !ghost.points || !ghost.points.length) return;
-      count++;
-      const row = document.createElement("div");
-      row.className = "row-gap";
-      row.style.justifyContent = "space-between";
-      const skinDef = SKINS.find(function (s) { return s.id === ghost.skin; });
-      const img = skinDef ? skinDef.src : "assets/skins/skin-1.png";
-      row.innerHTML = '<span><img src="' + img + '" alt="" style="width:24px;height:24px;image-rendering:pixelated;vertical-align:middle" /> ' +
-        "<b>" + escapeHtml(theaterEntryName(entry)) + "</b> · " + escapeHtml(fmtTime(ghost.time || 0)) + "</span>";
-      const b = document.createElement("button");
-      b.className = "px-btn small good";
-      b.textContent = "WATCH";
-      b.addEventListener("click", function () { watchEntry(entry, i); });
-      row.appendChild(b);
-      box.appendChild(row);
-    });
-    if (!count) box.innerHTML = '<p class="hint">No ghosts yet — go clear a level!</p>';
-    openModal("modalTheater");
-  }
-  function watchEntry(entry, index) {
-    if (!entry || !entry.level) {
-      showNotice("Can't open that level", true);
-      return;
-    }
-    let ghost = null;
-    try { ghost = getGhostForLevel(entry.file || entry.id || ""); } catch (e) {}
-    if (!ghost || !ghost.points || !ghost.points.length) {
-      showNotice("No ghost for this level yet — finish once to create one", true);
-      return;
-    }
-    try { el("winCard").classList.remove("visible"); } catch (e) {}
-    try { el("pauseCard").classList.remove("visible"); } catch (e) {}
-    try { el("modalTheater").classList.remove("visible"); } catch (e) {}
-    state.current = (index === undefined || index === null) ? state.current : index;
-    state.netEntry = null;
-    state.currentFile = entry.file || state.currentFile;
-    state.engine = new DP.Engine(entry.level.clone(), { skin: save_.data.skin, trail: equippedTrailId() });
-    state.deaths = 0;
-    state.winShown = false;
-    state.paused = false;
-    state.practice = false;
-    ghostPlayback = ghost;
-    var last = ghost.points[ghost.points.length - 1];
-    theater = { file: entry.file || "", name: theaterEntryName(entry), ghost: ghost, t: 0, dur: (last && last.t) || 0, playing: true, speed: 1 };
-    theaterPose();
-    try {
-      cam.zoom = playZoom();
-      cam.x = state.engine.player.x + state.engine.player.w / 2 - el("view").width / cam.zoom / 2;
-      cam.y = state.engine.player.y + state.engine.player.h / 2 - el("view").height / cam.zoom / 2;
-    } catch (e) {}
-    state.playing = true;
-    show("game");
-    setStatusHud();
-    syncTheaterBar();
-    var rb = el("btnRestart"), qb = el("btnQuit");
-    if (rb) rb.style.display = "none";
-    if (qb) qb.style.display = "none";
-    var bar = el("theaterBar");
-    if (bar) bar.style.display = "flex";
-  }
-  function theaterPose() {
-    if (!theater || !state.engine) return;
-    var g = null;
-    try { g = getGhostPos(theater.t); } catch (e) {}
-    if (g) {
-      state.engine.player.x = g.x;
-      state.engine.player.y = g.y;
-      state.engine.player.rot = g.rot || 0;
-      state.engine.time = theater.t;
-    }
-  }
-  function theaterStep(dt) {
-    if (!theater || !state.engine) return;
-    if (theater.playing) {
-      theater.t += dt * theater.speed;
-      if (theater.t >= theater.dur) {
-        theater.t = theater.dur;
-        theater.playing = false;
-        syncTheaterBar();
-        showNotice("Replay finished — scrub back or exit", false);
-      }
-    }
-    theaterPose();
-    var sc = el("thScrub"), lb = el("thTime");
-    try {
-      if (sc && document.activeElement !== sc) sc.value = theater.t;
-      if (lb) lb.textContent = fmtTime(theater.t) + " / " + fmtTime(theater.dur);
-    } catch (e) {}
-  }
-  function syncTheaterBar() {
-    try {
-      var pb = el("btnThPlay");
-      if (pb) pb.textContent = theater && theater.playing ? "II" : "▶";
-      var sb = el("btnThSpeed");
-      if (sb) sb.textContent = (theater ? theater.speed : 1) + "x";
-      var sc = el("thScrub");
-      if (sc) { sc.max = theater ? theater.dur : 100; sc.value = theater ? theater.t : 0; }
-      var lb = el("thTime");
-      if (lb) lb.textContent = fmtTime(theater ? theater.t : 0) + " / " + fmtTime(theater ? theater.dur : 0);
-    } catch (e) {}
-  }
-  function theaterExit() {
-    theater = null;
-    try { ghostPlayback = null; } catch (e) {}
-    var bar = el("theaterBar");
-    if (bar) bar.style.display = "none";
-    var rb = el("btnRestart"), qb = el("btnQuit");
-    if (rb) rb.style.display = "";
-    if (qb) qb.style.display = "";
-    quitToLevels();
-  }
   function paintLeaderboard(box, list, opts) {
     opts = opts || {};
     var u = opts.user || null;
@@ -3525,20 +3397,8 @@
   const cam = { x: 0, y: 0, zoom: 4 };
   const ctx = () => el("view").getContext("2d");
 
-  function theaterHideUI() {
-    try {
-      var bar = el("theaterBar");
-      if (bar) bar.style.display = "none";
-      var rb = el("btnRestart"), qb = el("btnQuit");
-      if (rb) rb.style.display = "";
-      if (qb) qb.style.display = "";
-    } catch (e) {}
-  }
   function beginPlay(entry) {
     if (!entry) return;
-    theater = null;
-    try { ghostPlayback = null; } catch (e) {}
-    theaterHideUI();
     state.currentFile = entry.id ? "net:" + entry.id : entry.file;
     state.currentMeta = entry.meta || null;
     state.engine = new DP.Engine(entry.level.clone(), { skin: save_.data.skin, trail: equippedTrailId() });
@@ -3654,7 +3514,6 @@
 
   function restartLevel() {
     if (!state.engine) return;
-    if (theater) { theaterExit(); return; }
     state.engine.collected = new Set();
     state.engine.pendingCoinGrant = 0;
     if (state.engine.clearCheckpoint) state.engine.clearCheckpoint();
@@ -3709,9 +3568,6 @@
   }
 
   function quitToLevels() {
-    theater = null;
-    try { ghostPlayback = null; } catch (e) {}
-    theaterHideUI();
     if (DP.Music) DP.Music.stop();
     flushPlaytime();
     try { flushHeat(); } catch (e) {}
@@ -4218,13 +4074,12 @@
     }
 
     const pad = padState();
-    if (theater) theaterStep(dt);
-    if (!theater) state.engine.setInput({
+    state.engine.setInput({
         left: bindPressed("left") || !!(pad && pad.left) || state.touch.left,
         right: bindPressed("right") || !!(pad && pad.right) || state.touch.right,
         jump: bindPressed("jump") || !!(pad && pad.jump) || state.touch.jump,
       });
-    if (pad && pad.startEdge && state.screen === "game" && !theater && !el("winCard").classList.contains("visible")) {
+    if (pad && pad.startEdge && state.screen === "game" && !el("winCard").classList.contains("visible")) {
       restartLevel();
     }
     const wasDead = state.engine.dead;
@@ -4232,7 +4087,7 @@
     const wasPad = state.engine.padFlash > 0;
     const wasDash = state.engine.dashFlash > 0;
     const hadCheckpoint = !!state.engine.checkpoint;
-    if (!theater) state.engine.update(dt);
+    state.engine.update(dt);
     if (state.engine.orbFlash > 0 && !wasOrb) haptic("orb");
     if (state.engine.padFlash > 0 && !wasPad) haptic("pad");
     if (state.engine.dashFlash > 0 && !wasDash) haptic("dash");
@@ -4259,7 +4114,7 @@
         }
       }
     }
-    if (state.engine.dead && !wasDead && !theater) {
+    if (state.engine.dead && !wasDead) {
       state.deaths += 1;
       save_.data.deaths += 1;
       try { if (save_.data.attempts[state.currentFile]) save_.data.attempts[state.currentFile].deaths += 1; } catch(e){}
@@ -4270,8 +4125,8 @@
       recordHeatDeath();
       try { tuffLogDeath(); } catch (e) {}
     }
-    if (state.engine.dead && !theater && save_.data.autoRespawn && state.engine.deathTimer > 0.55) respawn();
-    if (state.engine.won && !state.winShown && !theater) {
+    if (state.engine.dead && save_.data.autoRespawn && state.engine.deathTimer > 0.55) respawn();
+    if (state.engine.won && !state.winShown) {
       state.winShown = true;
       haptic("win");
       onWin();
@@ -4279,13 +4134,13 @@
     if (!state.engine.won) state.winShown = false;
 
     followPlayer();
-    if (!state.practice && !theater) { try{ recordGhost(dt); }catch(e){} }
-    if (!theater) { try { tuffSample(); } catch (e) {} } // runs in practice too, so EDIT always has tracking
+    if (!state.practice) { try{ recordGhost(dt); }catch(e){} }
+    try { tuffSample(); } catch (e) {} // runs in practice too, so EDIT always has tracking
     tickShake(dt);
-    if (!theater) trackPlaytime(dt);
+    trackPlaytime(dt);
     setStatusHud();
 
-    if (MP.isActive() && state.engine && !theater) {
+    if (MP.isActive() && state.engine) {
       MP.sendCube({
         x: state.engine.player.x,
         y: state.engine.player.y,
@@ -5499,39 +5354,6 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     const btnDownloadHome = el("btnDownloadHome");
     if (btnDownloadHome) btnDownloadHome.addEventListener("click", () => openModal("modalDownload"));
     el("btnOpenShop").addEventListener("click", () => openModal("modalShop"));
-    el("btnTheaterHome").addEventListener("click", openTheater);
-    el("btnWinReplay").addEventListener("click", function () {
-      var entry = state.netEntry || state.levels[state.current];
-      if (!entry) return;
-      watchEntry(entry, state.netEntry ? null : state.current);
-    });
-    el("btnThPlay").addEventListener("click", function () {
-      if (!theater) return;
-      theater.playing = !theater.playing;
-      if (theater.playing && theater.t >= theater.dur) theater.t = 0;
-      syncTheaterBar();
-    });
-    el("btnThSpeed").addEventListener("click", function () {
-      if (!theater) return;
-      var speeds = [0.5, 1, 2, 4];
-      var i = speeds.indexOf(theater.speed);
-      theater.speed = speeds[(i + 1) % speeds.length] || 1;
-      syncTheaterBar();
-    });
-    el("btnThExit").addEventListener("click", theaterExit);
-    (function () {
-      var sc = el("thScrub");
-      if (sc && !sc.dataset.done) {
-        sc.dataset.done = "1";
-        sc.addEventListener("input", function () {
-          if (!theater) return;
-          theater.t = Math.max(0, Math.min(theater.dur, parseFloat(sc.value) || 0));
-          theaterPose();
-          var lb = el("thTime");
-          if (lb) lb.textContent = fmtTime(theater.t) + " / " + fmtTime(theater.dur);
-        });
-      }
-    })();
     (function initPainter() {
       var pal = el("paintPalette");
       if (pal && !pal.dataset.done) {

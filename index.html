@@ -36,7 +36,6 @@
         <button class="px-btn good" id="btnPlay"><img src="assets/ui/play.png" alt="" /><span>PLAY</span></button>
         <button class="px-btn gold" id="btnSkinsHome"><img src="assets/ui/character.png" alt="" /><span>SKINS</span></button>
         <button class="px-btn net" id="btnNetwork"><img src="assets/ui/net.png" alt="" /><span>NETWORK</span></button>
-        <button class="px-btn gold" id="btnTheaterHome"><img src="assets/ui/play.png" alt="" /><span>THEATER</span></button>
         <button class="px-btn app" id="btnDownloadHome"><img src="assets/ui/icon-192.png" alt="" /><span>DOWNLOAD</span></button>
       </div>
       <button class="lotd hidden" id="lotdCard">
@@ -129,7 +128,6 @@
           <button class="px-btn small" id="btnWinNext">NEXT &#9654;</button>
           <button class="px-btn small gold" id="btnWinShare">SHARE</button>
           <button class="px-btn small gold" id="btnWinEdit">EDIT</button>
-          <button class="px-btn small gold" id="btnWinReplay">REPLAY</button>
         </div>
       </div>
     </div>
@@ -162,27 +160,6 @@
         <button class="px-btn small" data-close="modalSkins">DONE</button>
       </div>
     </div>
-  </div>
-
-  <div class="modal-root" id="modalTheater">
-    <div class="modal">
-      <div class="modal-head">
-        <h2>THEATER</h2>
-      </div>
-      <p class="hint">Watch your saved ghosts. Finish a level to record one.</p>
-      <div id="theaterList"></div>
-      <div class="row-end">
-        <button class="px-btn small" data-close="modalTheater">CLOSE</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="theaterBar" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:12px;z-index:30;gap:8px;align-items:center;background:rgba(0,0,0,0.65);padding:8px 12px;border-radius:10px;max-width:96vw">
-    <button class="px-btn tiny" id="btnThPlay">II</button>
-    <button class="px-btn tiny" id="btnThSpeed">1x</button>
-    <input type="range" id="thScrub" min="0" max="100" step="0.05" value="0" style="flex:1;min-width:80px" />
-    <span class="hint" id="thTime" style="margin:0;white-space:nowrap">0.00s</span>
-    <button class="px-btn tiny" id="btnThExit">EXIT</button>
   </div>
 
   <div class="modal-root" id="modalPaint">
