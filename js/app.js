@@ -637,9 +637,7 @@
   }
 
   const SHOP_PETS = [
-    { id: "wisp", label: "Wisp", cost: 10000, src: "assets/pets/pet-wisp.png" },
-    { id: "chick", label: "Chick", cost: 50000, src: "assets/pets/pet-chick.png" },
-    { id: "bot", label: "Bit Bot", cost: 500000, src: "assets/pets/pet-bot.png" },
+    { id: "ghost", label: "Ghost", cost: 10000, src: "assets/pets/pet-ghost.png" },
     { id: "bat", label: "Bat", cost: 5000000, src: "assets/pets/pet-bat.png" },
   ];
 
@@ -881,6 +879,9 @@
       s.frame = findShopFrame(s.frame) ? s.frame : "";
       s.trails = Array.isArray(s.trails) ? s.trails.filter(function (id) { return !!findShopTrail(id); }) : [];
       s.trail = findShopTrail(s.trail) ? s.trail : "";
+      // migrate: wisp was renamed to ghost; bot/chick were removed
+      if (Array.isArray(s.pets) && s.pets.indexOf("wisp") !== -1 && s.pets.indexOf("ghost") === -1) s.pets.push("ghost");
+      if (s.pet === "wisp") s.pet = "ghost";
       s.pets = Array.isArray(s.pets) ? s.pets.filter(function (id) { return !!findShopPet(id); }) : [];
       s.pet = findShopPet(s.pet) ? s.pet : "";
       s.packs = Array.isArray(s.packs) ? s.packs.filter(function (id) { return !!findShopPack(id); }) : [];
