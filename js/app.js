@@ -2965,6 +2965,7 @@
         if (inp && !inp.value) setTimeout(function () { inp.focus(); }, 50);
       }
     }
+    if (id === "modalDownload") syncInstallUI();
     if (id === "modalSettings") {
       el("setHitbox").checked = !!save_.data.hitboxes;
       el("setFps").checked = !!save_.data.debugFps;
@@ -5064,6 +5065,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     }, { passive: true });
     el("btnPlay").addEventListener("click", () => show("levels"));
     el("btnSkinsHome").addEventListener("click", () => openModal("modalSkins"));
+    const btnDownloadHome = el("btnDownloadHome");
+    if (btnDownloadHome) btnDownloadHome.addEventListener("click", () => openModal("modalDownload"));
     el("btnOpenShop").addEventListener("click", () => openModal("modalShop"));
     el("btnOpenChest").addEventListener("click", () => openModal("modalChest"));
     el("btnOpenWheel").addEventListener("click", () => openModal("modalWheel"));
@@ -5493,7 +5496,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       }
     } catch (e) {}
 
-    // ---- PWA install: mobile Settings -> INSTALL APP ----
+    // ---- PWA install: home DOWNLOAD + Settings INSTALL APP (phone and PC) ----
     var deferredInstallPrompt = null;
     function isMobileDevice() {
       try {
@@ -5502,7 +5505,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
     }
     function isIosDevice() {
-      return /iPhone|iPad|iPod/i.test(navigator.userAgent || "");
+      return /iPhone|iPad|iPod/i.test(navigator.userAgent || "") ||
+        (/Macintosh/i.test(navigator.userAgent || "") && navigator.maxTouchPoints > 1);
     }
     function isAppInstalled() {
       try {
@@ -5510,24 +5514,56 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       } catch (e) {}
       return !!window.navigator.standalone;
     }
+    function installHelpText() {
+      if (isAppInstalled()) return "Installed — launch DashPoint from your home screen or apps list.";
+      if (isIosDevice()) return "On iPhone/iPad: tap Share, then Add to Home Screen.";
+      if (deferredInstallPrompt) return "Tap INSTALL APP to add DashPoint to your phone or PC.";
+      if (isMobileDevice()) return "Open this page in Chrome, then tap INSTALL APP or Chrome menu → Install app.";
+      return "Open this page in Chrome or Edge, then tap INSTALL APP or the install icon in the address bar.";
+    }
     function syncInstallUI() {
-      var sec = el("appSection");
-      if (!sec) return;
-      if (!isMobileDevice()) { sec.style.display = "none"; return; }
-      sec.style.display = "";
-      var btn = el("btnInstallApp"), hint = el("installHint"), ios = el("installIosHint");
       var installed = isAppInstalled();
-      var canPrompt = !!deferredInstallPrompt && !installed;
-      if (btn) btn.style.display = canPrompt ? "" : "none";
-      if (ios) ios.style.display = (!installed && isIosDevice()) ? "" : "none";
-      if (hint) {
-        hint.textContent = installed
-          ? "Installed — launch DashPoint from your home screen."
-          : canPrompt
-            ? "Install DashPoint like an app for fullscreen + offline play."
-            : (isIosDevice()
-              ? "Install DashPoint like an app for fullscreen + offline play."
-              : "App install isn't available in this browser yet — open this page in Chrome (Android) to install.");
+      var showIos = !installed && isIosDevice();
+      var hint = installHelpText();
+      var sec = el("appSection");
+      if (sec) sec.style.display = "";
+      var btn = el("btnInstallApp");
+      if (btn) btn.style.display = installed ? "none" : "";
+      var ios = el("installIosHint");
+      if (ios) ios.style.display = showIos ? "" : "none";
+      var installHint = el("installHint");
+      if (installHint) installHint.textContent = hint;
+      var downBtn = el("btnDownloadInstall");
+      if (downBtn) downBtn.style.display = installed ? "none" : "";
+      var downIos = el("downloadIosHint");
+      if (downIos) downIos.style.display = showIos ? "" : "none";
+      var downHint = el("downloadHint");
+      if (downHint) downHint.textContent = hint;
+      var homeBtn = el("btnDownloadHome");
+      if (homeBtn) homeBtn.style.display = installed ? "none" : "";
+    }
+    function promptInstall() {
+      var p = deferredInstallPrompt;
+      if (!p) {
+        syncInstallUI();
+        try { showNotice(installHelpText()); } catch (e) {}
+        return;
+      }
+      deferredInstallPrompt = null;
+      syncInstallUI();
+      try {
+        var pr = p.prompt();
+        var done = function () { deferredInstallPrompt = null; syncInstallUI(); };
+        if (pr && typeof pr.then === "function") {
+          pr.then(function () {
+            if (p.userChoice && typeof p.userChoice.then === "function") {
+              p.userChoice.then(function () { done(); }, function () { done(); });
+            } else done();
+          }, function () { done(); });
+        } else done();
+      } catch (e) {
+        deferredInstallPrompt = p;
+        syncInstallUI();
       }
     }
     window.addEventListener("beforeinstallprompt", function (ev) {
@@ -5537,7 +5573,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     });
     window.addEventListener("appinstalled", function () {
       deferredInstallPrompt = null;
-      try { showNotice("DashPoint installed — find it on your home screen"); } catch (e) {}
+      try { showNotice("DashPoint installed — find it on your home screen or apps list"); } catch (e) {}
       syncInstallUI();
     });
     try {
@@ -5545,30 +5581,10 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       if (dmm && dmm.addEventListener) dmm.addEventListener("change", syncInstallUI);
       else if (dmm && dmm.addListener) dmm.addListener(syncInstallUI);
     } catch (e) {}
-    (function () {
-      var bi = el("btnInstallApp");
-      if (!bi) return;
-      bi.addEventListener("click", function () {
-        var p = deferredInstallPrompt;
-        if (!p) { syncInstallUI(); return; }
-        deferredInstallPrompt = null;
-        syncInstallUI();
-        try {
-          var pr = p.prompt();
-          var done = function () { deferredInstallPrompt = null; syncInstallUI(); };
-          if (pr && typeof pr.then === "function") {
-            pr.then(function () {
-              if (p.userChoice && typeof p.userChoice.then === "function") {
-                p.userChoice.then(function () { done(); }, function () { done(); });
-              } else done();
-            }, function () { done(); });
-          } else done();
-        } catch (e) {
-          deferredInstallPrompt = p;
-          syncInstallUI();
-        }
-      });
-    })();
+    ["btnInstallApp", "btnDownloadInstall"].forEach(function (id) {
+      var b = el(id);
+      if (b) b.addEventListener("click", promptInstall);
+    });
     syncInstallUI();
   }
 

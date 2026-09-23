@@ -36,6 +36,7 @@
         <button class="px-btn good" id="btnPlay"><img src="assets/ui/play.png" alt="" /><span>PLAY</span></button>
         <button class="px-btn gold" id="btnSkinsHome"><img src="assets/ui/character.png" alt="" /><span>SKINS</span></button>
         <button class="px-btn net" id="btnNetwork"><img src="assets/ui/net.png" alt="" /><span>NETWORK</span></button>
+        <button class="px-btn app" id="btnDownloadHome"><img src="assets/ui/icon-192.png" alt="" /><span>DOWNLOAD</span></button>
       </div>
       <button class="lotd hidden" id="lotdCard">
         <span class="lotd-kicker">★ LEVEL OF THE DAY</span>
@@ -352,6 +353,23 @@
     </div>
   </div>
 
+  <div class="modal-root" id="modalDownload">
+    <div class="modal">
+      <h2>DOWNLOAD</h2>
+      <p class="hint">Install DashPoint on your phone or PC. It gets its own icon, opens fullscreen, and works offline.</p>
+      <div class="row-gap">
+        <button class="px-btn good" id="btnDownloadInstall">INSTALL APP</button>
+      </div>
+      <p class="hint" id="downloadHint">Tap INSTALL APP when your browser is ready. Chrome and Edge work on Android and PC.</p>
+      <div class="section-title">PHONE</div>
+      <p class="hint">Android (Chrome): tap INSTALL APP, or Chrome menu → Install app.</p>
+      <p class="hint" id="downloadIosHint">iPhone / iPad: tap Share, then Add to Home Screen.</p>
+      <div class="section-title">PC</div>
+      <p class="hint">Chrome or Edge: tap INSTALL APP, or the install icon in the address bar. Menu → Install DashPoint also works.</p>
+      <div class="row-end"><button class="px-btn small" data-close="modalDownload">BACK</button></div>
+    </div>
+  </div>
+
   <div class="modal-root" id="modalSettings">
     <div class="modal">
       <h2>SETTINGS</h2>
@@ -392,9 +410,9 @@
       <input type="range" id="tcRy" min="0" max="200" step="2" value="14" />
       <div class="row-end"><button class="px-btn small" id="btnTouchReset">RESET BUTTONS</button></div>
       <p class="hint">Move and resize the on-screen buttons (mobile). Changes apply instantly.</p>
-      <div id="appSection" style="display:none">
+      <div id="appSection">
         <div class="section-title">APP</div>
-        <p class="hint" id="installHint">Install DashPoint like an app for fullscreen + offline play.</p>
+        <p class="hint" id="installHint">Install DashPoint like an app on your phone or PC for fullscreen + offline play.</p>
         <div class="row-gap">
           <button class="px-btn small good" id="btnInstallApp">INSTALL APP</button>
         </div>

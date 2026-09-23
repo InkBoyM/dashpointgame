@@ -972,6 +972,8 @@ body.gfx-ultra canvas { image-rendering: auto; }
 
 /* ---------- DASHPOINT NETWORK ---------- */
 .px-btn.net { border-color: #6e1c2c; color: #ff8ba0; background: #241017; }
+.px-btn.app { border-color: #146a78; color: #9af4ff; background: #102832; }
+.px-btn.app img { image-rendering: auto; }
 .home-fab-row {
   display: flex;
   flex-direction: row;
