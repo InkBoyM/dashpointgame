@@ -130,6 +130,23 @@
   const SKINS = window.DashPointSkins || [];
   const SKIN_BY_ID = {};
   for (const s of SKINS) SKIN_BY_ID[s.id] = s;
+  // Skin ids can be numbers (roster) or strings (e.g. "custom" painted skin).
+  // Old code coerced with |0 which turned every custom id into Cube (id 1).
+  function validSkinId(id) {
+    if (id === undefined || id === null || id === "") return 1;
+    if (SKIN_BY_ID[id]) return SKIN_BY_ID[id].id;
+    const n = Number(id);
+    if (Number.isInteger(n)) {
+      const c = Math.max(1, Math.min(SKINS.length, n));
+      if (SKIN_BY_ID[c]) return SKIN_BY_ID[c].id;
+    }
+    return 1;
+  }
+  function registerSkin(def) {
+    if (!def || def.id === undefined || def.id === null) return null;
+    SKIN_BY_ID[def.id] = def;
+    return def;
+  }
 
   // Draws a skin at (dx, dy, size). Animated skins provide anim:{src,frames,fps}
   // as a horizontal strip; menus keep using the static src. Returns true if drawn.
@@ -1864,7 +1881,7 @@
   class Engine {
     constructor(level, opts) {
       this.source = level;
-      this.skin = clamp((opts && opts.skin) | 0, 1, Math.max(1, SKINS.length));
+      this.skin = validSkinId(opts && opts.skin);
       this.trail = (opts && opts.trail) || "";
       if (!TRAILS[this.trail]) this.trail = "";
       this.trailParts = [];
@@ -4374,7 +4391,7 @@
     if (extras.remoteCubes && extras.remoteCubes.length) {
       ctx.imageSmoothingEnabled = false;
       for (const rc of extras.remoteCubes) {
-        const rSkinId = clamp((rc.skin | 0) || 1, 1, Math.max(1, SKINS.length));
+        const rSkinId = validSkinId(rc.skin);
         const rdx = Math.round(rc.x + PLAYER_W / 2 - TILE / 2);
         const rdy = Math.round(rc.y + PLAYER_H - TILE);
         ctx.save();
@@ -4421,7 +4438,7 @@
     if (engine) {
       ctx.imageSmoothingEnabled = false;
       const p = engine.player;
-      const skinId = clamp((engine.skin | 0) || (extras.skin | 0) || 1, 1, Math.max(1, SKINS.length));
+      const skinId = validSkinId(engine.skin || (extras.skin || 1));
       const dx = Math.round(p.x + p.w / 2 - TILE / 2);
       const dy = Math.round(p.y + p.h - TILE);
       if (fx.shadows && gfx !== "simple" && p.onGround && !engine.dead && !engine.won) {
@@ -4643,5 +4660,7 @@
     PLAYER_H,
     TRAILS,
     matchesBind,
+    validSkinId,
+    registerSkin,
   };
 })(window);

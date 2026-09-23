@@ -2476,6 +2476,9 @@
       // code-type lock: checkUnlocks() skips code skins, so the slot can
       // never auto-unlock — only the 1T purchase grants it
       else SKINS.push({ id: CUSTOM_SKIN_ID, name: "Custom", src: url, unlock: { type: "code" } });
+      try {
+        if (typeof DP !== "undefined" && DP.registerSkin) DP.registerSkin({ id: CUSTOM_SKIN_ID, name: "Custom", src: url });
+      } catch (e) {}
       if (!state.images || !state.images.skins) return;
       var cur = state.images.skins[CUSTOM_SKIN_ID];
       if (cur && cur.src === url) return;
