@@ -2358,7 +2358,19 @@
       customSec.innerHTML = '<div class="skin-section-title">CUSTOM <span class="line"></span></div>';
       var cg = document.createElement("div"); cg.className = "skin-grid";
       cg.appendChild(makeCustomTile());
-      customSec.appendChild(cg); grid.appendChild(customSec);
+      customSec.appendChild(cg);
+      if (isUnlocked(CUSTOM_SKIN_ID)) {
+        var pb = document.createElement("button");
+        pb.className = "px-btn small gold";
+        pb.textContent = "PAINT YOUR SKIN";
+        pb.addEventListener("click", openPaint);
+        var prow = document.createElement("div");
+        prow.className = "row-gap";
+        prow.style.marginTop = "8px";
+        prow.appendChild(pb);
+        customSec.appendChild(prow);
+      }
+      grid.appendChild(customSec);
     } catch (e) {}
     const title = document.querySelector("#modalSkins h2");
     if (title && !title.dataset.bob) {
@@ -2500,7 +2512,7 @@
     b.className = "skin-tile" + (owned ? "" : " locked") + (equipped ? " selected" : "");
     var hint, inner;
     if (owned) {
-      hint = equipped ? "EQUIPPED" : "TAP TO PAINT";
+      hint = equipped ? "EQUIPPED" : "TAP TO EQUIP";
       inner = art ? '<img src="' + art + '" alt="" />' : '<span class="skin-name">?</span>';
     } else {
       var can = hasCoins(coinAmount(CUSTOM_SLOT_COST));
@@ -2533,7 +2545,11 @@
         openPaint();
         return;
       }
-      openPaint();
+      // owned: tap equips like every other skin (paint via the button below)
+      save_.data.skin = CUSTOM_SKIN_ID;
+      save();
+      renderSkins();
+      syncHomeStats();
     });
     return b;
   }
