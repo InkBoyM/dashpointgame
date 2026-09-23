@@ -2353,6 +2353,13 @@
     const grid = el("skinGrid");
     grid.innerHTML = "";
     grid.className = "skin-tree";
+    try {
+      var customSec = document.createElement("div"); customSec.className = "skin-section";
+      customSec.innerHTML = '<div class="skin-section-title">CUSTOM <span class="line"></span></div>';
+      var cg = document.createElement("div"); cg.className = "skin-grid";
+      cg.appendChild(makeCustomTile());
+      customSec.appendChild(cg); grid.appendChild(customSec);
+    } catch (e) {}
     const title = document.querySelector("#modalSkins h2");
     if (title && !title.dataset.bob) {
       title.dataset.bob = "1";
@@ -2450,6 +2457,266 @@
     syncCoinUI();
   }
 
+  // ---- Custom skin slot: 1T coins, then paint your own 16x16 cube ----
+  var CUSTOM_SKIN_ID = "custom";
+  var CUSTOM_SLOT_COST = "1000000000000";
+  var customBuyArm = 0;
+  function customSkinEntry() {
+    for (var i = 0; i < SKINS.length; i++) {
+      if (SKINS[i].id === CUSTOM_SKIN_ID) return SKINS[i];
+    }
+    return null;
+  }
+  function ensureCustomSkin() {
+    try {
+      var url = save_.data.customSkin;
+      if (!url) return;
+      var ex = customSkinEntry();
+      if (ex) ex.src = url;
+      // code-type lock: checkUnlocks() skips code skins, so the slot can
+      // never auto-unlock — only the 1T purchase grants it
+      else SKINS.push({ id: CUSTOM_SKIN_ID, name: "Custom", src: url, unlock: { type: "code" } });
+      if (!state.images || !state.images.skins) return;
+      var cur = state.images.skins[CUSTOM_SKIN_ID];
+      if (cur && cur.src === url) return;
+      var img = new Image();
+      img.onload = function () {
+        try {
+          state.images.skins[CUSTOM_SKIN_ID] = img;
+          if (el("modalSkins").classList.contains("visible")) renderSkins();
+        } catch (e) {}
+      };
+      img.src = url;
+    } catch (e) {}
+  }
+  function makeCustomTile() {
+    var owned = isUnlocked(CUSTOM_SKIN_ID);
+    var art = save_.data.customSkin;
+    var b = document.createElement("button");
+    var equipped = save_.data.skin === CUSTOM_SKIN_ID;
+    b.className = "skin-tile" + (owned ? "" : " locked") + (equipped ? " selected" : "");
+    var hint, inner;
+    if (owned) {
+      hint = equipped ? "EQUIPPED" : "TAP TO PAINT";
+      inner = art ? '<img src="' + art + '" alt="" />' : '<span class="skin-name">?</span>';
+    } else {
+      var can = hasCoins(coinAmount(CUSTOM_SLOT_COST));
+      hint = can ? "TAP TO BUY THE SLOT" : "NEED " + fmtCoins(CUSTOM_SLOT_COST);
+      if (!can) b.classList.add("cant");
+      inner = '<span class="skin-name">?</span>';
+    }
+    b.innerHTML = inner + '<span class="skin-name">Custom slot</span>' +
+      '<span class="shop-cost">' + coinIcon() + fmtCoins(CUSTOM_SLOT_COST) + "</span>" +
+      '<span class="skin-hint">' + escapeHtml(hint) + "</span>";
+    b.addEventListener("click", function () {
+      if (!isUnlocked(CUSTOM_SKIN_ID)) {
+        if (!hasCoins(coinAmount(CUSTOM_SLOT_COST))) {
+          showNotice("Need " + fmtCoins(CUSTOM_SLOT_COST) + " coins", true);
+          return;
+        }
+        var now = Date.now();
+        if (now - customBuyArm > 3000) {
+          customBuyArm = now;
+          showNotice("Tap again to unlock the custom slot for " + fmtCoins(CUSTOM_SLOT_COST), false);
+          return;
+        }
+        customBuyArm = 0;
+        subCoins(coinAmount(CUSTOM_SLOT_COST));
+        save_.data.unlocked.push(CUSTOM_SKIN_ID);
+        save();
+        syncCoinUI();
+        syncHomeStats();
+        renderSkins();
+        openPaint();
+        return;
+      }
+      openPaint();
+    });
+    return b;
+  }
+  // ---- Pixel painter (16x16) ----
+  var PAINT_N = 16;
+  var paintGrid = [];
+  var paintColor = "#ff2a3c";
+  var paintTool = "brush";
+  var paintMirror = false;
+  var paintUndo = [];
+  var paintPainting = false;
+  var PAINT_SWATCHES = ["#000000", "#ffffff", "#ff2a3c", "#ff9d2e", "#ffd23c", "#3ee07a",
+    "#2ee6ff", "#2e7bff", "#b45cff", "#ff6bff", "#8a5a2b", "#9db4d8"];
+  function paintBlank() {
+    paintGrid = [];
+    for (var y = 0; y < PAINT_N; y++) {
+      paintGrid.push([]);
+      for (var x = 0; x < PAINT_N; x++) paintGrid[y].push(null);
+    }
+  }
+  function paintPushUndo() {
+    try {
+      paintUndo.push(JSON.stringify(paintGrid));
+      if (paintUndo.length > 40) paintUndo.shift();
+    } catch (e) {}
+  }
+  function paintCellFromEvent(ev) {
+    var cv = el("paintGrid");
+    if (!cv) return null;
+    var r = cv.getBoundingClientRect();
+    var px = (ev.clientX !== undefined ? ev.clientX : (ev.touches && ev.touches[0] ? ev.touches[0].clientX : 0)) - r.left;
+    var py = (ev.clientY !== undefined ? ev.clientY : (ev.touches && ev.touches[0] ? ev.touches[0].clientY : 0)) - r.top;
+    var x = Math.floor(px / r.width * PAINT_N), y = Math.floor(py / r.height * PAINT_N);
+    if (x < 0 || y < 0 || x >= PAINT_N || y >= PAINT_N) return null;
+    return { x: x, y: y };
+  }
+  function paintApply(x, y) {
+    if (paintTool === "brush") {
+      paintGrid[y][x] = paintColor;
+      if (paintMirror) paintGrid[y][PAINT_N - 1 - x] = paintColor;
+    } else if (paintTool === "eraser") {
+      paintGrid[y][x] = null;
+      if (paintMirror) paintGrid[y][PAINT_N - 1 - x] = null;
+    } else if (paintTool === "fill") {
+      paintFlood(x, y, paintColor);
+    } else if (paintTool === "picker") {
+      var c = paintGrid[y][x];
+      if (c) {
+        paintColor = c;
+        var inp = el("paintColor");
+        if (inp) inp.value = c;
+      }
+    }
+  }
+  function paintFlood(x, y, color) {
+    var target = paintGrid[y][x];
+    if (target === color) return;
+    var stack = [[x, y]];
+    var seen = {};
+    var guard = PAINT_N * PAINT_N * 4 + 10;
+    while (stack.length && guard-- > 0) {
+      var p = stack.pop();
+      var cx = p[0], cy = p[1];
+      if (cx < 0 || cy < 0 || cx >= PAINT_N || cy >= PAINT_N) continue;
+      var k = cy * PAINT_N + cx;
+      if (seen[k]) continue;
+      seen[k] = 1;
+      if (paintGrid[cy][cx] !== target) continue;
+      paintGrid[cy][cx] = color;
+      stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+    }
+    if (paintMirror) {
+      for (var yy = 0; yy < PAINT_N; yy++) {
+        for (var xx = 0; xx < PAINT_N / 2; xx++) paintGrid[yy][PAINT_N - 1 - xx] = paintGrid[yy][xx];
+      }
+    }
+  }
+  function paintRender() {
+    var cv = el("paintGrid");
+    if (!cv) return;
+    var ctx = cv.getContext("2d");
+    if (!ctx) return;
+    var cell = cv.width / PAINT_N;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    for (var y = 0; y < PAINT_N; y++) {
+      for (var x = 0; x < PAINT_N; x++) {
+        if ((x + y) % 2 === 0) { ctx.fillStyle = "#2a2f3a"; }
+        else { ctx.fillStyle = "#22262f"; }
+        ctx.fillRect(x * cell, y * cell, cell, cell);
+        var c = paintGrid[y] && paintGrid[y][x];
+        if (c) { ctx.fillStyle = c; ctx.fillRect(x * cell, y * cell, cell, cell); }
+      }
+    }
+    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.lineWidth = 1;
+    for (var i = 1; i < PAINT_N; i++) {
+      ctx.beginPath(); ctx.moveTo(i * cell, 0); ctx.lineTo(i * cell, cv.height); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, i * cell); ctx.lineTo(cv.width, i * cell); ctx.stroke();
+    }
+    var pv = el("paintPreview");
+    if (pv) {
+      var pctx = pv.getContext("2d");
+      if (pctx) {
+        pctx.imageSmoothingEnabled = false;
+        pctx.clearRect(0, 0, pv.width, pv.height);
+        pctx.drawImage(cv, 0, 0, pv.width, pv.height);
+      }
+    }
+  }
+  function paintSyncTools() {
+    try {
+      var btns = document.querySelectorAll("[data-ptool]");
+      for (var i = 0; i < btns.length; i++) {
+        btns[i].classList.toggle("prize", btns[i].getAttribute("data-ptool") === paintTool);
+      }
+      var m = el("btnPaintMirror");
+      if (m) m.textContent = paintMirror ? "MIRROR: ON" : "MIRROR: OFF";
+    } catch (e) {}
+  }
+  function paintLoadFromSave() {
+    paintBlank();
+    paintUndo = [];
+    var url = save_.data.customSkin;
+    if (!url) { paintRender(); return; }
+    try {
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var off = document.createElement("canvas");
+          off.width = PAINT_N; off.height = PAINT_N;
+          var octx = off.getContext("2d");
+          octx.clearRect(0, 0, PAINT_N, PAINT_N);
+          octx.drawImage(img, 0, 0, PAINT_N, PAINT_N);
+          var d = octx.getImageData(0, 0, PAINT_N, PAINT_N).data;
+          for (var y = 0; y < PAINT_N; y++) {
+            for (var x = 0; x < PAINT_N; x++) {
+              var k = (y * PAINT_N + x) * 4;
+              if (d[k + 3] < 128) { paintGrid[y][x] = null; continue; }
+              var r = d[k], g = d[k + 1], b = d[k + 2];
+              paintGrid[y][x] = "#" + (r < 16 ? "0" : "") + r.toString(16) + (g < 16 ? "0" : "") + g.toString(16) + (b < 16 ? "0" : "") + b.toString(16);
+            }
+          }
+          paintRender();
+        } catch (e) {}
+      };
+      img.src = url;
+    } catch (e) {}
+    paintRender();
+  }
+  function openPaint() {
+    paintLoadFromSave();
+    paintSyncTools();
+    openModal("modalPaint");
+    setTimeout(paintRender, 50);
+  }
+  function paintSave() {
+    try {
+      var off = document.createElement("canvas");
+      off.width = PAINT_N; off.height = PAINT_N;
+      var octx = off.getContext("2d");
+      octx.clearRect(0, 0, PAINT_N, PAINT_N);
+      for (var y = 0; y < PAINT_N; y++) {
+        for (var x = 0; x < PAINT_N; x++) {
+          var c = paintGrid[y] && paintGrid[y][x];
+          if (!c) continue;
+          octx.fillStyle = c;
+          octx.fillRect(x, y, 1, 1);
+        }
+      }
+      var url = off.toDataURL("image/png");
+      if (!url || url.length > 200000) {
+        showNotice("Couldn't save that painting", true);
+        return;
+      }
+      save_.data.customSkin = url;
+      if (!isUnlocked(CUSTOM_SKIN_ID)) save_.data.unlocked.push(CUSTOM_SKIN_ID);
+      save_.data.skin = CUSTOM_SKIN_ID;
+      save();
+      ensureCustomSkin();
+      renderSkins();
+      syncHomeStats();
+      showNotice("Custom skin saved & equipped!", false);
+    } catch (e) {
+      showNotice("Couldn't save that painting", true);
+    }
+  }
   function renderShop() {
     const box = el("shopGrid");
     if (!box) return;
@@ -5068,6 +5335,94 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     const btnDownloadHome = el("btnDownloadHome");
     if (btnDownloadHome) btnDownloadHome.addEventListener("click", () => openModal("modalDownload"));
     el("btnOpenShop").addEventListener("click", () => openModal("modalShop"));
+    (function initPainter() {
+      var pal = el("paintPalette");
+      if (pal && !pal.dataset.done) {
+        pal.dataset.done = "1";
+        PAINT_SWATCHES.forEach(function (c) {
+          var s = document.createElement("button");
+          s.className = "px-btn tiny";
+          s.style.background = c;
+          s.style.minWidth = "28px";
+          s.textContent = " ";
+          s.setAttribute("aria-label", "color " + c);
+          s.addEventListener("click", function () {
+            paintColor = c;
+            var inp = el("paintColor");
+            if (inp) inp.value = c;
+          });
+          pal.appendChild(s);
+        });
+      }
+      var cv = el("paintGrid");
+      if (cv && !cv.dataset.done) {
+        cv.dataset.done = "1";
+        cv.addEventListener("pointerdown", function (ev) {
+          ev.preventDefault();
+          var cell = paintCellFromEvent(ev);
+          if (!cell) return;
+          paintPushUndo();
+          paintPainting = true;
+          paintApply(cell.x, cell.y);
+          paintRender();
+          try { cv.setPointerCapture(ev.pointerId); } catch (e) {}
+        });
+        cv.addEventListener("pointermove", function (ev) {
+          if (!paintPainting || paintTool === "fill" || paintTool === "picker") return;
+          ev.preventDefault();
+          var cell = paintCellFromEvent(ev);
+          if (!cell) return;
+          paintApply(cell.x, cell.y);
+          paintRender();
+        });
+        const endStroke = function () { paintPainting = false; };
+        cv.addEventListener("pointerup", endStroke);
+        cv.addEventListener("pointercancel", endStroke);
+        cv.addEventListener("contextmenu", function (ev) { ev.preventDefault(); });
+      }
+      var tools = document.querySelectorAll("[data-ptool]");
+      for (var i = 0; i < tools.length; i++) {
+        (function (btn) {
+          if (btn.dataset.done) return;
+          btn.dataset.done = "1";
+          btn.addEventListener("click", function () {
+            paintTool = btn.getAttribute("data-ptool");
+            paintSyncTools();
+          });
+        })(tools[i]);
+      }
+      var ci = el("paintColor");
+      if (ci && !ci.dataset.done) {
+        ci.dataset.done = "1";
+        ci.addEventListener("input", function () { paintColor = ci.value || paintColor; });
+      }
+      var mb = el("btnPaintMirror");
+      if (mb && !mb.dataset.done) {
+        mb.dataset.done = "1";
+        mb.addEventListener("click", function () { paintMirror = !paintMirror; paintSyncTools(); });
+      }
+      var ub = el("btnPaintUndo");
+      if (ub && !ub.dataset.done) {
+        ub.dataset.done = "1";
+        ub.addEventListener("click", function () {
+          try {
+            var prev = paintUndo.pop();
+            if (prev) paintGrid = JSON.parse(prev);
+            paintRender();
+          } catch (e) {}
+        });
+      }
+      var cb = el("btnPaintClear");
+      if (cb && !cb.dataset.done) {
+        cb.dataset.done = "1";
+        cb.addEventListener("click", function () { paintPushUndo(); paintBlank(); paintRender(); });
+      }
+      var sb = el("btnPaintSave");
+      if (sb && !sb.dataset.done) {
+        sb.dataset.done = "1";
+        sb.addEventListener("click", paintSave);
+      }
+    })();
     el("btnOpenChest").addEventListener("click", () => openModal("modalChest"));
     el("btnOpenWheel").addEventListener("click", () => openModal("modalWheel"));
     el("btnWheelSpin").addEventListener("click", spinWheel);
@@ -5468,6 +5823,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     DP.loadAssets()
       .then((images) => {
         state.images = images;
+        ensureCustomSkin();
         loadLevels();
       })
       .catch((err) => {

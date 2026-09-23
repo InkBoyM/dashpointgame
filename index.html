@@ -162,6 +162,34 @@
     </div>
   </div>
 
+  <div class="modal-root" id="modalPaint">
+    <div class="modal">
+      <div class="modal-head">
+        <h2>SKIN PAINTER</h2>
+      </div>
+      <p class="hint">16×16 pixels. Click or drag to paint. Erased pixels stay see-through.</p>
+      <div class="row-gap" style="align-items:flex-start">
+        <canvas id="paintGrid" width="256" height="256" style="width:100%;max-width:300px;aspect-ratio:1;image-rendering:pixelated;touch-action:none;cursor:crosshair"></canvas>
+        <canvas id="paintPreview" width="64" height="64" title="preview" style="width:64px;height:64px;image-rendering:pixelated"></canvas>
+      </div>
+      <div class="row-gap" id="paintPalette" style="margin-top:8px"></div>
+      <div class="row-gap" style="margin-top:8px">
+        <input type="color" id="paintColor" value="#ff2a3c" title="custom color" />
+        <button class="px-btn small" data-ptool="brush">BRUSH</button>
+        <button class="px-btn small" data-ptool="eraser">ERASER</button>
+        <button class="px-btn small" data-ptool="fill">FILL</button>
+        <button class="px-btn small" data-ptool="picker">PICK</button>
+        <button class="px-btn small" id="btnPaintMirror">MIRROR: OFF</button>
+        <button class="px-btn small" id="btnPaintUndo">UNDO</button>
+        <button class="px-btn small" id="btnPaintClear">CLEAR</button>
+      </div>
+      <div class="row-end" style="margin-top:8px">
+        <button class="px-btn small good" id="btnPaintSave">SAVE &amp; EQUIP</button>
+        <button class="px-btn small" data-close="modalPaint">CLOSE</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-root" id="modalWheel">
     <div class="modal">
       <div class="modal-head">
