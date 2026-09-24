@@ -461,17 +461,27 @@ window.DPNet = (function () {
       const h = cleanHandle(obj && obj[id]);
       if (h) clean[id] = h;
     }
-    const custom = cleanCustomUrl(obj && obj.custom);
+    // up to 5 custom websites (accept legacy single string too)
+    let customs = [];
+    try {
+      const raw = obj && obj.custom !== undefined ? obj.custom : obj.customLinks;
+      const list = Array.isArray(raw) ? raw : [raw];
+      for (const v of list) {
+        const c = cleanCustomUrl(v);
+        if (c && customs.indexOf(c) === -1) customs.push(c);
+        if (customs.length >= 5) break;
+      }
+    } catch (e) { customs = []; }
     await patchJSON("/dashpoint/usersIndex/" + u.uid, {
       socials: clean,
-      socialLink: { url: custom },
+      socialLinks: customs,
       lastSeen: Date.now(),
     });
     if (user && user.uid === u.uid) {
       user.socials = clean;
-      user.socialLink = { url: custom };
+      user.socialLinks = customs.slice();
     }
-    return { socials: clean, custom: custom };
+    return { socials: clean, customs: customs };
   }
 
   async function updateUsername(name) {    const u = getEffectiveUser() || getUser();

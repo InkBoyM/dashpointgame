@@ -5491,6 +5491,17 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     if (!s) return "";
     return /^[a-z][a-z0-9+.-]*:\/\//i.test(String(url || "")) ? String(url).trim() : "https://" + s;
   }
+  // up to 5 custom sites; reads the array form, falls back to the legacy
+  // single socialLink.url saved by older versions
+  function customLinkList(u) {
+    try {
+      if (u && Array.isArray(u.socialLinks)) {
+        return u.socialLinks.map(function (v) { return cleanCustomUrl(v); }).filter(function (v, i, a) { return !!v && a.indexOf(v) === i; }).slice(0, 5);
+      }
+      var one = cleanCustomUrl(u && u.socialLink && u.socialLink.url);
+      return one ? [one] : [];
+    } catch (e) { return []; }
+  }
   function socialUrl(def, handle) {
     try {
       if (!def || !def.url || !handle) return "";
@@ -5522,24 +5533,28 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       row.appendChild(inp);
       box.appendChild(row);
     });
-    var crow = document.createElement("div");
-    crow.className = "row-gap";
-    crow.style.alignItems = "center";
-    var cimg = document.createElement("img");
-    cimg.src = "assets/social/social-globe.png";
-    cimg.alt = "Website";
-    cimg.style.width = "24px";
-    cimg.style.height = "24px";
-    cimg.style.imageRendering = "pixelated";
-    var cinp = document.createElement("input");
-    cinp.className = "px-input";
-    cinp.id = "soc-custom";
-    cinp.maxLength = 128;
-    cinp.placeholder = "yourwebsite.com";
-    cinp.style.flex = "1";
-    crow.appendChild(cimg);
-    crow.appendChild(cinp);
-    box.appendChild(crow);
+    for (var ci = 0; ci < 5; ci++) {
+      (function (idx) {
+        var crow = document.createElement("div");
+        crow.className = "row-gap";
+        crow.style.alignItems = "center";
+        var cimg = document.createElement("img");
+        cimg.src = "assets/social/social-globe.png";
+        cimg.alt = "Website";
+        cimg.style.width = "24px";
+        cimg.style.height = "24px";
+        cimg.style.imageRendering = "pixelated";
+        var cinp = document.createElement("input");
+        cinp.className = "px-input";
+        cinp.id = "soc-custom-" + idx;
+        cinp.maxLength = 128;
+        cinp.placeholder = "website " + (idx + 1) + " (optional)";
+        cinp.style.flex = "1";
+        crow.appendChild(cimg);
+        crow.appendChild(cinp);
+        box.appendChild(crow);
+      })(ci);
+    }
   }
   function prefillSocials() {
     try {
@@ -5555,9 +5570,17 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
             const inp = el("soc-" + s.id);
             if (inp && !inp.value && cur[s.id]) inp.value = String(cur[s.id]).slice(0, 32);
           });
-          const curl = (p && p.socialLink && p.socialLink.url) || (me && me.socialLink && me.socialLink.url) || "";
-          const cinp = el("soc-custom");
-          if (cinp && !cinp.value && curl) cinp.value = String(curl).slice(0, 128);
+          var curl = customLinkList(p);
+          if (!curl.length) {
+            try {
+              var me2 = (MP.getUser && MP.getUser()) || null;
+              curl = customLinkList(me2);
+            } catch (e) {}
+          }
+          for (var qi = 0; qi < 5; qi++) {
+            const cinp = el("soc-custom-" + qi);
+            if (cinp && !cinp.value && curl[qi]) cinp.value = curl[qi];
+          }
         } catch (e) {}
       }).catch(function () {});
     } catch (e) {}
@@ -5605,8 +5628,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       });
       box.style.display = n ? "" : "none";
       try {
-        const curl = cleanCustomUrl((u && u.socialLink && u.socialLink.url) || "");
-        if (curl) {
+        const curls = customLinkList(u);
+        for (const curl of curls) {
           n++;
           const fav = faviconUrl(curl);
           const href = linkHref(curl);
@@ -6498,8 +6521,13 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
           const inp = el("soc-" + s.id);
           obj[s.id] = cleanSocialHandle(inp ? inp.value : "");
         });
-        const cinp = el("soc-custom");
-        obj.custom = cleanCustomUrl(cinp ? cinp.value : "");
+        const customs = [];
+        for (var qi = 0; qi < 5; qi++) {
+          const cinp = el("soc-custom-" + qi);
+          const c = cleanCustomUrl(cinp ? cinp.value : "");
+          if (c && customs.indexOf(c) === -1) customs.push(c);
+        }
+        obj.custom = customs;
         await NET.updateSocials(obj);
         profileMsg("Socials saved");
       } catch (e) { profileMsg(e.message || String(e)); }
