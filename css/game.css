@@ -1121,7 +1121,9 @@ body.gfx-ultra canvas { image-rendering: auto; }
   width: min(720px, calc(100vw - 32px));
   margin: 16px auto 12px;
 }
-.net-search-head .chips { display: flex; gap: 6px; }
+.net-search-head .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.prof-public { display: flex; align-items: center; gap: 6px; margin: 0; cursor: pointer; user-select: none; }
+.prof-public input { width: 16px; height: 16px; accent-color: var(--good); }
 .chip {
   padding: 6px 12px;
   font-family: var(--font);

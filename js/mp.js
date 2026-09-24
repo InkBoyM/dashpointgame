@@ -33,6 +33,7 @@ window.DashPointMP = (function () {
   let cbs = {};
   let myTag = "";
   let myNameColor = "";
+  let isPublic = false;
 
   function guestStoredName() {
     try {
@@ -110,6 +111,13 @@ window.DashPointMP = (function () {
     stopHeartbeat();
     heartbeatTimer = setInterval(() => {
       if (meRef) meRef.update({ ts: Date.now() }).catch(() => {});
+      if (isPublic && slot === "host" && code && db) {
+        db.ref("dashpoint/publicRooms/" + code).update({
+          ts: Date.now(),
+          players: playerCount(),
+          hostName: (user && user.name) || "player",
+        }).catch(() => {});
+      }
     }, HEARTBEAT_MS);
   }
 
@@ -165,9 +173,64 @@ window.DashPointMP = (function () {
     watchingName = "";
     chatSentTs = 0;
     lastSentChatText = "";
+    isPublic = false;
   }
 
-  async function host() {
+  async function publishPublicListing() {
+    if (!isPublic || !code || !db) return;
+    const pubRef = db.ref("dashpoint/publicRooms/" + code);
+    await pubRef.set({
+      code: code,
+      hostName: (user && user.name) || "player",
+      hostUid: (user && user.uid) || "",
+      players: playerCount(),
+      max: MAX_PLAYERS,
+      ts: Date.now(),
+    });
+    try { await pubRef.onDisconnect().remove(); } catch (e) {}
+  }
+
+  async function setPublic(on) {
+    requireUser();
+    if (!active || slot !== "host" || !roomRef || !code) throw new Error("Host a room first.");
+    isPublic = !!on;
+    try { await roomRef.child("meta/public").set(isPublic); } catch (e) {}
+    const pubRef = db.ref("dashpoint/publicRooms/" + code);
+    if (isPublic) {
+      await publishPublicListing();
+    } else {
+      try { await pubRef.onDisconnect().cancel(); } catch (e) {}
+      try { await pubRef.remove(); } catch (e) {}
+    }
+    emitState();
+    return isPublic;
+  }
+
+  async function listPublicRooms() {
+    ensureDb();
+    const snap = await db.ref("dashpoint/publicRooms").once("value");
+    const val = snap.val() || {};
+    const now = Date.now();
+    const out = [];
+    Object.keys(val).forEach(function (id) {
+      const r = val[id] || {};
+      const c = String(r.code || id).trim().toUpperCase();
+      if (c.length !== 5) return;
+      if (!r.ts || now - Number(r.ts) > 22000) return;
+      out.push({
+        code: c,
+        hostName: r.hostName || "player",
+        hostUid: r.hostUid || "",
+        players: Math.max(1, Number(r.players) || 1),
+        max: Number(r.max) || MAX_PLAYERS,
+        ts: Number(r.ts) || 0,
+      });
+    });
+    out.sort(function (a, b) { return b.ts - a.ts; });
+    return out;
+  }
+
+  async function host(opts) {
     requireUser();
     await leave(true);
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -182,7 +245,8 @@ window.DashPointMP = (function () {
     }
     if (!roomRef) throw new Error("Could not allocate a room code, try again.");
     meRef = roomRef.child("players/" + slot);
-    await safeSet(roomRef.child("meta"), { createdAt: Date.now(), hostName: user.name });
+    isPublic = false;
+    await safeSet(roomRef.child("meta"), { createdAt: Date.now(), hostName: user.name, public: false });
     await roomRef.onDisconnect().remove();
     await writeMe();
     active = true;
@@ -190,6 +254,9 @@ window.DashPointMP = (function () {
     startHeartbeat();
     startFlush();
     emitState();
+    if (opts === true || (opts && opts.public)) {
+      try { await setPublic(true); } catch (e) {}
+    }
   }
 
   async function join(joinCode) {
@@ -234,11 +301,15 @@ window.DashPointMP = (function () {
 
   async function leave(endSession) {
     const wasHost = slot === "host";
+    const codeWas = code;
     const refs = { roomRef: roomRef, meRef: meRef };
     teardownLocal();
     if (refs.roomRef) {
       try {
-        if (wasHost) await refs.roomRef.remove();
+        if (wasHost) {
+          await refs.roomRef.remove();
+          try { await db.ref("dashpoint/publicRooms/" + codeWas).remove(); } catch (e) {}
+        }
         else if (refs.meRef) await refs.meRef.remove();
       } catch (e) {}
     }
@@ -459,7 +530,10 @@ window.DashPointMP = (function () {
   window.addEventListener("beforeunload", () => {
     if (active) {
       try {
-        if (slot === "host" && roomRef) roomRef.remove();
+        if (slot === "host" && roomRef) {
+          roomRef.remove();
+          try { db.ref("dashpoint/publicRooms/" + code).remove(); } catch (e2) {}
+        }
         else if (meRef) meRef.remove();
       } catch (e) {}
     }
@@ -482,6 +556,9 @@ window.DashPointMP = (function () {
     host: host,
     join: join,
     leave: leave,
+    setPublic: setPublic,
+    isPublic: () => isPublic,
+    listPublicRooms: listPublicRooms,
     sendCube: sendCube,
     clearCube: clearCube,
     sendChat: sendChat,

@@ -4363,6 +4363,12 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     const pidle = el("profMpIdleRow"); if (pidle) pidle.style.display = active ? "none" : "flex";
     const pact = el("profMpActiveRow"); if (pact) pact.style.display = active ? "flex" : "none";
     const pl = el("btnProfLeave"); if (pl) pl.textContent = MP.getSlot() === "host" ? "CLOSE ROOM" : "LEAVE";
+    const pub = el("btnProfPublic");
+    if (pub) {
+      const host = active && MP.getSlot() === "host";
+      pub.style.display = host ? "" : "none";
+      pub.textContent = (MP.isPublic && MP.isPublic()) ? "MAKE PRIVATE" : "MAKE PUBLIC";
+    }
     const plist = el("profPlayerList");
     if (plist) {
       plist.innerHTML = "";
@@ -4759,9 +4765,88 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     }
   }
 
+  async function joinPublicParty(code) {
+    try {
+      if (MP.isActive() && String(MP.getCode()) === String(code)) return;
+      await MP.join(code);
+      showNotice("Joined " + (MP.peerName() || "a public party"), false);
+      try { syncMpUI(); } catch (e) {}
+    } catch (e) {
+      showNotice(String(e.message || e), true);
+      if (netTab === "parties") renderPublicParties();
+    }
+  }
+
+  async function renderPublicParties() {
+    const box = el("netResults");
+    if (!box) return;
+    const q = String((el("netQuery") && el("netQuery").value) || "").trim().toLowerCase();
+    box.innerHTML = '<p class="loading-note">LOADING…</p>';
+    let list = [];
+    try {
+      list = await MP.listPublicRooms();
+    } catch (e) {
+      box.innerHTML = '<p class="loading-note">Could not load public parties.<br />' + escapeHtml(String((e && e.message) || e)) + "</p>";
+      return;
+    }
+    if (q) {
+      list = list.filter(function (r) {
+        return String(r.hostName || "").toLowerCase().indexOf(q) !== -1 || String(r.code || "").toLowerCase().indexOf(q) !== -1;
+      });
+    }
+    box.innerHTML = "";
+    const bar = document.createElement("div");
+    bar.className = "row-gap";
+    bar.style.margin = "0 0 10px";
+    const rand = document.createElement("button");
+    rand.className = "px-btn small gold";
+    rand.textContent = "JOIN RANDOM";
+    const open = list.filter(function (r) { return r.players < r.max && r.code !== MP.getCode(); });
+    rand.disabled = !open.length;
+    rand.addEventListener("click", function () {
+      if (!open.length) return;
+      joinPublicParty(open[Math.floor(Math.random() * open.length)].code);
+    });
+    bar.appendChild(rand);
+    box.appendChild(bar);
+    if (!list.length) {
+      const p = document.createElement("p");
+      p.className = "loading-note";
+      p.textContent = "No public parties right now. Host a room and tap MAKE PUBLIC.";
+      box.appendChild(p);
+      return;
+    }
+    list.forEach(function (r) {
+      const row = document.createElement("div");
+      row.className = "net-row";
+      const full = r.players >= r.max;
+      const mine = MP.isActive() && MP.getCode() === r.code;
+      row.innerHTML =
+        '<span class="n-main"><span class="n-title">' + escapeHtml(r.hostName || "player") + "'s party</span>" +
+        '<div class="n-sub">' + (r.players || 1) + "/" + (r.max || 4) + " players" + (full ? " · full" : "") + (mine ? " · you" : "") + "</div></span>";
+      const go = document.createElement("button");
+      go.className = "n-play";
+      go.textContent = mine ? "HERE" : (full ? "FULL" : "JOIN");
+      go.disabled = !!(mine || full);
+      go.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        if (!mine && !full) joinPublicParty(r.code);
+      });
+      row.addEventListener("click", function () {
+        if (!mine && !full) joinPublicParty(r.code);
+      });
+      row.appendChild(go);
+      box.appendChild(row);
+    });
+  }
+
   function renderResults() {
     const q = el("netQuery").value.trim().toLowerCase();
     const box = el("netResults");
+    if (netTab === "parties") {
+      renderPublicParties();
+      return;
+    }
     box.innerHTML = "";
     if (!levelIndexCache) {
       box.innerHTML = '<p class="loading-note">LOADING…</p>';
@@ -4813,7 +4898,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         }
         box.appendChild(row);
       });
-    } else {
+    } else if (netTab === "users") {
       // Players tab: combine cached users + authors from levels so it works even when usersIndex is stale/restricted
       var combinedMap = {};
       (usersIndexCache || []).forEach(function(u){ combinedMap[u.uid] = u; });
@@ -5522,6 +5607,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         document.querySelectorAll("#screen-netsearch .chip[data-tab]").forEach((x) =>
           x.classList.toggle("active", x === b)
         );
+        const qin = el("netQuery");
+        if (qin) qin.placeholder = netTab === "parties" ? "filter by host…" : "type to search…";
         renderResults();
       });
     });
@@ -5993,9 +6080,22 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     });
 
     el("btnProfHost").addEventListener("click", async () => {
-      try { await MP.host(); showNotice("Room " + MP.getCode() + " created — send the code!", false); }
-      catch (e) { showNotice(String(e.message || e), true); }
+      const makePublic = !!(el("chkProfPublic") && el("chkProfPublic").checked);
+      try {
+        await MP.host({ public: makePublic });
+        showNotice(makePublic ? "Public room " + MP.getCode() : "Room " + MP.getCode() + " created — send the code!", false);
+      } catch (e) { showNotice(String(e.message || e), true); }
       syncMpUI();
+    });
+    if (el("btnProfPublic")) el("btnProfPublic").addEventListener("click", async () => {
+      if (!MP.isActive() || MP.getSlot() !== "host") { showNotice("Host a room first.", true); return; }
+      try {
+        const on = !(MP.isPublic && MP.isPublic());
+        await MP.setPublic(on);
+        showNotice(on ? "Party is public — anyone can join from PUBLIC PARTIES" : "Party is private again", false);
+      } catch (e) { showNotice(String(e.message || e), true); }
+      syncMpUI();
+      if (netTab === "parties") renderPublicParties();
     });
     el("btnProfJoin").addEventListener("click", async () => {
       try { await MP.join(el("profCode").value.trim().toUpperCase()); showNotice("Joined " + MP.peerName() + "'s room", false); }

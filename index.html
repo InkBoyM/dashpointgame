@@ -515,10 +515,12 @@
       <div class="stat-row"><span>Status</span><b id="profMpState">Offline</b></div>
       <div class="row-gap" id="profMpIdleRow">
         <button class="px-btn small gold" id="btnProfHost">HOST ROOM</button>
+        <label class="hint prof-public" id="profPublicLabel"><input type="checkbox" id="chkProfPublic" /> Public</label>
         <input class="px-input code" id="profCode" type="text" maxlength="5" placeholder="CODE" />
         <button class="px-btn small" id="btnProfJoin">JOIN</button>
       </div>
       <div class="row-gap" id="profMpActiveRow" style="display:none">
+        <button class="px-btn small gold" id="btnProfPublic">MAKE PUBLIC</button>
         <button class="px-btn small" id="btnProfCopy">COPY CODE</button>
         <button class="px-btn small danger" id="btnProfLeave">LEAVE</button>
       </div>
@@ -604,6 +606,7 @@
         <button class="chip active" data-tab="levels">LEVELS</button>
         <button class="chip" data-tab="trending">TRENDING</button>
         <button class="chip" data-tab="users">PLAYERS</button>
+        <button class="chip" data-tab="parties">PUBLIC PARTIES</button>
       </div>
       <input type="text" id="netQuery" class="px-input" placeholder="type to search…" autocomplete="off" />
     </div>
