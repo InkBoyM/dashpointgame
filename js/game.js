@@ -4076,20 +4076,52 @@
 
   var customBgCache = { img: null, blur: -1, w: 0, h: 0, cv: null };
   function customBgBlurred(img, iw, ih, blur, w, h) {
-    // Cheap universal blur: cover-fit into a tiny canvas once, upscale smooth.
-    // Cached on (img, blur, w, h); no ctx.filter needed (Safari-safe).
+    // Pre-render a SMOOTH full-size blurred cover once; blit it per frame.
+    // Cached on (img, blur, w, h). Prefers ctx.filter gaussian; falls back
+    // to a resolution pyramid (Safari-safe, no blocky one-step upscale).
     var c = customBgCache;
     if (c.cv && c.img === img && c.blur === blur && c.w === w && c.h === h) return c.cv;
-    var ds = Math.max(2, Math.min(16, Math.round(blur)));
-    var tw = Math.max(2, Math.round(w / ds)), th = Math.max(2, Math.round(h / ds));
     if (!c.cv) c.cv = document.createElement("canvas");
-    c.cv.width = tw;
-    c.cv.height = th;
+    c.cv.width = w;
+    c.cv.height = h;
     var x = c.cv.getContext("2d");
     x.imageSmoothingEnabled = true;
-    var s = Math.max(tw / iw, th / ih);
+    x.clearRect(0, 0, w, h);
+    var s = Math.max(w / iw, h / ih);
     var dw = iw * s, dh = ih * s;
-    x.drawImage(img, (tw - dw) / 2, (th - dh) / 2, dw, dh);
+    var dx = (w - dw) / 2, dy = (h - dh) / 2;
+    var done = false;
+    try {
+      if ("filter" in x) {
+        // overscan so edge pixels don't fade to transparent
+        var m = blur * 2;
+        x.save();
+        x.filter = "blur(" + blur + "px)";
+        x.drawImage(img, dx - m, dy - m, dw + m * 2, dh + m * 2);
+        x.restore();
+        done = true;
+      }
+    } catch (e) { done = false; }
+    if (!done) {
+      var div = Math.max(2, Math.min(8, Math.round(blur / 3)));
+      var sw = Math.max(2, Math.round(w / div)), sh = Math.max(2, Math.round(h / div));
+      var small = document.createElement("canvas");
+      small.width = sw;
+      small.height = sh;
+      var sx = small.getContext("2d");
+      sx.imageSmoothingEnabled = true;
+      var s2 = Math.max(sw / iw, sh / ih);
+      var d2w = iw * s2, d2h = ih * s2;
+      sx.drawImage(img, (sw - d2w) / 2, (sh - d2h) / 2, d2w, d2h);
+      // upscale in two gentle steps instead of one jump (kills banding)
+      var mid = document.createElement("canvas");
+      mid.width = Math.max(2, Math.round(w / 2));
+      mid.height = Math.max(2, Math.round(h / 2));
+      var mx = mid.getContext("2d");
+      mx.imageSmoothingEnabled = true;
+      mx.drawImage(small, 0, 0, mid.width, mid.height);
+      x.drawImage(mid, 0, 0, w, h);
+    }
     c.img = img;
     c.blur = blur;
     c.w = w;
@@ -4103,10 +4135,10 @@
       const ih = img.naturalHeight || img.height;
       if (!iw || !ih) return false;
       if (blur > 0) {
-        const tiny = customBgBlurred(img, iw, ih, blur, w, h);
+        const pre = customBgBlurred(img, iw, ih, blur, w, h);
         const prev = ctx.imageSmoothingEnabled;
         ctx.imageSmoothingEnabled = true;
-        ctx.drawImage(tiny, 0, 0, w, h);
+        ctx.drawImage(pre, 0, 0);
         ctx.imageSmoothingEnabled = prev;
       } else {
         const s = Math.max(w / iw, h / ih);
