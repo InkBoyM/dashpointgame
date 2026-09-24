@@ -1018,6 +1018,23 @@ window.DPNet = (function () {
     } catch (e) {}
   }
 
+  // Presence heartbeat: what I'm playing + which room, so friends can see it.
+  // Same per-user write rule as the rest of the profile (own entry only).
+  async function updatePresence(playing, room) {
+    try {
+      const u = getEffectiveUser() || getUser();
+      if (!u) return false;
+      await patchJSON("/dashpoint/usersIndex/" + u.uid, {
+        lastSeen: Date.now(),
+        playing: String(playing || ""),
+        room: String(room || ""),
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function giftId() {
     return Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
   }
@@ -1185,6 +1202,7 @@ window.DPNet = (function () {
     sendGift: sendGift,
     listGifts: listGifts,
     claimGift: claimGift,
+    updatePresence: updatePresence,
     onInvites: onInvites,
     offInvites: offInvites,
     friendly: friendly,

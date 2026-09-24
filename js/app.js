@@ -890,6 +890,7 @@
       if ((s.graphics === "drawing" || s.graphics === "neon") && s.packs.indexOf(s.graphics) === -1) s.packs.push(s.graphics);
       s.touchUI = Object.assign(touchUIDefaults(), (s.touchUI && typeof s.touchUI === "object") ? s.touchUI : {});
       s.touchMode = s.touchMode === "joystick" ? "joystick" : "buttons";
+      s.sharePresence = s.sharePresence === false ? false : true;
       s.tag = findShopTag(s.tag) && s.tags.indexOf(s.tag) !== -1 ? s.tag : "";
       const cf = s.chestFree && typeof s.chestFree === "object" ? s.chestFree : {};
       s.chestFree = {
@@ -3527,6 +3528,7 @@
     setStatusHud();
     showIntro(entry);
     tuffStartRun();
+    presenceTick();
   }
 
   let introTimer = null;
@@ -3692,6 +3694,7 @@
     state.practice = false;
     state.slowmo = false;
     tuffDiscard();
+    presenceTick();
     el("pauseCard").classList.remove("visible");
     ghostMode = false; ghostPlayback = null; if (ghostCountdownTimer){ clearInterval(ghostCountdownTimer); ghostCountdownTimer=null; var cd=el("ghostCountdown"); if(cd) cd.classList.add("hidden"); }
     MP.clearCube();
@@ -5056,6 +5059,105 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       if (btn) btn.disabled = false;
     }
   }
+    // ---- Friend presence: heartbeat (level/room) + friends list ----
+  function presenceTick() {
+    try {
+      if (save_.data.sharePresence === false) return;
+      if (!window.DPNet || !DPNet.updatePresence) return;
+      const playing = (state.screen === "game" && state.playing && state.engine) ? (state.currentFile || "") : "";
+      let room = "";
+      try { room = (MP.isActive() && MP.getCode) ? (MP.getCode() || "") : ""; } catch (e) {}
+      DPNet.updatePresence(playing, room).catch(function () {});
+    } catch (e) {}
+  }
+  async function renderFriendList() {
+    const box = el("friendList");
+    if (!box) return;
+    let follows = {};
+    try { follows = followMap(); } catch (e) {}
+    try {
+      const cb = el("profSharePresence");
+      if (cb && !cb.dataset.done) {
+        cb.dataset.done = "1";
+        cb.checked = save_.data.sharePresence !== false;
+        cb.addEventListener("change", function () {
+          save_.data.sharePresence = !!cb.checked;
+          save();
+          presenceTick();
+        });
+      } else if (cb) {
+        cb.checked = save_.data.sharePresence !== false;
+      }
+    } catch (e) {}
+    const ids = Object.keys(follows);
+    if (!ids.length) {
+      box.innerHTML = '<p class="loading-note">No follows yet — open a player profile and FOLLOW them.</p>';
+      return;
+    }
+    box.innerHTML = '<p class="loading-note">Loading presence…</p>';
+    const rows = [];
+    for (const uid of ids.slice(0, 30)) {
+      let u = null;
+      try { u = window.DPNet && DPNet.getUserProfile ? await DPNet.getUserProfile(uid) : null; } catch (e) { u = null; }
+      const local = follows[uid] || {};
+      rows.push({ uid: uid, u: u, name: (u && u.name) || local.name || "player" });
+    }
+    box.innerHTML = "";
+    const now = Date.now();
+    rows.forEach(function (r) {
+      const u = r.u || {};
+      const lastSeen = Number(u.lastSeen) || 0;
+      const online = !!(lastSeen && now - lastSeen < 5 * 60 * 1000);
+      let room = "";
+      let playing = "";
+      try { room = String(u.room || ""); } catch (e) {}
+      try { playing = String(u.playing || ""); } catch (e) {}
+      let act = online ? "online" : (lastSeen ? "last seen " + fmtWait(now - lastSeen) : "offline");
+      if (online && (room || playing)) {
+        act = (room ? "room " + room : "online") + (playing ? " · " + levelNameOf(playing) : "");
+      }
+      const row = document.createElement("div");
+      row.className = "row-gap";
+      row.style.justifyContent = "space-between";
+      row.innerHTML = "<span><span style=\"color:" + (online ? "var(--good)" : "#9db4d8") + "\">●</span> " +
+        "<b>" + escapeHtml(r.name) + "</b> <span class='hint'>" + escapeHtml(act) + "</span></span>";
+      const wrap = document.createElement("span");
+      wrap.className = "row-gap";
+      if (online && room && room.length === 5) {
+        const jb = document.createElement("button");
+        jb.className = "px-btn tiny good";
+        jb.textContent = "JOIN";
+        jb.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          joinFriendRoom(room, r.name);
+        });
+        wrap.appendChild(jb);
+      }
+      const vb = document.createElement("button");
+      vb.className = "px-btn tiny";
+      vb.textContent = "VIEW";
+      vb.addEventListener("click", function (ev) { ev.stopPropagation(); openAccount(r.uid); });
+      wrap.appendChild(vb);
+      row.appendChild(wrap);
+      box.appendChild(row);
+    });
+    if (!rows.length) box.innerHTML = '<p class="loading-note">No follows yet.</p>';
+  }
+  async function joinFriendRoom(code, name) {
+    showNotice("Joining " + (name || "player") + "'s room…", false);
+    try {
+      if (!MP.isActive() || String(MP.getCode()) !== code) {
+        await Promise.race([MP.join(code), new Promise(function (_, reject) {
+          setTimeout(function () { reject(new Error("Couldn't join (network?). The room may be gone.")); }, 12000);
+        })]);
+      }
+      showNotice("Joined " + (name || "player") + "'s room", false);
+      try { syncMpUI(); } catch (e) {}
+      presenceTick();
+    } catch (err) {
+      showNotice(String((err && err.message) || err), true);
+    }
+  }
   async function inviteFromProfile() {    if (!accountView) { showNotice("Open a player's profile first.", true); return; }
     const me = currentMe();
     if (!me) { showNotice("Log in to invite players.", true); return; }
@@ -6158,7 +6260,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
 
     // ---- Profile modal ----
     const pb = el("btnProfileHome");
-    if (pb) pb.addEventListener("click", () => openModal("modalProfile"));
+    if (pb) pb.addEventListener("click", () => { openModal("modalProfile"); renderFriendList(); });
 
     function profileMsg(t) { var m = el("profMsg"); if (m) m.textContent = t || ""; }
 
@@ -6236,11 +6338,13 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       try { await MP.host(); showNotice("Room " + MP.getCode() + " created — send the code!", false); }
       catch (e) { showNotice(String(e.message || e), true); }
       syncMpUI();
+      presenceTick();
     });
     el("btnProfJoin").addEventListener("click", async () => {
       try { await MP.join(el("profCode").value.trim().toUpperCase()); showNotice("Joined " + MP.peerName() + "'s room", false); }
       catch (e) { showNotice(String(e.message || e), true); }
       syncMpUI();
+      presenceTick();
     });
     el("btnProfCopy").addEventListener("click", async () => {
       try { await navigator.clipboard.writeText(MP.getCode()); } catch (e) {}
@@ -6256,6 +6360,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       await MP.leave(true);
       showNotice(wasHost ? "Room closed" : "Left the room", false);
       syncMpUI();
+      presenceTick();
     });
     el("btnProfStats").addEventListener("click", () => openModal("modalStats"));
 
@@ -6385,6 +6490,9 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     show("home");
     requestAnimationFrame(frame);
     setTimeout(function () { try { checkBell(); } catch (e) {} }, 12000);
+    // Presence heartbeat: refresh what-I'm-playing every minute so friends
+    // see accurate activity (joins/leaves/levels also tick it immediately).
+    setInterval(function () { try { presenceTick(); } catch (e) {} }, 60000);
     // Bell polling fallback: invites arriving after boot were invisible until
     // the bell was opened manually. The realtime listener above covers it;
     // this catches anything it misses (dropped socket, late login, etc.).
