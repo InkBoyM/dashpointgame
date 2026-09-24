@@ -1221,9 +1221,7 @@ body.gfx-ultra canvas { image-rendering: auto; }
   border-bottom: 2px dotted rgba(46,230,255,.5);
 }
 
-/* ---------- COMPACT LAYOUT FOR PHONES ---------- */
-@media (max-height: 560px), (max-width: 900px) {
-  .home-logo { width: clamp(170px, 52vw, 300px); }
+/* Custom menu background + frosted panels (all screen sizes — NOT phone-only). */
 #homeBg {
   position: fixed;
   inset: 0;
@@ -1242,6 +1240,10 @@ body.custom-bg .hud-chip {
   backdrop-filter: blur(var(--blur-amount)) saturate(1.25);
   -webkit-backdrop-filter: blur(var(--blur-amount)) saturate(1.25);
 }
+
+/* ---------- COMPACT LAYOUT FOR PHONES ---------- */
+@media (max-height: 560px), (max-width: 900px) {
+  .home-logo { width: clamp(170px, 52vw, 300px); }
 .home-center {
     gap: 12px;
     justify-content: flex-start;
