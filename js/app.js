@@ -5114,6 +5114,46 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     } finally {
       bellChecking = false;
     }
+    startInviteWatch();
+  }
+
+  let inviteWatchOn = false;
+  let inviteBaselineTs = 0;
+  let inviteBaselined = false;
+  // Realtime invites: bell only polled at boot before, so invites arriving
+  // later were invisible. The listener pushes a notice the moment one lands.
+  function startInviteWatch() {
+    try {
+      if (inviteWatchOn) return;
+      const NET = window.DPNet;
+      if (!NET || !NET.onInvites) return;
+      const attached = NET.onInvites(function (list) {
+        try {
+          list = Array.isArray(list) ? list : [];
+          let maxTs = inviteBaselineTs;
+          const fresh = [];
+          for (const inv of list) {
+            const ts = (inv && inv.ts) || 0;
+            if (ts > maxTs) maxTs = ts;
+            if (ts > inviteBaselineTs) fresh.push(inv);
+          }
+          const first = !inviteBaselined;
+          inviteBaselined = true;
+          inviteBaselineTs = maxTs;
+          if (first) return; // initial snapshot: baseline only, no spam for old invites
+          if (fresh.length) {
+            const f0 = fresh[fresh.length - 1];
+            showNotice((f0.fromName || "Someone") + " invited you to room " + (f0.code || "?") + " — open the bell to join!", false);
+          }
+          checkBell().then(function () {
+            try {
+              if (el("modalBell") && el("modalBell").classList.contains("visible")) renderBell();
+            } catch (e) {}
+          }).catch(function () {});
+        } catch (e) {}
+      });
+      if (attached) inviteWatchOn = true;
+    } catch (e) {}
   }
 
   function renderBell() {
@@ -5955,13 +5995,13 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnProfLogin").addEventListener("click", () => {
       profileMsg("");
       MP.login(el("profEmail").value.trim(), el("profPass").value)
-        .then(() => { profileMsg(""); syncAccountUI(); syncMpUI(); })
+        .then(() => { profileMsg(""); syncAccountUI(); syncMpUI(); startInviteWatch(); checkBell().catch(() => {}); })
         .catch((e) => profileMsg(friendlyAuthError(e)));
     });
     el("btnProfRegister").addEventListener("click", () => {
       profileMsg("");
       MP.register(el("profEmail").value.trim(), el("profPass").value)
-        .then(() => { profileMsg(""); syncAccountUI(); syncMpUI(); })
+        .then(() => { profileMsg(""); syncAccountUI(); syncMpUI(); startInviteWatch(); checkBell().catch(() => {}); })
         .catch((e) => profileMsg(friendlyAuthError(e)));
     });
     const guestBtn = el("btnProfGuest");
@@ -5974,12 +6014,18 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
             showNotice("Playing as guest", false);
             syncAccountUI();
             syncMpUI();
+            startInviteWatch();
+            checkBell().catch(() => {});
           })
           .catch((e) => profileMsg(friendlyAuthError(e, "guest")));
       });
     }
     el("btnProfLogout").addEventListener("click", async () => {
       if (MP.isActive()) await MP.leave(false);
+      inviteWatchOn = false;
+      inviteBaselineTs = 0;
+      inviteBaselined = false;
+      try { if (window.DPNet && window.DPNet.offInvites) window.DPNet.offInvites(); } catch (e) {}
       MP.logout().then(() => { syncAccountUI(); syncMpUI(); }).catch((e) => profileMsg(friendlyAuthError(e)));
     });
 
@@ -6161,6 +6207,18 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     show("home");
     requestAnimationFrame(frame);
     setTimeout(function () { try { checkBell(); } catch (e) {} }, 12000);
+    // Bell polling fallback: invites arriving after boot were invisible until
+    // the bell was opened manually. The realtime listener above covers it;
+    // this catches anything it misses (dropped socket, late login, etc.).
+    setInterval(function () {
+      try {
+        checkBell().then(function () {
+          try {
+            if (el("modalBell") && el("modalBell").classList.contains("visible")) renderBell();
+          } catch (e) {}
+        }).catch(function () {});
+      } catch (e) {}
+    }, 45000);
     try {
       if ("serviceWorker" in navigator && (/^https:$/.test(window.location.protocol) || /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname))) {
         window.addEventListener("load", function () {

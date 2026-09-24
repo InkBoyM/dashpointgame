@@ -1010,6 +1010,51 @@ window.DPNet = (function () {
     } catch (e) {}
   }
 
+  let inviteWatchRef = null;
+  let inviteWatchUid = null;
+  // Realtime invite listener. cb(list) fires on every change (including the
+  // initial snapshot — callers must baseline first to avoid old-invite spam).
+  // Returns true when attached.
+  function onInvites(cb) {
+    try {
+      const u = (getEffectiveUser && getEffectiveUser()) || (getUser && getUser());
+      const db = ensure();
+      if (!u || !db || !db.ref) return false;
+      if (inviteWatchRef && inviteWatchUid === u.uid) return true;
+      try { if (inviteWatchRef) inviteWatchRef.off("value"); } catch (e) {}
+      inviteWatchUid = u.uid;
+      inviteWatchRef = db.ref("/dashpoint/invites/" + encodeURIComponent(u.uid));
+      inviteWatchRef.on("value", function (snap) {
+        let list = [];
+        try {
+          const val = snap.val();
+          if (val && typeof val === "object") {
+            list = Object.keys(val).map(function (id) {
+              const inv = val[id] || {};
+              return {
+                id: id,
+                fromUid: inv.fromUid || id,
+                fromName: inv.fromName || "player",
+                code: String(inv.code || "").toUpperCase(),
+                ts: inv.ts || 0,
+              };
+            }).filter(function (inv) { return inv.code.length === 5; });
+          }
+        } catch (e) {}
+        try { cb(list); } catch (e) {}
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function offInvites() {
+    try { if (inviteWatchRef) inviteWatchRef.off("value"); } catch (e) {}
+    inviteWatchRef = null;
+    inviteWatchUid = null;
+  }
+
   return {
     init: ensure,
     onAuth: onAuth,
@@ -1062,6 +1107,8 @@ window.DPNet = (function () {
     sendInvite: sendInvite,
     listInvites: listInvites,
     clearInvite: clearInvite,
+    onInvites: onInvites,
+    offInvites: offInvites,
     friendly: friendly,
   };
 })();
