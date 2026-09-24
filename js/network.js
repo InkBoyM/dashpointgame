@@ -435,8 +435,16 @@ window.DPNet = (function () {
     return patch;
   }
 
-  async function updateUsername(name) {
+  async function updateBio(text) {
     const u = getEffectiveUser() || getUser();
+    if (!u) throw new Error("Not logged in");
+    const clean = String(text || "").replace(/\s+/g, " ").trim().slice(0, 140);
+    await patchJSON("/dashpoint/usersIndex/" + u.uid, { bio: clean, lastSeen: Date.now() });
+    if (user && user.uid === u.uid) user.bio = clean;
+    return clean;
+  }
+
+  async function updateUsername(name) {    const u = getEffectiveUser() || getUser();
     if (!u) throw new Error("Not logged in");
     const clean = String(name || "").replace(/\s+/g, " ").trim().slice(0, 24);
     if (!clean) throw new Error("Enter a username");
@@ -1010,6 +1018,72 @@ window.DPNet = (function () {
     } catch (e) {}
   }
 
+  function giftId() {
+    return Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+  }
+
+  // Coin gifts: sender-paid inbox entries. Mirrors the invite pattern
+  // (cross-user inbox writes). Amounts travel as decimal strings (BigInt).
+  async function sendGift(targetUid, amount) {
+    const u = getEffectiveUser() || getUser();
+    if (!u) throw new Error("Log in to send gifts.");
+    targetUid = String(targetUid || "").trim();
+    if (!targetUid) throw new Error("Player not found.");
+    if (targetUid === u.uid) throw new Error("You can't gift yourself.");
+    let amt = 0n;
+    try { amt = BigInt(String(amount).replace(/[,_\s]/g, "")); } catch (e) { amt = 0n; }
+    if (amt <= 0n) throw new Error("Enter an amount above 0.");
+    const id = giftId();
+    await putJSON("/dashpoint/gifts/" + encodeURIComponent(targetUid) + "/" + encodeURIComponent(id), {
+      fromUid: u.uid,
+      fromName: String(u.name || "player").slice(0, 24),
+      amount: amt.toString(),
+      ts: Date.now(),
+    });
+    return { id: id, amount: amt.toString() };
+  }
+
+  async function listGifts() {
+    const u = getEffectiveUser() || getUser();
+    if (!u) return [];
+    try {
+      const val = await getJSON("/dashpoint/gifts/" + encodeURIComponent(u.uid));
+      if (!val || typeof val !== "object") return [];
+      return Object.keys(val).map(function (id) {
+        const g = val[id] || {};
+        return {
+          id: id,
+          fromUid: g.fromUid || "",
+          fromName: g.fromName || "player",
+          amount: String(g.amount || "0"),
+          ts: g.ts || 0,
+        };
+      }).filter(function (g) {
+        try { return BigInt(g.amount) > 0n; } catch (e) { return false; }
+      }).slice(0, 20);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // Claim = read + delete, returns the entry so the caller can credit it.
+  async function claimGift(id) {
+    const u = getEffectiveUser() || getUser();
+    if (!u) throw new Error("Not logged in");
+    id = String(id || "").trim();
+    if (!id) throw new Error("Gift not found.");
+    const g = await getJSON("/dashpoint/gifts/" + encodeURIComponent(u.uid) + "/" + encodeURIComponent(id));
+    if (!g || typeof g !== "object") throw new Error("Gift is gone.");
+    await deleteJSON("/dashpoint/gifts/" + encodeURIComponent(u.uid) + "/" + encodeURIComponent(id));
+    return {
+      id: id,
+      fromUid: g.fromUid || "",
+      fromName: g.fromName || "player",
+      amount: String(g.amount || "0"),
+      ts: g.ts || 0,
+    };
+  }
+
   let inviteWatchRef = null;
   let inviteWatchUid = null;
   // Realtime invite listener. cb(list) fires on every change (including the
@@ -1075,6 +1149,7 @@ window.DPNet = (function () {
     getUserProfile: getUserProfile,
     syncStats: syncStats,
     updateUsername: updateUsername,
+    updateBio: updateBio,
     syncCloud: syncCloud,
     downloadCloud: downloadCloud,
     submitLeaderboard: submitLeaderboard,
@@ -1107,6 +1182,9 @@ window.DPNet = (function () {
     sendInvite: sendInvite,
     listInvites: listInvites,
     clearInvite: clearInvite,
+    sendGift: sendGift,
+    listGifts: listGifts,
+    claimGift: claimGift,
     onInvites: onInvites,
     offInvites: offInvites,
     friendly: friendly,

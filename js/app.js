@@ -869,6 +869,7 @@
       s.coins = coinsString(s.coins);
       s.championKeys = keyAmount(s.championKeys);
       s.coinPaid = s.coinPaid && typeof s.coinPaid === "object" ? s.coinPaid : {};
+      s.claimedGifts = s.claimedGifts && typeof s.claimedGifts === "object" && !Array.isArray(s.claimedGifts) ? s.claimedGifts : {};
       s.coinMigrated = !!s.coinMigrated;
       s.codes = s.codes && typeof s.codes === "object" ? s.codes : {};
       s.tags = Array.isArray(s.tags) ? s.tags.filter(function (id) { return !!findShopTag(id); }) : [];
@@ -3500,6 +3501,7 @@
     state.winShown = false;
     state.paused = false;
     state.practice = false;
+    state.slowmo = false;
     state.heatmap = null;
     heatLocal = {};
     heatPending = 0;
@@ -3560,20 +3562,38 @@
   function setStatusHud() {
     el("hudTime").textContent = (state.engine ? state.engine.time : 0).toFixed(2);
     el("hudDeaths").textContent = "deaths " + state.deaths;
-    el("hudPractice").classList.toggle("hidden", !state.practice);
+    el("hudPractice").classList.toggle("hidden", !state.practice && !state.slowmo);
+    if (state.slowmo) el("hudPractice").textContent = "SLOW-MO";
+    else el("hudPractice").textContent = "PRACTICE";
   }
 
   function syncPracticeUI() {
     const b = el("btnPausePractice");
     if (b) b.textContent = state.practice ? "PRACTICE: ON" : "PRACTICE: OFF";
+    const s = el("btnPauseSlow");
+    if (s) s.textContent = state.slowmo ? "SLOW-MO: ON" : "SLOW-MO: OFF";
     setStatusHud();
+  }
+
+  function toggleSlowmo() {
+    if (!state.engine || !state.playing) return;
+    if (!state.practice && !state.slowmo) {
+      showNotice("Slow-mo is practice-only — turn practice on first", true);
+      return;
+    }
+    state.slowmo = !state.slowmo;
+    showNotice(state.slowmo ? "Slow-mo ON — half-speed physics, no records" : "Slow-mo OFF", false);
+    syncPracticeUI();
   }
 
   function togglePractice() {
     if (!state.engine || !state.playing) return;
     state.practice = !state.practice;
-    if (!state.practice && state.engine.checkpoint && state.engine.checkpoint.practice) {
-      state.engine.checkpoint = null;
+    if (!state.practice) {
+      state.slowmo = false;
+      if (state.engine.checkpoint && state.engine.checkpoint.practice) {
+        state.engine.checkpoint = null;
+      }
     }
     if (state.practice) showNotice("Practice ON — press X (or tap PRACTICE) to drop checkpoints, no records", false);
     else showNotice("Practice OFF", false);
@@ -3670,6 +3690,7 @@
     state.engine = null;
     state.paused = false;
     state.practice = false;
+    state.slowmo = false;
     tuffDiscard();
     el("pauseCard").classList.remove("visible");
     ghostMode = false; ghostPlayback = null; if (ghostCountdownTimer){ clearInterval(ghostCountdownTimer); ghostCountdownTimer=null; var cd=el("ghostCountdown"); if(cd) cd.classList.add("hidden"); }
@@ -4179,7 +4200,10 @@
     const wasPad = state.engine.padFlash > 0;
     const wasDash = state.engine.dashFlash > 0;
     const hadCheckpoint = !!state.engine.checkpoint;
-    state.engine.update(dt);
+    // slow-mo: half-rate physics steps in practice only (records impossible:
+    // practice saves nothing, and leaving practice kills slow-mo)
+    const edt = (state.slowmo && state.practice) ? dt * 0.5 : dt;
+    state.engine.update(edt);
     if (state.engine.orbFlash > 0 && !wasOrb) haptic("orb");
     if (state.engine.padFlash > 0 && !wasPad) haptic("pad");
     if (state.engine.dashFlash > 0 && !wasDash) haptic("dash");
@@ -4226,7 +4250,7 @@
     if (!state.engine.won) state.winShown = false;
 
     followPlayer();
-    if (!state.practice) { try{ recordGhost(dt); }catch(e){} }
+    if (!state.practice) { try{ recordGhost(edt); }catch(e){} }
     try { tuffSample(); } catch (e) {} // runs in practice too, so EDIT always has tracking
     tickShake(dt);
     trackPlaytime(dt);
@@ -4322,6 +4346,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("acctMsg").textContent = text || "";
   }
 
+  let bioLoadedFor = "";
   function syncAccountUI() {
     const u = MP.getUser();
     const name = u ? u.name : "";
@@ -4351,6 +4376,18 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     const tagEl = el("profGuestTag"); if (tagEl) tagEl.style.display = guest ? "" : "none";
     const pass = el("profPassSection"); if (pass) pass.style.display = u && !guest ? "" : "none";
     syncAccountTagUI();
+    try {
+      if (!u) { bioLoadedFor = ""; }
+      else if (!guest && bioLoadedFor !== u.uid && window.DPNet && DPNet.getUserProfile) {
+        bioLoadedFor = u.uid;
+        DPNet.getUserProfile(u.uid).then(function (p) {
+          try {
+            var inp = el("profBio");
+            if (p && p.bio && inp && !inp.value) inp.value = String(p.bio).slice(0, 140);
+          } catch (e) {}
+        }).catch(function () {});
+      }
+    } catch (e) {}
   }
 
   function syncMpUI() {
@@ -4958,8 +4995,68 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     }
   }
 
-  async function inviteFromProfile() {
+  var giftArm = 0, giftArmAmt = "";
+  function giftFromProfile() {
+    var row = el("giftRow");
+    if (!row) return;
+    if (row.style.display !== "none") {
+      row.style.display = "none";
+      return;
+    }
+    const me = currentMe();
+    if (!me) { showNotice("Log in to send gifts.", true); return; }
     if (!accountView) { showNotice("Open a player's profile first.", true); return; }
+    row.style.display = "";
+    var inp = el("giftAmount");
+    if (inp) {
+      inp.value = "";
+      setTimeout(function () { try { inp.focus(); } catch (e) {} }, 50);
+    }
+    giftArm = 0;
+  }
+  async function sendGiftConfirm() {
+    if (!accountView) { showNotice("Open a player's profile first.", true); return; }
+    const me = currentMe();
+    if (!me) { showNotice("Log in to send gifts.", true); return; }
+    var amt = 0n;
+    try {
+      var raw = String(el("giftAmount") ? el("giftAmount").value : "").replace(/[,_\s]/g, "");
+      amt = BigInt(raw || "0");
+    } catch (e) { amt = 0n; }
+    if (amt <= 0n) { showNotice("Enter an amount above 0.", true); return; }
+    if (!hasCoins(amt)) {
+      showNotice("Not enough coins (you have " + fmtCoins(save_.data.coins) + ")", true);
+      return;
+    }
+    var now = Date.now();
+    if (now - giftArm > 5000 || giftArmAmt !== amt.toString()) {
+      giftArm = now; giftArmAmt = amt.toString();
+      showNotice("Tap SEND again to confirm " + fmtCoins(amt) + " to " + (accountView.name || "player"), false);
+      return;
+    }
+    giftArm = 0;
+    var btn = el("btnGiftSend");
+    if (btn) btn.disabled = true;
+    showNotice("Sending gift…", false);
+    subCoins(amt);
+    save();
+    syncCoinUI();
+    syncHomeStats();
+    try {
+      await NET.sendGift(accountView.uid, amt.toString());
+      showNotice("Sent " + fmtCoins(amt) + " to " + (accountView.name || "player") + "!", false);
+      var row = el("giftRow");
+      if (row) row.style.display = "none";
+    } catch (e) {
+      addCoins(amt);
+      save();
+      syncCoinUI();
+      showNotice(String((e && e.message) || e), true);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+  async function inviteFromProfile() {    if (!accountView) { showNotice("Open a player's profile first.", true); return; }
     const me = currentMe();
     if (!me) { showNotice("Log in to invite players.", true); return; }
     const btn = el("btnAcctInvite");
@@ -5013,6 +5110,12 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       if (ev.kind === "crown") return seen["b:" + ev.file] !== ev.holder + ev.time;
       if (ev.kind === "follow") return (seen["f:" + ev.authorUid] || 0) < ev.ts;
       if (ev.kind === "invite") return (seen["i:" + ev.fromUid] || 0) < ev.ts;
+      if (ev.kind === "gift") {
+        try {
+          if (save_.data.claimedGifts && save_.data.claimedGifts[ev.id]) return false;
+        } catch (e) {}
+        return (seen["gift:" + ev.id] || 0) < ev.ts;
+      }
       return false;
     }).length;
   }
@@ -5108,6 +5211,22 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
           });
         });
       } catch (e) {}
+      try {
+        if (NET.listGifts) {
+          const gifts = await NET.listGifts();
+          gifts.forEach(function (g) {
+            events.push({
+              kind: "gift",
+              ts: g.ts || 0,
+              id: g.id,
+              fromUid: g.fromUid,
+              fromName: g.fromName,
+              amount: g.amount,
+              text: (g.fromName || "player") + " sent you " + fmtCoins(g.amount) + " coins",
+            });
+          });
+        }
+      } catch (e) {}
       events.sort((a, b) => b.ts - a.ts);
       bellEvents = events.slice(0, 20);
       syncBellUI();
@@ -5168,13 +5287,13 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     bellEvents.forEach((ev) => {
       const row = document.createElement("div");
       row.className = "bell-row";
-      if (ev.kind === "follow" || ev.kind === "invite") {
+      if (ev.kind === "follow" || ev.kind === "invite" || ev.kind === "gift") {
         row.classList.add("bell-act");
         const msg = document.createElement("span");
         msg.textContent = ev.text;
         const go = document.createElement("span");
         go.className = "bell-go";
-        go.textContent = ev.kind === "invite" ? "JOIN" : "VIEW";
+        go.textContent = ev.kind === "invite" ? "JOIN" : ev.kind === "gift" ? "CLAIM" : "VIEW";
         row.appendChild(msg);
         row.appendChild(go);
         if (ev.kind === "follow") {
@@ -5185,6 +5304,30 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
             else if (ev.authorUid) openAccount(ev.authorUid);
           });
           seen["f:" + ev.authorUid] = Math.max(seen["f:" + ev.authorUid] || 0, ev.ts);
+        } else if (ev.kind === "gift") {
+          row.addEventListener("click", async function () {
+            var claimed = {};
+            try { claimed = save_.data.claimedGifts && typeof save_.data.claimedGifts === "object" ? save_.data.claimedGifts : {}; } catch (e) { claimed = {}; }
+            if (claimed[ev.id]) { showNotice("Already claimed", false); return; }
+            showNotice("Claiming gift…", false);
+            try {
+              var g = await NET.claimGift(ev.id);
+              var amt = 0n;
+              try { amt = BigInt(String((g && g.amount) || "0")); } catch (e) { amt = 0n; }
+              if (amt <= 0n) throw new Error("Gift is empty.");
+              addCoins(amt);
+              claimed[ev.id] = true;
+              save_.data.claimedGifts = claimed;
+              save();
+              syncCoinUI();
+              syncHomeStats();
+              showNotice("Claimed " + fmtCoins(amt) + " from " + (ev.fromName || "player") + "!", false);
+              checkBell().then(function () { try { renderBell(); } catch (e) {} }).catch(function () {});
+            } catch (err) {
+              showNotice(String((err && err.message) || err), true);
+            }
+          });
+          seen["gift:" + ev.id] = Math.max(seen["gift:" + ev.id] || 0, ev.ts);
         } else {
           row.addEventListener("click", async function () {
             closeModal("modalBell");
@@ -5256,8 +5399,21 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("acctMade").textContent = theirs.length;
     el("acctBeaten").textContent = u.beatenCount || 0;
     el("acctDeaths").textContent = u.deaths || 0;
+    try {
+      var bb = el("acctBio");
+      var bioTxt = String((u && u.bio) || "").slice(0, 140);
+      if (bb) {
+        if (bioTxt) { bb.textContent = bioTxt; bb.style.display = ""; }
+        else { bb.textContent = ""; bb.style.display = "none"; }
+      }
+    } catch (e) {}
     syncAcctActions();
     refreshFollows().then(syncAcctActions).catch(function () {});
+    try {
+      var gr = el("giftRow");
+      if (gr) gr.style.display = "none";
+      giftArm = 0;
+    } catch (e) {}
     var box = el("acctLevels");
     box.innerHTML = "";
     if (!theirs.length) box.innerHTML = '<p class="loading-note">No levels posted yet.</p>';
@@ -5598,6 +5754,19 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       ev.stopPropagation();
       inviteFromProfile();
     });
+    if (el("btnAcctGift")) el("btnAcctGift").addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      giftFromProfile();
+    });
+    if (el("btnGiftSend")) el("btnGiftSend").addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      sendGiftConfirm();
+    });
+    if (el("btnGiftCancel")) el("btnGiftCancel").addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      var row = el("giftRow");
+      if (row) row.style.display = "none";
+    });
   }
 
   /* ---------------- /DASHPOINT NETWORK ---------------- */
@@ -5815,6 +5984,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnPauseResume").addEventListener("click", resumeGame);
     el("btnPauseRestart").addEventListener("click", () => { resumeGame(); restartLevel(); });
     el("btnPausePractice").addEventListener("click", togglePractice);
+    el("btnPauseSlow").addEventListener("click", toggleSlowmo);
     el("btnPauseHeat").addEventListener("click", toggleHeat);
     el("hudPractice").addEventListener("click", () => {
       if (state.practice && state.playing && !state.paused) placePracticeCheckpoint();
@@ -6036,6 +6206,14 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         if (MP.setDisplayName) MP.setDisplayName(nm);
         profileMsg("Username set to " + nm);
         syncAccountUI();
+      } catch (e) { profileMsg(e.message || String(e)); }
+    });
+
+    el("btnProfBio").addEventListener("click", async () => {
+      try {
+        const bio = await NET.updateBio(el("profBio").value);
+        el("profBio").value = bio;
+        profileMsg(bio ? "Bio saved" : "Bio cleared");
       } catch (e) { profileMsg(e.message || String(e)); }
     });
 

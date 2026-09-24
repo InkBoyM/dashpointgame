@@ -111,6 +111,7 @@
           <button class="px-btn small good" id="btnPauseResume">RESUME</button>
           <button class="px-btn small" id="btnPauseRestart">RESTART</button>
           <button class="px-btn small gold" id="btnPausePractice">PRACTICE: OFF</button>
+          <button class="px-btn small gold" id="btnPauseSlow">SLOW-MO: OFF</button>
           <button class="px-btn small gold" id="btnPauseHeat">HEATMAP: OFF</button>
           <button class="px-btn small" id="btnPauseSettings">SETTINGS</button>
           <button class="px-btn small danger" id="btnPauseQuit">LEVELS</button>
@@ -496,6 +497,11 @@
       <input class="px-input" id="profUser" maxlength="24" placeholder="new username" />
       <div class="row-gap"><button class="px-btn small gold" id="btnProfUser">SAVE USERNAME</button></div>
 
+      <hr class="sep" />
+      <div class="section-title">Bio</div>
+      <input class="px-input" id="profBio" maxlength="140" placeholder="a line about you" />
+      <div class="row-gap"><button class="px-btn small gold" id="btnProfBio">SAVE BIO</button></div>
+
       <div id="profPassSection">
         <hr class="sep" />
         <div class="section-title">Change password</div>
@@ -634,11 +640,18 @@
   <div class="modal-root" id="modalAccount">
     <div class="modal">
       <h2 id="acctTitle">PLAYER</h2>      <div class="stat-row"><span>Levels made</span><b id="acctMade">0</b></div>
+      <p class="hint" id="acctBio" style="display:none"></p>
       <div class="stat-row"><span>Levels beaten</span><b id="acctBeaten">0</b></div>
       <div class="stat-row"><span>Total deaths</span><b id="acctDeaths">0</b></div>
       <div class="acct-actions" id="acctActions" style="display:none">
         <button class="px-btn small good" id="btnAcctFollow">FOLLOW</button>
         <button class="px-btn small" id="btnAcctInvite">INVITE</button>
+        <button class="px-btn small gold" id="btnAcctGift">GIFT</button>
+      </div>
+      <div class="row-gap" id="giftRow" style="display:none">
+        <input class="px-input" id="giftAmount" inputmode="numeric" placeholder="coins" />
+        <button class="px-btn small good" id="btnGiftSend">SEND</button>
+        <button class="px-btn small" id="btnGiftCancel">CANCEL</button>
       </div>
       <hr class="sep" />
       <div class="section-title">LEVELS BY THIS PLAYER</div>
