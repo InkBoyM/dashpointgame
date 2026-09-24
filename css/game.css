@@ -1055,12 +1055,22 @@ body.gfx-ultra canvas { image-rendering: auto; }
   padding: 0 5px;
   border: 2px solid var(--ink-dark);
 }
+.acct-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0 2px; }
 .bell-row {
   background: var(--panel-2);
   border: 2px solid var(--ink-dark);
   padding: 8px 10px;
   font-size: 13px;
 }
+.bell-row.bell-act {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.bell-row.bell-act:hover { filter: brightness(1.08); }
+.bell-go { font-size: 11px; font-weight: 900; letter-spacing: 1px; color: var(--good); flex: none; }
 .net-body { flex: 1; overflow: auto; display: flex; flex-direction: column; align-items: center; padding: 20px; }
 .net-grid { display: flex; gap: clamp(12px, 3vw, 30px); justify-content: center; width: 100%; max-width: 900px; }
 .net-tile {

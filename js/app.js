@@ -808,7 +808,7 @@
   }
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", bellSeen: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", bellSeen: {}, follows: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
   }
 
   function touchUIDefaults() {
@@ -900,6 +900,8 @@
       s.graphics = s.graphics === "good" || s.graphics === "simple" || s.graphics === "dlls5" || s.graphics === "ultra" || s.graphics === "drawing" || s.graphics === "neon" || s.graphics === "revamped" ? (s.graphics === "revamped" ? "neon" : s.graphics) : "normal";
       if ((s.graphics === "drawing" || s.graphics === "neon") && s.packs.indexOf(s.graphics) === -1) s.graphics = "normal";
       s.ghostOpacity = clampGhostOpacity(s.ghostOpacity);
+      s.follows = s.follows && typeof s.follows === "object" && !Array.isArray(s.follows) ? s.follows : {};
+      s.bellSeen = s.bellSeen && typeof s.bellSeen === "object" ? s.bellSeen : {};
       return s;
     } catch (e) {
       return defaultSave();
@@ -4865,6 +4867,115 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
 
   let bellEvents = [];
   let bellChecking = false;
+  let accountView = null;
+
+  function currentMe() {
+    try {
+      return (NET.getEffectiveUser && NET.getEffectiveUser()) || (NET.getUser && NET.getUser());
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function followMap() {
+    const f = save_.data.follows;
+    return f && typeof f === "object" && !Array.isArray(f) ? f : {};
+  }
+
+  function isFollowingLocal(uid) {
+    return !!followMap()[uid];
+  }
+
+  function setFollowLocal(uid, name, on) {
+    if (!save_.data.follows || typeof save_.data.follows !== "object" || Array.isArray(save_.data.follows)) {
+      save_.data.follows = {};
+    }
+    if (on) save_.data.follows[uid] = { name: String(name || "player").slice(0, 24), ts: Date.now() };
+    else delete save_.data.follows[uid];
+    save();
+  }
+
+  async function refreshFollows() {
+    try {
+      const cloud = await NET.listFollows();
+      if (!cloud || typeof cloud !== "object") return;
+      const merged = followMap();
+      const seen = bellSeen();
+      Object.keys(cloud).forEach(function (uid) {
+        if (!merged[uid] && seen["f:" + uid] == null) seen["f:" + uid] = Date.now();
+        merged[uid] = cloud[uid] && typeof cloud[uid] === "object" ? cloud[uid] : (merged[uid] || { ts: Date.now() });
+      });
+      save_.data.follows = merged;
+      save_.data.bellSeen = seen;
+      save();
+    } catch (e) {}
+  }
+
+  function syncAcctActions() {
+    const actions = el("acctActions");
+    const followBtn = el("btnAcctFollow");
+    if (!actions || !accountView) return;
+    const me = currentMe();
+    if (me && me.uid === accountView.uid) {
+      actions.style.display = "none";
+      return;
+    }
+    actions.style.display = "flex";
+    const on = isFollowingLocal(accountView.uid);
+    if (followBtn) {
+      followBtn.textContent = on ? "UNFOLLOW" : "FOLLOW";
+      followBtn.classList.toggle("good", !on);
+    }
+  }
+
+  async function toggleFollow() {
+    if (!accountView) return;
+    const me = currentMe();
+    if (!me) { showNotice("Log in to follow players.", true); return; }
+    const uid = accountView.uid;
+    const name = accountView.name || "player";
+    const on = isFollowingLocal(uid);
+    try {
+      if (on) {
+        try { await NET.unfollowUser(uid); } catch (e) {}
+        setFollowLocal(uid, name, false);
+        showNotice("Unfollowed " + name, false);
+      } else {
+        try { await NET.followUser(uid, name); } catch (e) {}
+        setFollowLocal(uid, name, true);
+        const seen = bellSeen();
+        seen["f:" + uid] = Date.now();
+        save_.data.bellSeen = seen;
+        save();
+        showNotice("Following " + name, false);
+      }
+      syncAcctActions();
+    } catch (e) {
+      showNotice(NET.friendly(e), true);
+    }
+  }
+
+  async function inviteFromProfile() {
+    if (!accountView) return;
+    const me = currentMe();
+    if (!me) { showNotice("Log in to invite players.", true); return; }
+    const btn = el("btnAcctInvite");
+    if (btn) btn.disabled = true;
+    try {
+      if (!MP.isActive()) {
+        await MP.host();
+        try { syncMpUI(); } catch (e) {}
+      }
+      const code = String(MP.getCode() || "").trim().toUpperCase();
+      if (code.length !== 5) throw new Error("Could not start a room.");
+      await NET.sendInvite(accountView.uid, code);
+      showNotice("Invited " + (accountView.name || "player") + " to " + code, false);
+    } catch (e) {
+      showNotice(NET.friendly ? NET.friendly(e) : String(e.message || e), true);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
 
   function levelNameOf(file) {
     try {
@@ -4889,6 +5000,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     return bellEvents.filter(function (ev) {
       if (ev.kind === "comment") return (seen["c:" + ev.levelId] || 0) < ev.ts;
       if (ev.kind === "crown") return seen["b:" + ev.file] !== ev.holder + ev.time;
+      if (ev.kind === "follow") return (seen["f:" + ev.authorUid] || 0) < ev.ts;
+      if (ev.kind === "invite") return (seen["i:" + ev.fromUid] || 0) < ev.ts;
       return false;
     }).length;
   }
@@ -4950,6 +5063,40 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
           });
         }
       }
+      try { await refreshFollows(); } catch (e) {}
+      const follows = followMap();
+      const followIds = Object.keys(follows);
+      if (followIds.length) {
+        const levels = levelIndexCache || [];
+        followIds.forEach(function (uid) {
+          const info = follows[uid] && typeof follows[uid] === "object" ? follows[uid] : {};
+          const theirs = levels.filter(function (l) { return l.authorUid === uid; });
+          theirs.sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+          theirs.slice(0, 3).forEach(function (m) {
+            events.push({
+              kind: "follow",
+              ts: m.createdAt || 0,
+              authorUid: uid,
+              levelId: m.id,
+              title: m.title || "Untitled",
+              text: (m.authorName || info.name || "player") + " posted a new level: " + (m.title || "Untitled"),
+            });
+          });
+        });
+      }
+      try {
+        const invites = await NET.listInvites();
+        invites.forEach(function (inv) {
+          events.push({
+            kind: "invite",
+            ts: inv.ts || 0,
+            fromUid: inv.fromUid,
+            fromName: inv.fromName,
+            code: inv.code,
+            text: (inv.fromName || "player") + " invited you to room " + inv.code,
+          });
+        });
+      } catch (e) {}
       events.sort((a, b) => b.ts - a.ts);
       bellEvents = events.slice(0, 20);
       syncBellUI();
@@ -4970,7 +5117,40 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     bellEvents.forEach((ev) => {
       const row = document.createElement("div");
       row.className = "bell-row";
-      row.textContent = ev.text;
+      if (ev.kind === "follow" || ev.kind === "invite") {
+        row.classList.add("bell-act");
+        const msg = document.createElement("span");
+        msg.textContent = ev.text;
+        const go = document.createElement("span");
+        go.className = "bell-go";
+        go.textContent = ev.kind === "invite" ? "JOIN" : "VIEW";
+        row.appendChild(msg);
+        row.appendChild(go);
+        if (ev.kind === "follow") {
+          row.addEventListener("click", function () {
+            closeModal("modalBell");
+            const meta = (levelIndexCache || []).find(function (l) { return l.id === ev.levelId; });
+            if (meta) openLevelInfo({ id: meta.id, meta: meta });
+            else if (ev.authorUid) openAccount(ev.authorUid);
+          });
+          seen["f:" + ev.authorUid] = Math.max(seen["f:" + ev.authorUid] || 0, ev.ts);
+        } else {
+          row.addEventListener("click", async function () {
+            closeModal("modalBell");
+            try {
+              if (!MP.isActive() || String(MP.getCode()) !== ev.code) await MP.join(ev.code);
+              try { await NET.clearInvite(ev.fromUid); } catch (e) {}
+              showNotice("Joined " + (ev.fromName || "player") + "'s room", false);
+              try { syncMpUI(); } catch (e) {}
+            } catch (err) {
+              showNotice(String(err.message || err), true);
+            }
+          });
+          seen["i:" + ev.fromUid] = Math.max(seen["i:" + ev.fromUid] || 0, ev.ts);
+        }
+      } else {
+        row.textContent = ev.text;
+      }
       box.appendChild(row);
       if (ev.kind === "comment") seen["c:" + ev.levelId] = Math.max(seen["c:" + ev.levelId] || 0, ev.ts);
       if (ev.kind === "crown") seen["b:" + ev.file] = ev.holder + ev.time;
@@ -5015,10 +5195,13 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       return;
     }
     var theirs = (levelIndexCache || []).filter(function(l){ return l.authorUid === uid; });
+    accountView = { uid: uid, name: u.name || "player" };
     el("acctTitle").innerHTML = taggedNameHtml(String(u.name || "player").toUpperCase(), u.tag || tagIdForUid(u.uid), "", u.nameColor || nameColorForUid(u.uid)) + (u.beatenCount != null ? " " + rankChipHtml(rankForClears(u.beatenCount).rank) : "");
     el("acctMade").textContent = theirs.length;
     el("acctBeaten").textContent = u.beatenCount || 0;
     el("acctDeaths").textContent = u.deaths || 0;
+    syncAcctActions();
+    refreshFollows().then(syncAcctActions).catch(function () {});
     var box = el("acctLevels");
     box.innerHTML = "";
     if (!theirs.length) box.innerHTML = '<p class="loading-note">No levels posted yet.</p>';
@@ -5350,6 +5533,14 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     });
     el("modalAccount").querySelector("[data-close]").addEventListener("click", () => {
       el("modalAccount").classList.remove("visible");
+    });
+    if (el("btnAcctFollow")) el("btnAcctFollow").addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      toggleFollow();
+    });
+    if (el("btnAcctInvite")) el("btnAcctInvite").addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      inviteFromProfile();
     });
   }
 

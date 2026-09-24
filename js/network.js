@@ -931,10 +931,90 @@ window.DPNet = (function () {
     } catch(e){}
   }
 
+  async function followUser(targetUid, targetName) {
+    const u = getEffectiveUser() || getUser();
+    if (!u) throw new Error("Log in to follow players.");
+    targetUid = String(targetUid || "").trim();
+    if (!targetUid) throw new Error("Player not found.");
+    if (targetUid === u.uid) throw new Error("You can't follow yourself.");
+    await putJSON("/dashpoint/follows/" + encodeURIComponent(u.uid) + "/" + encodeURIComponent(targetUid), {
+      name: String(targetName || "player").slice(0, 24),
+      ts: Date.now(),
+    });
+    return true;
+  }
+
+  async function unfollowUser(targetUid) {
+    const u = getEffectiveUser() || getUser();
+    if (!u) throw new Error("Log in to unfollow players.");
+    targetUid = String(targetUid || "").trim();
+    if (!targetUid) return false;
+    await deleteJSON("/dashpoint/follows/" + encodeURIComponent(u.uid) + "/" + encodeURIComponent(targetUid));
+    return true;
+  }
+
+  async function listFollows(uid) {
+    const u = uid || ((getEffectiveUser() && getEffectiveUser().uid) || (getUser() && getUser().uid));
+    if (!u) return {};
+    try {
+      const val = await getJSON("/dashpoint/follows/" + encodeURIComponent(u));
+      return val && typeof val === "object" ? val : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  async function sendInvite(targetUid, code) {
+    const u = getEffectiveUser() || getUser();
+    if (!u) throw new Error("Log in to invite players.");
+    targetUid = String(targetUid || "").trim();
+    if (!targetUid) throw new Error("Player not found.");
+    if (targetUid === u.uid) throw new Error("You can't invite yourself.");
+    code = String(code || "").trim().toUpperCase();
+    if (code.length !== 5) throw new Error("No room to invite to.");
+    await putJSON("/dashpoint/invites/" + encodeURIComponent(targetUid) + "/" + encodeURIComponent(u.uid), {
+      fromUid: u.uid,
+      fromName: String(u.name || "player").slice(0, 24),
+      code: code,
+      ts: Date.now(),
+    });
+    return true;
+  }
+
+  async function listInvites() {
+    const u = getEffectiveUser() || getUser();
+    if (!u) return [];
+    try {
+      const val = await getJSON("/dashpoint/invites/" + encodeURIComponent(u.uid));
+      if (!val || typeof val !== "object") return [];
+      return Object.keys(val).map(function (id) {
+        const inv = val[id] || {};
+        return {
+          id: id,
+          fromUid: inv.fromUid || id,
+          fromName: inv.fromName || "player",
+          code: String(inv.code || "").toUpperCase(),
+          ts: inv.ts || 0,
+        };
+      }).filter(function (inv) { return inv.code.length === 5; });
+    } catch (e) {
+      return [];
+    }
+  }
+
+  async function clearInvite(fromUid) {
+    const u = getEffectiveUser() || getUser();
+    if (!u || !fromUid) return;
+    try {
+      await deleteJSON("/dashpoint/invites/" + encodeURIComponent(u.uid) + "/" + encodeURIComponent(fromUid));
+    } catch (e) {}
+  }
+
   return {
     init: ensure,
     onAuth: onAuth,
     getUser: getUser,
+    getEffectiveUser: getEffectiveUser,
     register: register,
     login: login,
     logout: logout,
@@ -976,6 +1056,12 @@ window.DPNet = (function () {
     deleteNetworkLevel: deleteNetworkLevel,
     getDeletionNotices: getDeletionNotices,
     clearDeletionNotices: clearDeletionNotices,
+    followUser: followUser,
+    unfollowUser: unfollowUser,
+    listFollows: listFollows,
+    sendInvite: sendInvite,
+    listInvites: listInvites,
+    clearInvite: clearInvite,
     friendly: friendly,
   };
 })();
