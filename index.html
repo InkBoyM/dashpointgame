@@ -23,6 +23,7 @@
   </div>
 
   <div class="screen visible" id="screen-home">
+    <div id="homeBg"></div>
     <div class="home-fx" aria-hidden="true">
       <div class="home-glow"></div>
       <div class="home-stars"></div>
@@ -362,6 +363,13 @@
       <div class="section-title">TEXTURE PACKS</div>
       <p class="hint">Redraw the whole game. Equip one to reskin every tile.</p>
       <div class="skin-grid" id="shopPackGrid"></div>
+      <div class="section-title">CUSTOM BACKGROUND</div>
+      <p class="hint">Your own image behind menus and levels. Panels go frosted glass.</p>
+      <div class="skin-grid" id="shopBgGrid"></div>
+      <div class="row-gap" id="bgUploadRow" style="display:none">
+        <button class="px-btn small gold" id="btnBgUpload">UPLOAD NEW IMAGE</button>
+      </div>
+      <input type="file" id="bgUpload" accept="image/*" style="display:none" />
       <div class="row-end"><button class="px-btn small" data-close="modalShop">BACK</button></div>
     </div>
   </div>
@@ -413,6 +421,9 @@
       <div class="slider-row"><span>Opacity</span><b id="setGhostOpVal">100%</b></div>
       <input type="range" id="setGhostOp" min="0" max="100" step="5" value="100" />
       <p class="hint">How solid other players' ghosts look when you race them.</p>
+      <div class="slider-row"><span>Panel blur</span><b id="setBlurVal">12px</b></div>
+      <input type="range" id="setBlur" min="0" max="24" step="1" value="12" />
+      <p class="hint">Frosted-glass strength over a custom background. Higher = more frosted.</p>
       <div class="section-title">GRAPHICS</div>
       <div class="gfx-row" id="gfxRow">
         <button type="button" class="px-btn small gfx-opt" data-gfx="simple">SIMPLE</button>

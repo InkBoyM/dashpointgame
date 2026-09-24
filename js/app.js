@@ -891,6 +891,11 @@
       s.touchUI = Object.assign(touchUIDefaults(), (s.touchUI && typeof s.touchUI === "object") ? s.touchUI : {});
       s.touchMode = s.touchMode === "joystick" ? "joystick" : "buttons";
       s.sharePresence = s.sharePresence === false ? false : true;
+      s.customBg = typeof s.customBg === "string" ? s.customBg : "";
+      s.customBgOn = !!s.customBgOn;
+      if (s.customBg && s.customBg.length > 2000000) { s.customBg = ""; s.customBgOn = false; }
+      var _blur = Number(s.blur);
+      s.blur = isFinite(_blur) ? Math.max(0, Math.min(24, _blur)) : 12;
       s.tag = findShopTag(s.tag) && s.tags.indexOf(s.tag) !== -1 ? s.tag : "";
       const cf = s.chestFree && typeof s.chestFree === "object" ? s.chestFree : {};
       s.chestFree = {
@@ -2827,6 +2832,7 @@
     renderShopFrames();
     renderShopTrails();
     renderShopPets();
+    renderShopBg();
     renderShopPacks();
     syncCoinUI();
   }
@@ -3066,6 +3072,164 @@
     syncCoinUI();
   }
 
+  // ---- Custom background: 10B shop slot, upload your own image ----
+  // Shows behind menus + levels; panels go frosted via --blur-amount.
+  var CUSTOM_BG_COST = "10000000000";
+  var customBgImg = null;
+  var customBgArm = 0;
+  function ownsCustomBg() { return !!save_.data.customBg; }
+  function customBgEquipped() { return !!(save_.data.customBg && save_.data.customBgOn); }
+  function loadCustomBg() {
+    customBgImg = null;
+    try {
+      var url = save_.data.customBg;
+      if (!url || !save_.data.customBgOn) { syncHomeBg(); return; }
+      var img = new Image();
+      img.onload = function () {
+        try {
+          customBgImg = img;
+          syncHomeBg();
+        } catch (e) {}
+      };
+      img.src = url;
+    } catch (e) {}
+    syncHomeBg();
+  }
+  function syncHomeBg() {
+    try {
+      var on = !!(save_.data.customBg && save_.data.customBgOn);
+      if (document.body) document.body.classList.toggle("custom-bg", on);
+      var hb = el("homeBg");
+      if (hb) hb.style.backgroundImage = on ? 'url("' + save_.data.customBg.replace(/"/g, "") + '")' : "";
+    } catch (e) {}
+  }
+  function applyBlur() {
+    try {
+      var v = Number(save_.data.blur);
+      if (!isFinite(v)) v = 12;
+      v = Math.max(0, Math.min(24, v));
+      document.documentElement.style.setProperty("--blur-amount", v + "px");
+      var s = el("setBlur"), lb = el("setBlurVal");
+      if (s) s.value = v;
+      if (lb) lb.textContent = v + "px";
+    } catch (e) {}
+  }
+  function renderShopBg() {
+    const box = el("shopBgGrid");
+    if (!box) return;
+    box.innerHTML = "";
+    if (!box.dataset.wired) {
+      box.dataset.wired = "1";
+      var ub = el("btnBgUpload");
+      if (ub) ub.addEventListener("click", pickBgImage);
+      var fi = el("bgUpload");
+      if (fi) fi.addEventListener("change", function () {
+        try {
+          if (fi.files && fi.files[0]) handleBgFile(fi.files[0]);
+        } catch (e) {}
+      });
+    }
+    const owned = ownsCustomBg();
+    const equipped = customBgEquipped();
+    const cost = coinAmount(CUSTOM_BG_COST);
+    const can = hasCoins(cost);
+    const b = document.createElement("button");
+    b.className = "skin-tile" + (equipped ? " selected" : "") + (!owned && !can ? " cant" : "");
+    const hint = !owned
+      ? (can ? "TAP TO BUY" : "NEED " + fmtCoins(cost))
+      : (equipped ? "EQUIPPED" : "TAP TO EQUIP");
+    b.innerHTML =
+      (owned && save_.data.customBg
+        ? '<img src="' + save_.data.customBg + '" alt="" />'
+        : '<span class="skin-name">?</span>') +
+      '<span class="skin-name">Custom background</span>' +
+      '<span class="shop-cost">' + coinIcon() + fmtCoins(cost) + "</span>" +
+      '<span class="skin-hint">' + escapeHtml(hint) + "</span>";
+    b.addEventListener("click", function () {
+      if (!ownsCustomBg()) {
+        if (!hasCoins(coinAmount(CUSTOM_BG_COST))) {
+          showNotice("Need " + fmtCoins(CUSTOM_BG_COST) + " coins", true);
+          return;
+        }
+        var now = Date.now();
+        if (now - customBgArm > 3000) {
+          customBgArm = now;
+          showNotice("Tap again to buy the custom background slot for " + fmtCoins(CUSTOM_BG_COST), false);
+          return;
+        }
+        customBgArm = 0;
+        subCoins(coinAmount(CUSTOM_BG_COST));
+        save();
+        syncCoinUI();
+        syncHomeStats();
+        renderShop();
+        pickBgImage();
+        return;
+      }
+      save_.data.customBgOn = !customBgEquipped();
+      save();
+      loadCustomBg();
+      renderShop();
+      showNotice(customBgEquipped() ? "Custom background ON" : "Custom background OFF", false);
+    });
+    box.appendChild(b);
+    var uw = el("bgUploadRow");
+    if (uw) uw.style.display = owned ? "" : "none";
+  }
+  function pickBgImage() {
+    try {
+      var inp = el("bgUpload");
+      if (!inp) return;
+      inp.value = "";
+      inp.click();
+    } catch (e) {}
+  }
+  function handleBgFile(file) {
+    if (!file) return;
+    if (!/^image\//.test(file.type || "")) {
+      showNotice("Pick an image file", true);
+      return;
+    }
+    try {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () {
+        try {
+          URL.revokeObjectURL(url);
+          var maxDim = 1600;
+          var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+          if (!w || !h) { showNotice("Couldn't read that image", true); return; }
+          var s = Math.min(1, maxDim / Math.max(w, h));
+          var cw = Math.max(1, Math.round(w * s)), ch = Math.max(1, Math.round(h * s));
+          var off = document.createElement("canvas");
+          off.width = cw; off.height = ch;
+          var octx = off.getContext("2d");
+          octx.drawImage(img, 0, 0, cw, ch);
+          var out = off.toDataURL("image/jpeg", 0.85);
+          if (!out || out.length > 1500000) {
+            showNotice("Image too big — try a smaller one", true);
+            return;
+          }
+          save_.data.customBg = out;
+          save_.data.customBgOn = true;
+          save();
+          loadCustomBg();
+          renderShop();
+          syncHomeStats();
+          showNotice("Background set!", false);
+        } catch (e) {
+          showNotice("Couldn't read that image", true);
+        }
+      };
+      img.onerror = function () {
+        try { URL.revokeObjectURL(url); } catch (e) {}
+        showNotice("Couldn't read that image", true);
+      };
+      img.src = url;
+    } catch (e) {
+      showNotice("Couldn't read that image", true);
+    }
+  }
   function renderShopPacks() {
     const box = el("shopPackGrid");
     if (!box) return;
@@ -4312,6 +4476,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       graphics: gfxMode(),
       heat: state.heatmap,
       fx: gfxFlags(),
+      customBg: customBgImg,
     });
     try {
       if (gfxMode() === "simple") DP.syncWidgetDom(el("widgetLayer"), [], null);
@@ -6374,6 +6539,12 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       save();
       syncGhostOpUI();
     });
+    el("setBlur").addEventListener("input", (ev) => {
+      var v = Number(ev.target.value);
+      save_.data.blur = isFinite(v) ? Math.max(0, Math.min(24, v)) : 12;
+      save();
+      applyBlur();
+    });
     document.querySelectorAll(".gfx-opt").forEach(function (b) {
       b.addEventListener("click", function () {
         const next = b.getAttribute("data-gfx");
@@ -6684,6 +6855,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         state.images = images;
         ensureCustomSkin();
         loadPetImages();
+        loadCustomBg();
+        applyBlur();
         loadLevels();
       })
       .catch((err) => {

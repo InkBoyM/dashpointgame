@@ -4074,6 +4074,23 @@
     ctx.fillRect(0, 0, w, h);
   }
 
+  function drawCustomBg(ctx, w, h, img) {
+    // User-uploaded backdrop: cover-fit, fixed to screen, dimmed so tiles pop.
+    try {
+      const iw = img.naturalWidth || img.width;
+      const ih = img.naturalHeight || img.height;
+      if (!iw || !ih) return false;
+      const s = Math.max(w / iw, h / ih);
+      const dw = iw * s, dh = ih * s;
+      ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+      ctx.fillStyle = "rgba(4, 8, 16, 0.25)";
+      ctx.fillRect(0, 0, w, h);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function drawWorld(ctx, level, images, cam, extras) {
     extras = extras || {};
     const gfx = extras.graphics === "good" || extras.graphics === "simple" || extras.graphics === "dlls5" || extras.graphics === "ultra" || extras.graphics === "drawing" || extras.graphics === "revamped" || extras.graphics === "neon" ? extras.graphics : "normal";
@@ -4087,7 +4104,9 @@
     const worldH = level.rows * TILE;
 
     ctx.imageSmoothingEnabled = gfx === "ultra";
-    if (level.theme && level.theme.bg && drawTiledBg(ctx, pack, w, h, cam, level.theme)) {
+    if (extras.customBg && drawCustomBg(ctx, w, h, extras.customBg)) {
+      // custom backdrop replaces the themed one
+    } else if (level.theme && level.theme.bg && drawTiledBg(ctx, pack, w, h, cam, level.theme)) {
       // themed looping bg handled it (base fill + seamless tiles)
     } else if (gfx === "ultra" && pack.background) drawUltraBackdrop(ctx, w, h, pack.background);
     else if (gfx === "drawing") drawBackdrop(ctx, w, h, Date.now() / 1000, { top: grayHex(level.theme.top), mid: grayHex(level.theme.mid), bottom: grayHex(level.theme.bottom) }, false);
