@@ -4432,6 +4432,11 @@
           ctx.fillRect(rc.x, rc.y, PLAYER_W, PLAYER_H);
         }
         ctx.restore();
+        if (!rc.dead && rc.pet && images.pets && images.pets[rc.pet]) {
+          const ppx = (typeof rc.petX === "number" ? rc.petX : rc.x - 14) - 8;
+          const ppy = (typeof rc.petY === "number" ? rc.petY : rc.y + 4) - 8;
+          ctx.drawImage(images.pets[rc.pet], ppx, ppy, 16, 16);
+        }
         if (rc.name && gfx !== "simple") {
           ctx.save();
           if (typeof rc.alpha === "number") ctx.globalAlpha = rc.alpha;

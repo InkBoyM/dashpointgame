@@ -129,13 +129,16 @@ window.DashPointMP = (function () {
   function flushCube() {
     if (!active || !meRef) return;
     const b = pendingCube;
-    if (b && cubeActive && (!lastSent || b.x !== lastSent.x || b.y !== lastSent.y || Math.round(b.rot) !== Math.round(lastSent.rot) || b.dead !== lastSent.dead || b.won !== lastSent.won || b.level !== lastSent.level)) {
-      lastSent = { x: b.x, y: b.y, rot: b.rot, dead: b.dead, won: b.won, level: b.level };
+    if (b && cubeActive && (!lastSent || b.x !== lastSent.x || b.y !== lastSent.y || Math.round(b.rot) !== Math.round(lastSent.rot) || b.dead !== lastSent.dead || b.won !== lastSent.won || b.level !== lastSent.level || (b.pet || "") !== (lastSent.pet || "") || (b.petX | 0) !== (lastSent.petX | 0) || (b.petY | 0) !== (lastSent.petY | 0))) {
+      lastSent = { x: b.x, y: b.y, rot: b.rot, dead: b.dead, won: b.won, level: b.level, pet: b.pet || "", petX: b.petX | 0, petY: b.petY | 0 };
       meRef.child("cube").set({
         x: Math.round(b.x * 10) / 10,
         y: Math.round(b.y * 10) / 10,
         rot: Math.round(b.rot),
-        skin: b.skin | 0,
+        skin: (typeof b.skin === "string" ? b.skin : (b.skin | 0)),
+        pet: String(b.pet || ""),
+        petX: b.petX | 0,
+        petY: b.petY | 0,
         dead: !!b.dead,
         won: !!b.won,
         level: String(b.level || ""),
