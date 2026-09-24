@@ -4959,14 +4959,22 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
   }
 
   async function inviteFromProfile() {
-    if (!accountView) return;
+    if (!accountView) { showNotice("Open a player's profile first.", true); return; }
     const me = currentMe();
     if (!me) { showNotice("Log in to invite players.", true); return; }
     const btn = el("btnAcctInvite");
-    if (btn) btn.disabled = true;
+    const oldLabel = btn ? btn.textContent : "";
+    if (btn) { btn.disabled = true; btn.textContent = "HOSTING…"; }
+    showNotice("Starting room…", false);
+    function hostTimeout(ms) {
+      return new Promise(function (_, reject) {
+        setTimeout(function () { reject(new Error("Couldn't start a room (network?). Check connection and try again.")); }, ms);
+      });
+    }
     try {
       if (!MP.isActive()) {
-        await MP.host();
+        // Firebase can stall without resolving when offline — never hang silently
+        await Promise.race([MP.host(), hostTimeout(12000)]);
         try { syncMpUI(); } catch (e) {}
       }
       const code = String(MP.getCode() || "").trim().toUpperCase();
@@ -4976,7 +4984,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     } catch (e) {
       showNotice(NET.friendly ? NET.friendly(e) : String(e.message || e), true);
     } finally {
-      if (btn) btn.disabled = false;
+      if (btn) { btn.disabled = false; btn.textContent = oldLabel || "INVITE"; }
     }
   }
 
@@ -5140,8 +5148,13 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         } else {
           row.addEventListener("click", async function () {
             closeModal("modalBell");
+            showNotice("Joining " + (ev.fromName || "player") + "'s room…", false);
             try {
-              if (!MP.isActive() || String(MP.getCode()) !== ev.code) await MP.join(ev.code);
+              if (!MP.isActive() || String(MP.getCode()) !== ev.code) {
+                await Promise.race([MP.join(ev.code), new Promise(function (_, reject) {
+                  setTimeout(function () { reject(new Error("Couldn't join (network?). The room may be gone — ask for a fresh invite.")); }, 12000);
+                })]);
+              }
               try { await NET.clearInvite(ev.fromUid); } catch (e) {}
               showNotice("Joined " + (ev.fromName || "player") + "'s room", false);
               try { syncMpUI(); } catch (e) {}
