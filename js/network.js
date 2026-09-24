@@ -444,6 +444,23 @@ window.DPNet = (function () {
     return clean;
   }
 
+  const SOCIAL_IDS = ["discord", "youtube", "twitch", "x", "tiktok", "instagram"];
+  function cleanHandle(v) {
+    return String(v || "").trim().replace(/^@+/, "").replace(/\s+/g, "").slice(0, 32);
+  }
+  async function updateSocials(obj) {
+    const u = getEffectiveUser() || getUser();
+    if (!u) throw new Error("Not logged in");
+    const clean = {};
+    for (const id of SOCIAL_IDS) {
+      const h = cleanHandle(obj && obj[id]);
+      if (h) clean[id] = h;
+    }
+    await patchJSON("/dashpoint/usersIndex/" + u.uid, { socials: clean, lastSeen: Date.now() });
+    if (user && user.uid === u.uid) user.socials = clean;
+    return clean;
+  }
+
   async function updateUsername(name) {    const u = getEffectiveUser() || getUser();
     if (!u) throw new Error("Not logged in");
     const clean = String(name || "").replace(/\s+/g, " ").trim().slice(0, 24);
@@ -1167,6 +1184,7 @@ window.DPNet = (function () {
     syncStats: syncStats,
     updateUsername: updateUsername,
     updateBio: updateBio,
+    updateSocials: updateSocials,
     syncCloud: syncCloud,
     downloadCloud: downloadCloud,
     submitLeaderboard: submitLeaderboard,

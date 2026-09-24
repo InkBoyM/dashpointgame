@@ -5461,6 +5461,112 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     syncBellUI();
   }
 
+  // ---- Profile social links (usernames; links build themselves) ----
+  const SOCIALS = [
+    { id: "discord", label: "Discord", icon: "assets/social/social-discord.png", url: null },
+    { id: "youtube", label: "YouTube", icon: "assets/social/social-youtube.png", url: function (h) { return "https://youtube.com/@" + h; } },
+    { id: "twitch", label: "Twitch", icon: "assets/social/social-twitch.png", url: function (h) { return "https://twitch.tv/" + h; } },
+    { id: "x", label: "X", icon: "assets/social/social-x.png", url: function (h) { return "https://x.com/" + h; } },
+    { id: "tiktok", label: "TikTok", icon: "assets/social/social-tiktok.png", url: function (h) { return "https://tiktok.com/@" + h; } },
+    { id: "instagram", label: "Instagram", icon: "assets/social/social-instagram.png", url: function (h) { return "https://instagram.com/" + h; } },
+  ];
+  function cleanSocialHandle(v) {
+    return String(v || "").trim().replace(/^@+/, "").replace(/\s+/g, "").slice(0, 32);
+  }
+  function socialUrl(def, handle) {
+    try {
+      if (!def || !def.url || !handle) return "";
+      return def.url(encodeURIComponent(handle));
+    } catch (e) { return ""; }
+  }
+  let socialsLoadedFor = "";
+  function renderSocialInputs() {
+    const box = el("profSocials");
+    if (!box || box.dataset.done) return;
+    box.dataset.done = "1";
+    SOCIALS.forEach(function (s) {
+      const row = document.createElement("div");
+      row.className = "row-gap";
+      row.style.alignItems = "center";
+      const img = document.createElement("img");
+      img.src = s.icon;
+      img.alt = s.label;
+      img.style.width = "24px";
+      img.style.height = "24px";
+      img.style.imageRendering = "pixelated";
+      const inp = document.createElement("input");
+      inp.className = "px-input";
+      inp.id = "soc-" + s.id;
+      inp.maxLength = 32;
+      inp.placeholder = s.label + " username";
+      inp.style.flex = "1";
+      row.appendChild(img);
+      row.appendChild(inp);
+      box.appendChild(row);
+    });
+  }
+  function prefillSocials() {
+    try {
+      renderSocialInputs();
+      const me = MP.getUser && MP.getUser();
+      if (!me || me.guest || !window.DPNet || !DPNet.getUserProfile) return;
+      if (socialsLoadedFor === me.uid) return;
+      socialsLoadedFor = me.uid;
+      DPNet.getUserProfile(me.uid).then(function (p) {
+        try {
+          const cur = (p && p.socials) || (me && me.socials) || {};
+          SOCIALS.forEach(function (s) {
+            const inp = el("soc-" + s.id);
+            if (inp && !inp.value && cur[s.id]) inp.value = String(cur[s.id]).slice(0, 32);
+          });
+        } catch (e) {}
+      }).catch(function () {});
+    } catch (e) {}
+  }
+  function renderAcctSocials(u) {
+    try {
+      const box = el("acctSocials");
+      if (!box) return;
+      box.innerHTML = "";
+      const cur = (u && u.socials) || {};
+      let n = 0;
+      SOCIALS.forEach(function (s) {
+        const h = cleanSocialHandle(cur[s.id]);
+        if (!h) return;
+        n++;
+        const url = socialUrl(s, h);
+        if (url) {
+          const a = document.createElement("a");
+          a.href = url;
+          a.target = "_blank";
+          a.rel = "noopener";
+          a.title = s.label + ": " + h;
+          const img = document.createElement("img");
+          img.src = s.icon;
+          img.alt = s.label;
+          img.style.width = "28px";
+          img.style.height = "28px";
+          img.style.imageRendering = "pixelated";
+          a.appendChild(img);
+          box.appendChild(a);
+        } else {
+          const chip = document.createElement("button");
+          chip.className = "px-btn tiny";
+          chip.title = "Tap to copy";
+          chip.innerHTML = '<img src="' + s.icon + '" alt="" style="width:16px;height:16px;image-rendering:pixelated;vertical-align:middle" /> ' + escapeHtml(h);
+          chip.addEventListener("click", function (ev) {
+            ev.stopPropagation();
+            try {
+              if (navigator.clipboard) navigator.clipboard.writeText(h).catch(function () {});
+              showNotice("Copied " + h, false);
+            } catch (e) {}
+          });
+          box.appendChild(chip);
+        }
+      });
+      box.style.display = n ? "" : "none";
+    } catch (e) {}
+  }
   async function openAccount(uid) {
     uid = String(uid || "").trim();
     if (!uid) { showNotice("Player not found.", true); return; }
@@ -5509,6 +5615,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         else { bb.textContent = ""; bb.style.display = "none"; }
       }
     } catch (e) {}
+    renderAcctSocials(u);
     syncAcctActions();
     refreshFollows().then(syncAcctActions).catch(function () {});
     try {
@@ -6260,7 +6367,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
 
     // ---- Profile modal ----
     const pb = el("btnProfileHome");
-    if (pb) pb.addEventListener("click", () => { openModal("modalProfile"); renderFriendList(); });
+    if (pb) pb.addEventListener("click", () => { openModal("modalProfile"); renderFriendList(); prefillSocials(); });
 
     function profileMsg(t) { var m = el("profMsg"); if (m) m.textContent = t || ""; }
 
@@ -6316,6 +6423,18 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         const bio = await NET.updateBio(el("profBio").value);
         el("profBio").value = bio;
         profileMsg(bio ? "Bio saved" : "Bio cleared");
+      } catch (e) { profileMsg(e.message || String(e)); }
+    });
+
+    el("btnProfSocials").addEventListener("click", async () => {
+      try {
+        const obj = {};
+        SOCIALS.forEach(function (s) {
+          const inp = el("soc-" + s.id);
+          obj[s.id] = cleanSocialHandle(inp ? inp.value : "");
+        });
+        await NET.updateSocials(obj);
+        profileMsg("Socials saved");
       } catch (e) { profileMsg(e.message || String(e)); }
     });
 

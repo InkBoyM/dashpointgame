@@ -502,6 +502,12 @@
       <input class="px-input" id="profBio" maxlength="140" placeholder="a line about you" />
       <div class="row-gap"><button class="px-btn small gold" id="btnProfBio">SAVE BIO</button></div>
 
+      <hr class="sep" />
+      <div class="section-title">Social links</div>
+      <p class="hint">Usernames only — links build themselves. Discord shows as text.</p>
+      <div id="profSocials"></div>
+      <div class="row-gap"><button class="px-btn small gold" id="btnProfSocials">SAVE SOCIALS</button></div>
+
       <div id="profPassSection">
         <hr class="sep" />
         <div class="section-title">Change password</div>
@@ -646,6 +652,7 @@
     <div class="modal">
       <h2 id="acctTitle">PLAYER</h2>      <div class="stat-row"><span>Levels made</span><b id="acctMade">0</b></div>
       <p class="hint" id="acctBio" style="display:none"></p>
+      <div class="row-gap" id="acctSocials" style="display:none"></div>
       <div class="stat-row"><span>Levels beaten</span><b id="acctBeaten">0</b></div>
       <div class="stat-row"><span>Total deaths</span><b id="acctDeaths">0</b></div>
       <div class="acct-actions" id="acctActions" style="display:none">
