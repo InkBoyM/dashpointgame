@@ -52,9 +52,11 @@ self.addEventListener("fetch", (ev) => {
     return;
   }
   if (url.origin !== self.location.origin) return;
-  // Everything (including navigations) is stale-while-revalidate: the shell
-  // and its scripts always move together, so a fresh page can never pair
-  // with a stale script. Offline falls back to whatever is cached.
+  // Scripts/styles/navigations are network-first: a fresh page must never
+  // pair with a stale script (that combo renders new UI with no code behind
+  // it, e.g. an empty shop section). Images stay stale-while-revalidate.
+  // Offline falls back to whatever is cached.
+  const netFirst = req.mode === "navigate" || /\.js$/.test(url.pathname) || /\.css$/.test(url.pathname);
   ev.respondWith(
     caches.match(req, { ignoreSearch: false }).then((hit) => {
       const net = fetch(req)
@@ -74,6 +76,7 @@ self.addEventListener("fetch", (ev) => {
           hit || caches.match("index.html").then((r) => r || caches.match("./"))
         );
       }
+      if (netFirst) return net.catch(() => hit);
       return hit || net;
     })
   );
