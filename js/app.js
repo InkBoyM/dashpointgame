@@ -3103,12 +3103,17 @@
       if (hb) hb.style.backgroundImage = on ? 'url("' + save_.data.customBg.replace(/"/g, "") + '")' : "";
     } catch (e) {}
   }
+  function bgBlurPx() {
+    var v = Number(save_.data.blur);
+    if (!isFinite(v)) v = 12;
+    return Math.max(0, Math.min(24, v));
+  }
   function applyBlur() {
     try {
-      var v = Number(save_.data.blur);
-      if (!isFinite(v)) v = 12;
-      v = Math.max(0, Math.min(24, v));
-      document.documentElement.style.setProperty("--blur-amount", v + "px");
+      // Slider blurs the background IMAGE itself (menu + levels).
+      // Panels keep a fixed 12px frost via the --blur-amount CSS default.
+      var v = bgBlurPx();
+      document.documentElement.style.setProperty("--bg-blur", v + "px");
       var s = el("setBlur"), lb = el("setBlurVal");
       if (s) s.value = v;
       if (lb) lb.textContent = v + "px";
@@ -4477,6 +4482,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       heat: state.heatmap,
       fx: gfxFlags(),
       customBg: customBgImg,
+      customBgBlur: bgBlurPx(),
     });
     try {
       if (gfxMode() === "simple") DP.syncWidgetDom(el("widgetLayer"), [], null);
