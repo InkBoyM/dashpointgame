@@ -448,6 +448,11 @@ window.DPNet = (function () {
   function cleanHandle(v) {
     return String(v || "").trim().replace(/^@+/, "").replace(/\s+/g, "").slice(0, 32);
   }
+  function cleanCustomUrl(v) {
+    var s = String(v || "").trim().replace(/\s+/g, "");
+    s = s.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").replace(/\/+$/, "");
+    return s.slice(0, 128);
+  }
   async function updateSocials(obj) {
     const u = getEffectiveUser() || getUser();
     if (!u) throw new Error("Not logged in");
@@ -456,9 +461,17 @@ window.DPNet = (function () {
       const h = cleanHandle(obj && obj[id]);
       if (h) clean[id] = h;
     }
-    await patchJSON("/dashpoint/usersIndex/" + u.uid, { socials: clean, lastSeen: Date.now() });
-    if (user && user.uid === u.uid) user.socials = clean;
-    return clean;
+    const custom = cleanCustomUrl(obj && obj.custom);
+    await patchJSON("/dashpoint/usersIndex/" + u.uid, {
+      socials: clean,
+      socialLink: { url: custom },
+      lastSeen: Date.now(),
+    });
+    if (user && user.uid === u.uid) {
+      user.socials = clean;
+      user.socialLink = { url: custom };
+    }
+    return { socials: clean, custom: custom };
   }
 
   async function updateUsername(name) {    const u = getEffectiveUser() || getUser();

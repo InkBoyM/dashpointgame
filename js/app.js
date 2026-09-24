@@ -5473,6 +5473,24 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
   function cleanSocialHandle(v) {
     return String(v || "").trim().replace(/^@+/, "").replace(/\s+/g, "").slice(0, 32);
   }
+  function cleanCustomUrl(v) {
+    var s = String(v || "").trim().replace(/\s+/g, "");
+    s = s.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").replace(/\/+$/, "");
+    return s.slice(0, 128);
+  }
+  function customUrlDomain(url) {
+    var s = cleanCustomUrl(url).split("/")[0].split(":")[0].toLowerCase();
+    return /^[a-z0-9.-]+\.[a-z]{2,}$/.test(s) ? s : "";
+  }
+  function faviconUrl(url) {
+    var d = customUrlDomain(url);
+    return d ? "https://" + d + "/favicon.ico" : "";
+  }
+  function linkHref(url) {
+    var s = cleanCustomUrl(url);
+    if (!s) return "";
+    return /^[a-z][a-z0-9+.-]*:\/\//i.test(String(url || "")) ? String(url).trim() : "https://" + s;
+  }
   function socialUrl(def, handle) {
     try {
       if (!def || !def.url || !handle) return "";
@@ -5504,6 +5522,24 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       row.appendChild(inp);
       box.appendChild(row);
     });
+    var crow = document.createElement("div");
+    crow.className = "row-gap";
+    crow.style.alignItems = "center";
+    var cimg = document.createElement("img");
+    cimg.src = "assets/social/social-globe.png";
+    cimg.alt = "Website";
+    cimg.style.width = "24px";
+    cimg.style.height = "24px";
+    cimg.style.imageRendering = "pixelated";
+    var cinp = document.createElement("input");
+    cinp.className = "px-input";
+    cinp.id = "soc-custom";
+    cinp.maxLength = 128;
+    cinp.placeholder = "yourwebsite.com";
+    cinp.style.flex = "1";
+    crow.appendChild(cimg);
+    crow.appendChild(cinp);
+    box.appendChild(crow);
   }
   function prefillSocials() {
     try {
@@ -5519,6 +5555,9 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
             const inp = el("soc-" + s.id);
             if (inp && !inp.value && cur[s.id]) inp.value = String(cur[s.id]).slice(0, 32);
           });
+          const curl = (p && p.socialLink && p.socialLink.url) || (me && me.socialLink && me.socialLink.url) || "";
+          const cinp = el("soc-custom");
+          if (cinp && !cinp.value && curl) cinp.value = String(curl).slice(0, 128);
         } catch (e) {}
       }).catch(function () {});
     } catch (e) {}
@@ -5565,6 +5604,32 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         }
       });
       box.style.display = n ? "" : "none";
+      try {
+        const curl = cleanCustomUrl((u && u.socialLink && u.socialLink.url) || "");
+        if (curl) {
+          n++;
+          const fav = faviconUrl(curl);
+          const href = linkHref(curl);
+          const a = document.createElement("a");
+          a.href = href;
+          a.target = "_blank";
+          a.rel = "noopener";
+          a.title = curl;
+          const fimg = document.createElement("img");
+          // pixel filter: site favicon rendered chunky; gray globe if missing
+          fimg.src = fav || "assets/social/social-globe.png";
+          fimg.alt = "website";
+          fimg.style.width = "28px";
+          fimg.style.height = "28px";
+          fimg.style.imageRendering = "pixelated";
+          fimg.onerror = function () {
+            try { fimg.onerror = null; fimg.src = "assets/social/social-globe.png"; } catch (e) {}
+          };
+          a.appendChild(fimg);
+          box.appendChild(a);
+          box.style.display = "";
+        }
+      } catch (e) {}
     } catch (e) {}
   }
   async function openAccount(uid) {
@@ -6433,6 +6498,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
           const inp = el("soc-" + s.id);
           obj[s.id] = cleanSocialHandle(inp ? inp.value : "");
         });
+        const cinp = el("soc-custom");
+        obj.custom = cleanCustomUrl(cinp ? cinp.value : "");
         await NET.updateSocials(obj);
         profileMsg("Socials saved");
       } catch (e) { profileMsg(e.message || String(e)); }
