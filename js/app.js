@@ -4220,6 +4220,30 @@
     setSpectate(next);
     if (next) showNotice("Spectating " + (spectateName() || "player"), false);
   }
+  let adminTpIdx = 0;
+  // Admins: Alt+Up/Down teleports the cube to each player on this level in turn.
+  function adminTeleport(dir) {
+    if (!state.engine || !state.playing || state.paused || state.engine.won) return true;
+    const mates = spectateCandidates();
+    if (!mates.length) {
+      showNotice("No other players on this level right now", true);
+      return true;
+    }
+    adminTpIdx = (((adminTpIdx + (dir || 1)) % mates.length) + mates.length) % mates.length;
+    const m = mates[adminTpIdx];
+    const p = state.engine.player;
+    p.x = m.cube.x;
+    p.y = m.cube.y;
+    p.vx = 0;
+    p.vy = 0;
+    if (state.engine.dead) {
+      state.engine.dead = false;
+      state.engine.deathTimer = 0;
+    }
+    try { haptic("tick"); } catch (e) {}
+    showNotice("Teleported to " + (m.name || "player") + " (" + (adminTpIdx + 1) + "/" + mates.length + ")", false);
+    return true;
+  }
   let lastSpectateWatchers = [];
   function checkSpectateNotices() {
     if (!MP.isActive()) { lastSpectateWatchers = []; return; }
@@ -6384,6 +6408,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
           if (!ev.repeat) toggleQuickChat();
           return;
         }
+        if (!state.qcOpen && ev.altKey && !ev.repeat && (kq === "ArrowDown" || kq === "ArrowUp") && state.screen === "game" && state.playing && NET.isAdmin && NET.isAdmin()) { ev.preventDefault(); adminTeleport(kq === "ArrowDown" ? 1 : -1); return; }
         if (ev.altKey && !ev.repeat && (kq === "ArrowDown" || kq === "ArrowRight")) { ev.preventDefault(); moveQcSel(1); return; }
         if (ev.altKey && !ev.repeat && (kq === "ArrowUp" || kq === "ArrowLeft")) { ev.preventDefault(); moveQcSel(-1); return; }
         if (ev.altKey && !ev.repeat && (kq === "Enter" || kq === "Space")) { ev.preventDefault(); sendQuickChat(); return; }
