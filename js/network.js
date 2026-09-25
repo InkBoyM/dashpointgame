@@ -905,7 +905,7 @@ window.DPNet = (function () {
   }
 
   // ---- Admin ----
-  const ADMIN_EMAILS = ["inkboym@inkboym.org", "inkboym@gmail.com"];
+  const ADMIN_EMAILS = ["inkboym@inkboym.org", "inkboym@gmail.com", "ilyadafirebro99312@gmail.com"];
   function getUserEmail() {
     const u = getUser() || getEffectiveUser();
     if (u && u.email) return String(u.email).toLowerCase();
