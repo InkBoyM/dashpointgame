@@ -989,8 +989,6 @@
     paused: false,
     shake: 0,
     spectateUid: null,
-    qcOpen: false,
-    qcSel: 0,
     keys: new Set(),
     touch: { left: false, right: false, jump: false },
     lastFrame: 0,
@@ -1246,8 +1244,6 @@
     });
   }
 
-  // ---- Quick chat state ----
-  const QC_FIXED = ["Hi", "Hello", "Where are you", "Nice", "Tuff", "Bye", "Dashpoint is the best game ever made", "\uD83D\uDD25", "\uD83D\uDE00"];
   let qbubbles = [];
   let lastChatSeen = {};
 
@@ -2252,7 +2248,6 @@
   }
 
   function show(name) {
-    if (state.qcOpen) closeQuickChat();
     state.screen = name;
     document.querySelectorAll(".screen").forEach((s) => s.classList.remove("visible"));
     el("screen-" + name).classList.add("visible");
@@ -3935,7 +3930,7 @@
     flushPlaytime();
     try { flushHeat(); } catch (e) {}
     setSpectate(null);
-    closeQuickChatFor();
+    clearChatBubbles();
     try { el("widgetLayer").innerHTML = ""; } catch (e) {}
     state.playing = false;
     state.engine = null;
@@ -4256,57 +4251,6 @@
   }
 
   // ---- Quick chat ----
-  function qcMessages() {
-    const skin = SKINS.find((s) => s.id === save_.data.skin) || SKINS[0];
-    const skinTxt = skin && skin.name ? skin.name : "Cube";
-    return QC_FIXED.concat(["Using " + skinTxt]);
-  }
-  function openQuickChat() {
-    if (!MP.isActive()) { showNotice("Join a room to chat", true); return; }
-    if (state.qcOpen) return;
-    state.qcOpen = true;
-    renderQuickChat();
-    el("qcPopup").classList.add("open");
-  }
-  function closeQuickChat() {
-    state.qcOpen = false;
-    el("qcPopup").classList.remove("open");
-  }
-  function toggleQuickChat() {
-    if (state.qcOpen) closeQuickChat();
-    else openQuickChat();
-  }
-  function renderQuickChat() {
-    const grid = el("qcGrid");
-    if (!grid) return;
-    const msgs = qcMessages();
-    if (state.qcSel >= msgs.length) state.qcSel = msgs.length - 1;
-    if (state.qcSel < 0) state.qcSel = 0;
-    grid.innerHTML = "";
-    msgs.forEach((m, i) => {
-      const d = document.createElement("div");
-      d.className = "qc-msg" + (i === state.qcSel ? " sel" : "");
-      d.textContent = m;
-      d.addEventListener("click", () => { state.qcSel = i; sendQuickChat(); });
-      d.addEventListener("mouseenter", () => { if (state.qcSel !== i) { state.qcSel = i; renderQuickChat(); } });
-      grid.appendChild(d);
-    });
-  }
-  function moveQcSel(delta) {
-    if (!MP.isActive()) { showNotice("Join a room to chat", true); return; }
-    const msgs = qcMessages();
-    state.qcSel = (state.qcSel + delta + msgs.length) % msgs.length;
-    if (!state.qcOpen) { state.qcOpen = true; renderQuickChat(); el("qcPopup").classList.add("open"); }
-    else renderQuickChat();
-  }
-  function sendQuickChat() {
-    if (!MP.isActive()) { showNotice("Join a room to chat", true); return; }
-    const msgs = qcMessages();
-    if (state.qcSel >= msgs.length) state.qcSel = msgs.length - 1;
-    const text = msgs[state.qcSel];
-    closeQuickChat();
-    sendChatText(text);
-  }
   function sendChatText(text) {
     const ok = MP.sendChat(text);
     if (!ok) { showNotice("Not in a room", true); return; }
@@ -4416,10 +4360,6 @@
     const host = el("chatBubbles");
     if (host) host.innerHTML = "";
     qbubbles = [];
-  }
-  function closeQuickChatFor() {
-    if (state.qcOpen) closeQuickChat();
-    clearChatBubbles();
   }
 
   // ---- Haptics (Android bridge, else navigator.vibrate) ----
@@ -6402,21 +6342,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     }
     if (!isTyping(ev)) {
       const kq = ev.code;
-      if (MP.isActive()) {
-        if (kq === "AltLeft" || kq === "AltRight") {
-          ev.preventDefault();
-          if (!ev.repeat) toggleQuickChat();
-          return;
-        }
-        if (!state.qcOpen && ev.altKey && !ev.repeat && (kq === "ArrowDown" || kq === "ArrowUp") && state.screen === "game" && state.playing && NET.isAdmin && NET.isAdmin()) { ev.preventDefault(); adminTeleport(kq === "ArrowDown" ? 1 : -1); return; }
-        if (ev.altKey && !ev.repeat && (kq === "ArrowDown" || kq === "ArrowRight")) { ev.preventDefault(); moveQcSel(1); return; }
-        if (ev.altKey && !ev.repeat && (kq === "ArrowUp" || kq === "ArrowLeft")) { ev.preventDefault(); moveQcSel(-1); return; }
-        if (ev.altKey && !ev.repeat && (kq === "Enter" || kq === "Space")) { ev.preventDefault(); sendQuickChat(); return; }
-        if (state.qcOpen && (kq === "ArrowDown" || kq === "ArrowRight")) { ev.preventDefault(); moveQcSel(1); return; }
-        if (state.qcOpen && (kq === "ArrowUp" || kq === "ArrowLeft")) { ev.preventDefault(); moveQcSel(-1); return; }
-        if (state.qcOpen && kq === "Enter") { ev.preventDefault(); sendQuickChat(); return; }
-        if (state.qcOpen && kq === "Escape") { ev.preventDefault(); closeQuickChat(); return; }
-      }
+      if (MP.isActive() && ev.altKey && !ev.repeat && (kq === "ArrowDown" || kq === "ArrowUp") && state.screen === "game" && state.playing && !state.paused && NET.isAdmin && NET.isAdmin()) { ev.preventDefault(); adminTeleport(kq === "ArrowDown" ? 1 : -1); return; }
       state.keys.add(ev.code);
     }
     if (ev.code === "KeyA" && ev.altKey && el("modalSkins").classList.contains("visible")) {
@@ -6777,7 +6703,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       },
       onKicked: (msg) => {
         MP.clearCube();
-        closeQuickChatFor();
+        clearChatBubbles();
         showNotice(msg, true);
         syncMpUI();
       },
@@ -6898,7 +6824,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     });
     el("btnProfLeave").addEventListener("click", async () => {
       MP.clearCube();
-      closeQuickChatFor();
+      clearChatBubbles();
       try { MP.setWatching(null); } catch (e) {}
       state.spectateUid = null;
       const hud = el("hudSpectate"); if (hud) hud.classList.add("hidden");
