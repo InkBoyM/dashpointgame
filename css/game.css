@@ -320,6 +320,29 @@ body.has-newver #btnSettingsHome::after {
   padding: 12px 6px;
 }
 .trail-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.hs-streak { cursor: pointer; }
+.streak-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.streak-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  background: var(--panel-2);
+  border: 3px solid var(--ink-dark);
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.08), 3px 3px 0 rgba(0, 0, 0, 0.35);
+  font-size: 11px;
+  text-align: center;
+  color: var(--muted, #9db4d8);
+}
+.streak-day b { font-size: 12px; letter-spacing: 1px; color: var(--text); }
+.streak-day.today { border-color: var(--gold); box-shadow: 0 0 10px rgba(255, 210, 60, 0.5); color: var(--text); }
+.streak-day.claimed { border-color: var(--good); opacity: 0.85; }
 
 /* ---------- TOP BAR / LEVELS ---------- */
 .topbar {

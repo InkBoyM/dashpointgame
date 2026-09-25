@@ -835,7 +835,7 @@
   }
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, effects: [], effect: "", hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", bellSeen: {}, follows: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, effects: [], effect: "", streak: { n: 0, day: "" }, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", bellSeen: {}, follows: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
   }
 
   function touchUIDefaults() {
@@ -890,6 +890,7 @@
       s.beaten = s.beaten || {};
       s.best = s.best || {};
       s.attempts = s.attempts || {};
+      s.streak = (s.streak && typeof s.streak === "object") ? { n: s.streak.n | 0, day: String(s.streak.day || "") } : { n: 0, day: "" };
       s.spaceMenu = !!(s.spaceMenu || s.arcadeMenu);
       s.jumps = s.jumps | 0;
       s.playtime = Number(s.playtime) || 0;
@@ -2220,8 +2221,86 @@
     syncSpaceSettings();
   }
 
+  // ---- Login streaks: daily reward calendar ----
+  const STREAK_REWARDS = [
+    { coins: 500, label: "+500 coins" },
+    { coins: 1000, label: "+1,000 coins" },
+    { keys: 1, label: "+1 champion key" },
+    { coins: 2500, chest: "basic", label: "+2,500 coins + free BASIC chest" },
+    { coins: 5000, label: "+5,000 coins" },
+    { keys: 2, label: "+2 champion keys" },
+    { coins: 15000, chest: "gold", label: "+15,000 coins + free GOLD chest" },
+  ];
+  function streakDayStr(d) {
+    return (d || new Date()).toISOString().slice(0, 10);
+  }
+  function streakStatus() {
+    const st = save_.data.streak || { n: 0, day: "" };
+    const today = streakDayStr();
+    if (st.day === today) return { claimable: false, n: st.n | 0, dayIndex: null };
+    const yest = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+    const n = st.day === yest ? (st.n | 0) + 1 : 1;
+    return { claimable: true, n: n, dayIndex: (n - 1) % STREAK_REWARDS.length };
+  }
+  function renderStreakModal() {
+    const box = el("streakGrid");
+    if (!box) return;
+    box.innerHTML = "";
+    const st = streakStatus();
+    const mine = save_.data.streak || { n: 0, day: "" };
+    const claimedIdx = !st.claimable && mine.day === streakDayStr()
+      ? (((mine.n | 0) - 1) % STREAK_REWARDS.length + STREAK_REWARDS.length) % STREAK_REWARDS.length
+      : -1;
+    STREAK_REWARDS.forEach(function (r, i) {
+      const d = document.createElement("div");
+      const isToday = st.claimable && i === st.dayIndex;
+      const isClaimed = i === claimedIdx;
+      d.className = "streak-day" + (isToday ? " today" : "") + (isClaimed ? " claimed" : "");
+      d.innerHTML = "<b>DAY " + (i + 1) + "</b><span>" + escapeHtml(r.label) + "</span>" +
+        (isClaimed ? "<span>✓</span>" : isToday ? "<span>TODAY</span>" : "");
+      box.appendChild(d);
+    });
+    const btn = el("btnStreakClaim");
+    if (btn) {
+      btn.disabled = !st.claimable;
+      btn.textContent = st.claimable ? "CLAIM DAY " + st.n : "CLAIMED — COME BACK TOMORROW";
+    }
+  }
+  function openStreakModal() {
+    renderStreakModal();
+    openModal("modalStreak");
+  }
+  function claimStreak() {
+    const s = streakStatus();
+    if (!s.claimable) return;
+    const r = STREAK_REWARDS[s.dayIndex];
+    if (r.coins) grantCoins(r.coins);
+    if (r.keys) save_.data.championKeys = keyAmount(save_.data.championKeys) + r.keys;
+    if (r.chest) {
+      save_.data.chestFree = save_.data.chestFree || {};
+      save_.data.chestFree[r.chest] = 0;
+    }
+    save_.data.streak = { n: s.n, day: streakDayStr() };
+    save();
+    syncCoinUI();
+    syncHomeStats();
+    try { syncChestPrices(); } catch (e) {}
+    renderStreakModal();
+    showNotice("Day " + s.n + " streak claimed: " + r.label, false);
+  }
+  function maybeShowStreak() {
+    if (state.streakShown) return;
+    try {
+      if (streakStatus().claimable) {
+        state.streakShown = true;
+        openStreakModal();
+      }
+    } catch (e) {}
+  }
+
   function syncHomeStats() {
     const total = SKINS.length;
+    const streakN = (save_.data.streak && save_.data.streak.n) | 0;
     const got = SKINS.filter((s) => isUnlocked(s.id)).length;
     const beaten = state.levels.filter((e) => save_.data.beaten[e.file] !== undefined).length;
     const stats = el("homeStats");
@@ -2231,10 +2310,12 @@
           '<span class="hs-chip">LEVELS <b>' + beaten + "/" + state.levels.length + "</b></span>" +
           '<span class="hs-chip">DEATHS <b>' + save_.data.deaths + "</b></span>" +
           '<span class="hs-chip">SKINS <b>' + got + "/" + total + "</b></span>" +
+          '<span class="hs-chip hs-streak">STREAK <b>' + streakN + "🔥</b></span>" +
           '<span class="hs-chip">COINS <b>' + fmtCoins(save_.data.coins) + "</b></span>";
       } else {
-        stats.textContent =
-          "LEVELS " + beaten + "/" + state.levels.length + " CLEARED · DEATHS " + save_.data.deaths + " · SKINS " + got + "/" + total + " · COINS " + fmtCoins(save_.data.coins);
+        stats.innerHTML =
+          "LEVELS " + beaten + "/" + state.levels.length + " CLEARED · DEATHS " + save_.data.deaths + " · SKINS " + got + "/" + total + " · COINS " + fmtCoins(save_.data.coins) +
+          ' · <span class="hs-chip hs-streak">STREAK <b>' + streakN + "🔥</b></span>";
       }
     }
     const preview = el("homeSkinPreview");
@@ -6409,6 +6490,10 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     const btnDownloadHome = el("btnDownloadHome");
     if (btnDownloadHome) btnDownloadHome.addEventListener("click", () => openModal("modalDownload"));
     el("btnOpenShop").addEventListener("click", () => openModal("modalShop"));
+    el("btnStreakClaim").addEventListener("click", () => claimStreak());
+    el("homeStats").addEventListener("click", (ev) => {
+      if (ev.target && ev.target.closest && ev.target.closest(".hs-streak")) openStreakModal();
+    });
     (function initPainter() {
       var pal = el("paintPalette");
       if (pal && !pal.dataset.done) {
@@ -6842,7 +6927,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       if (!u) { profileMsg("Not logged in"); return; }
       const st = el("profCloudStatus"); if (st) st.textContent = "Uploading…";
       try {
-        const saved = await NET.syncCloud({ deaths: save_.data.deaths, jumps: save_.data.jumps, playtime: Number(save_.data.playtime) || 0, coins: save_.data.coins, coinPaid: save_.data.coinPaid, coinMigrated: !!save_.data.coinMigrated, codes: save_.data.codes, skin: save_.data.skin, unlocked: save_.data.unlocked, beaten: save_.data.beaten, best: save_.data.best, secretA: !!save_.data.secretA, spaceMenu: !!save_.data.spaceMenu, tags: save_.data.tags, tag: save_.data.tag, nameColors: save_.data.nameColors, nameColor: save_.data.nameColor, frames: save_.data.frames, frame: save_.data.frame, trails: save_.data.trails, trail: save_.data.trail, chestFree: save_.data.chestFree, championKeys: save_.data.championKeys, effects: save_.data.effects, effect: save_.data.effect || "" });
+        const saved = await NET.syncCloud({ deaths: save_.data.deaths, jumps: save_.data.jumps, playtime: Number(save_.data.playtime) || 0, coins: save_.data.coins, coinPaid: save_.data.coinPaid, coinMigrated: !!save_.data.coinMigrated, codes: save_.data.codes, skin: save_.data.skin, unlocked: save_.data.unlocked, beaten: save_.data.beaten, best: save_.data.best, secretA: !!save_.data.secretA, spaceMenu: !!save_.data.spaceMenu, tags: save_.data.tags, tag: save_.data.tag, nameColors: save_.data.nameColors, nameColor: save_.data.nameColor, frames: save_.data.frames, frame: save_.data.frame, trails: save_.data.trails, trail: save_.data.trail, chestFree: save_.data.chestFree, championKeys: save_.data.championKeys, effects: save_.data.effects, effect: save_.data.effect || "", streak: save_.data.streak });
         if (st) st.textContent = "Cloud updated " + new Date(saved.updatedAt).toLocaleTimeString();
         profileMsg("Synced to cloud");
         syncHomeStats();
@@ -6906,12 +6991,20 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
             save_.data.chestFree[ck] = Math.max(Number(save_.data.chestFree[ck]) || 0, Number(cloud.chestFree[ck]) || 0);
           });
         }
+        if (cloud.streak && typeof cloud.streak === "object") {
+          const cd = String(cloud.streak.day || "");
+          const ld = String((save_.data.streak || {}).day || "");
+          if (cd > ld || (cd === ld && (cloud.streak.n | 0) > ((save_.data.streak || {}).n | 0))) {
+            save_.data.streak = { n: cloud.streak.n | 0, day: cd };
+          }
+        }
         if (cloud.beaten) { for (var k in cloud.beaten) save_.data.beaten[k]=true; }
         if (cloud.best) { for (var k2 in cloud.best) { if (save_.data.best[k2]==null || cloud.best[k2] < save_.data.best[k2]) save_.data.best[k2]=cloud.best[k2]; } }
         if (cloud.skin) save_.data.skin = cloud.skin;
         if (cloud.secretA) save_.data.secretA = true;
         if (cloud.spaceMenu) save_.data.spaceMenu = true;
         save(); syncHomeStats(); renderLevels();
+        maybeShowStreak();
         profileMsg("Downloaded from cloud");
         checkUnlocks();
         syncAccountTagUI();
@@ -6969,6 +7062,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     syncCoinUI();
     syncFpsVis();
     show("home");
+    maybeShowStreak();
     requestAnimationFrame(frame);
     setTimeout(function () { try { checkBell(); } catch (e) {} }, 12000);
     // Presence heartbeat: refresh what-I'm-playing every minute so friends
