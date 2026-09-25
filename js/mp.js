@@ -25,6 +25,7 @@ window.DashPointMP = (function () {
   let active = false;
   let user = null;
   let cachedPlayers = null;
+  let cachedGame = null;
   let watchers = [];
   let heartbeatTimer = null;
   let flushTimer = null;
@@ -161,6 +162,7 @@ window.DashPointMP = (function () {
     active = false;
     code = "";
     cachedPlayers = null;
+    cachedGame = null;
     pendingCube = null;
     cubeActive = false;
     lastSent = null;
@@ -279,6 +281,35 @@ window.DashPointMP = (function () {
       cachedPlayers = snap.val() || {};
       emitState();
     });
+    watch(roomRef.child("game"), "value", (snap) => {
+      cachedGame = snap.val() || null;
+      emitState();
+    });
+  }
+
+  // Shared party-game state (e.g. hide & seek). Anyone in the room may write;
+  // the app restricts who starts/ends.
+  function setGame(obj) {
+    if (!active || !roomRef) return false;
+    roomRef.child("game").set(obj).catch(reportWriteError);
+    return true;
+  }
+  function tagHns(uid) {
+    if (!active || !roomRef) return false;
+    uid = String(uid || "");
+    if (!uid) return false;
+    const patch = {};
+    patch[uid] = Date.now();
+    roomRef.child("game/tags").update(patch).catch(reportWriteError);
+    return true;
+  }
+  function clearGame() {
+    if (!active || !roomRef) return false;
+    roomRef.child("game").remove().catch(() => {});
+    return true;
+  }
+  function getGame() {
+    return cachedGame;
   }
 
   function sendCube(data) {
@@ -487,6 +518,10 @@ window.DashPointMP = (function () {
     leave: leave,
     sendCube: sendCube,
     clearCube: clearCube,
+    setGame: setGame,
+    tagHns: tagHns,
+    clearGame: clearGame,
+    getGame: getGame,
     sendChat: sendChat,
     myChat: myChat,
     peers: peers,

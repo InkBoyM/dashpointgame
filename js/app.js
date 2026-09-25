@@ -3819,6 +3819,8 @@
     if (!entry) return;
     state.currentFile = entry.id ? "net:" + entry.id : entry.file;
     state.currentMeta = entry.meta || null;
+    state.hns = null;
+    state.hnsFreeze = false;
     state.engine = new DP.Engine(entry.level.clone(), { skin: save_.data.skin, trail: equippedTrailId(), pet: equippedPetId() });
     if (DP.Music) DP.Music.play(entry.level.song);
     state.playing = true;
@@ -3899,6 +3901,13 @@
     if (b) b.textContent = state.practice ? "PRACTICE: ON" : "PRACTICE: OFF";
     const s = el("btnPauseSlow");
     if (s) s.textContent = state.slowmo ? "SLOW-MO: ON" : "SLOW-MO: OFF";
+    const hb = el("btnPauseHns");
+    if (hb) {
+      let on = false;
+      try { const g = MP.getGame && MP.getGame(); on = !!(g && g.mode === "hns"); } catch (e) {}
+      hb.textContent = on ? "END H&S" : "HIDE&SEEK";
+      hb.style.display = (MP.isActive() && state.playing) ? "" : "none";
+    }
     setStatusHud();
   }
 
@@ -4018,6 +4027,8 @@
     state.paused = false;
     state.practice = false;
     state.slowmo = false;
+    state.hns = null;
+    state.hnsFreeze = false;
     tuffDiscard();
     presenceTick();
     el("pauseCard").classList.remove("visible");
@@ -4443,6 +4454,198 @@
     qbubbles = [];
   }
 
+  // ---- Hide & seek (room party mode) ----
+  const HNS_HIDE_MS = 20000;
+  const HNS_ROUND_MS = 150000;
+  const HNS_TAG_PX = 44;
+  const HNS_PRIZE = 500;
+  function hnsGame() {
+    try {
+      const g = MP.getGame && MP.getGame();
+      return g && g.mode === "hns" ? g : null;
+    } catch (e) { return null; }
+  }
+  function hnsSeekers(g) {
+    const s = {};
+    if (!g) return s;
+    if (g.seeker0) s[g.seeker0] = true;
+    const tags = g.tags || {};
+    for (const k in tags) if (Object.prototype.hasOwnProperty.call(tags, k)) s[k] = true;
+    return s;
+  }
+  function hnsMyUid() {
+    try {
+      const u = MP.getUser && MP.getUser();
+      return (u && u.uid) || "";
+    } catch (e) { return ""; }
+  }
+  function hnsAmSeeker(g) {
+    if (!g) return false;
+    return !!hnsSeekers(g)[hnsMyUid()];
+  }
+  function hnsPhase(g) {
+    if (!g) return "";
+    const now = Date.now();
+    if (now < (g.hideUntil || 0)) return "hide";
+    if (now < (g.endsAt || 0)) return "seek";
+    return "over";
+  }
+  function hnsName(uid) {
+    if (uid === hnsMyUid()) return "You";
+    try {
+      for (const p of MP.peers()) if (p.uid === uid) return p.name || "player";
+    } catch (e) {}
+    return "player";
+  }
+  function hnsPresent(g) {
+    let n = 1;
+    try {
+      for (const p of MP.peers()) if (p.online && p.cube && p.level === g.level) n++;
+    } catch (e) {}
+    return n;
+  }
+  function hnsHidersLeft(g) {
+    const sk = hnsSeekers(g);
+    let left = 0;
+    const me = hnsMyUid();
+    if (me && !sk[me]) left++;
+    try {
+      for (const p of MP.peers()) {
+        if (p.online && p.cube && p.level === g.level && p.uid && !sk[p.uid]) left++;
+      }
+    } catch (e) {}
+    return left;
+  }
+  function fmtClock(ms) {
+    ms = Math.max(0, ms | 0);
+    const s = Math.ceil(ms / 1000);
+    return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+  }
+  function hnsToggle() {
+    if (!MP.isActive()) { showNotice("Join a room first", true); return; }
+    let g = null;
+    try { g = MP.getGame && MP.getGame(); } catch (e) {}
+    if (g && g.mode === "hns") {
+      let mine = false;
+      try {
+        mine = (g.starter && g.starter === hnsMyUid()) || MP.getSlot() === "host";
+      } catch (e) {}
+      if (!mine) { showNotice("Only the starter or host can end it", true); return; }
+      MP.clearGame();
+      showNotice("Hide & seek ended", false);
+      syncPracticeUI();
+      return;
+    }
+    if (!state.playing || !state.engine || state.screen !== "game") { showNotice("Start a level first, then HIDE & SEEK", true); return; }
+    const now = Date.now();
+    const me = hnsMyUid();
+    let nm = "player";
+    try { const u = MP.getUser && MP.getUser(); if (u && u.name) nm = u.name; } catch (e) {}
+    MP.setGame({
+      mode: "hns",
+      level: state.currentFile || "",
+      levelName: (state.engine.level && state.engine.level.name) || "a level",
+      starter: me,
+      starterName: nm,
+      seeker0: me,
+      hideUntil: now + HNS_HIDE_MS,
+      endsAt: now + HNS_HIDE_MS + HNS_ROUND_MS,
+      round: now,
+      tags: {},
+    });
+    showNotice("Hide & seek started — you SEEK in 20s!", false);
+    syncPracticeUI();
+  }
+  function pollHns() {
+    const hud = el("hudHns");
+    const g = (MP.isActive() && state.playing && state.engine) ? hnsGame() : null;
+    if (!g || g.level !== state.currentFile) {
+      if (state.hns) {
+        if (g && g.level !== state.currentFile && state.hns.round !== (g.round || 0)) {
+          state.hns = { round: g.round || 0, paid: true, phase: "", tags: "", notified: true };
+          showNotice((g.starterName || "Someone") + " started hide & seek on " + (g.levelName || "a level") + " — play it to join!", false);
+        } else if (!g && state.hns.round) {
+          state.hns = null;
+          showNotice("Hide & seek is over", false);
+        }
+      } else if (g && g.level !== state.currentFile) {
+        state.hns = { round: g.round || 0, paid: true, phase: "", tags: "", notified: true };
+        showNotice((g.starterName || "Someone") + " started hide & seek on " + (g.levelName || "a level") + " — play it to join!", false);
+      }
+      if (hud) hud.classList.add("hidden");
+      state.hnsFreeze = false;
+      return;
+    }
+    if (!state.hns || state.hns.round !== (g.round || 0)) {
+      state.hns = { round: g.round || 0, paid: false, phase: "", tags: Object.keys(g.tags || {}).sort().join(",") };
+    }
+    const st = state.hns;
+    const now = Date.now();
+    const phase = hnsPhase(g);
+    const me = hnsMyUid();
+    const amSeeker = hnsAmSeeker(g);
+    if (phase !== st.phase) {
+      st.phase = phase;
+      if (phase === "hide") showNotice(amSeeker ? "You SEEK in " + fmtClock(g.hideUntil - now) + " — stay put!" : "HIDE! Seeker released in " + fmtClock(g.hideUntil - now), false);
+      else if (phase === "seek") showNotice(amSeeker ? "SEEK! Tag every hider!" : "RUN! The seeker is loose!", false);
+    }
+    state.hnsFreeze = phase === "hide" && amSeeker;
+    if (phase === "seek" && amSeeker && !state.engine.dead && !state.engine.won) {
+      const px = state.engine.player.x + state.engine.player.w / 2;
+      const py = state.engine.player.y + state.engine.player.h / 2;
+      const sk = hnsSeekers(g);
+      try {
+        for (const p of MP.peers()) {
+          if (!p.online || !p.cube || p.level !== g.level || !p.uid || sk[p.uid]) continue;
+          if (p.cube.dead) continue;
+          const dx = px - p.cube.x, dy = py - p.cube.y;
+          if (dx * dx + dy * dy < HNS_TAG_PX * HNS_TAG_PX) {
+            MP.tagHns(p.uid);
+            showNotice("You caught " + (p.name || "player") + "!", false);
+          }
+        }
+      } catch (e) {}
+    }
+    try {
+      const tkeys = Object.keys(g.tags || {}).sort().join(",");
+      if (st.tags !== tkeys) {
+        const before = st.tags ? st.tags.split(",") : [];
+        for (const uid of tkeys ? tkeys.split(",") : []) {
+          if (uid && before.indexOf(uid) === -1) {
+            showNotice(uid === me ? "You were caught — now SEEK!" : hnsName(uid) + " was caught!", uid === me);
+          }
+        }
+      }
+      st.tags = tkeys;
+    } catch (e) {}
+    const present = hnsPresent(g);
+    const hiders = hnsHidersLeft(g);
+    let winner = "";
+    if (present >= 2) {
+      if (hiders <= 0) winner = "seekers";
+      else if (phase === "over") winner = "hiders";
+    }
+    if (winner && !st.paid && !(state.hnsPaid || {})[g.round || 0]) {
+      st.paid = true;
+      state.hnsPaid = state.hnsPaid || {};
+      state.hnsPaid[g.round || 0] = true;
+      const iWon = winner === "seekers" ? amSeeker : !amSeeker;
+      if (iWon) {
+        const got = grantCoins(HNS_PRIZE);
+        if (got) { save(); syncCoinUI(); syncHomeStats(); }
+        showNotice(winner === "seekers" ? "Seekers win! +" + fmtCoins(got || HNS_PRIZE) + " coins" : "Hiders survive! +" + fmtCoins(got || HNS_PRIZE) + " coins", false);
+      } else {
+        showNotice(winner === "seekers" ? "Seekers win this round!" : "Hiders survive this round!", false);
+      }
+    }
+    if (hud) {
+      hud.classList.remove("hidden");
+      if (phase === "hide") hud.textContent = (amSeeker ? "👹 SEEK IN " : "🙈 HIDE ") + fmtClock(g.hideUntil - now);
+      else if (phase === "seek") hud.textContent = (amSeeker ? "👹 SEEK " : "😱 HIDE ") + fmtClock(g.endsAt - now);
+      else hud.textContent = "🏁 OVER";
+    }
+  }
+
   // ---- Haptics (Android bridge, else navigator.vibrate) ----
   function haptic(kind) {
     if (save_.data.haptics === false) return;
@@ -4485,10 +4688,12 @@
     }
 
     const pad = padState();
+    try { pollHns(); } catch (e) {}
+    const frozen = !!state.hnsFreeze;
     state.engine.setInput({
-        left: bindPressed("left") || !!(pad && pad.left) || state.touch.left,
-        right: bindPressed("right") || !!(pad && pad.right) || state.touch.right,
-        jump: bindPressed("jump") || !!(pad && pad.jump) || state.touch.jump,
+        left: !frozen && (bindPressed("left") || !!(pad && pad.left) || state.touch.left),
+        right: !frozen && (bindPressed("right") || !!(pad && pad.right) || state.touch.right),
+        jump: !frozen && (bindPressed("jump") || !!(pad && pad.jump) || state.touch.jump),
       });
     if (pad && pad.startEdge && state.screen === "game" && !el("winCard").classList.contains("visible")) {
       restartLevel();
@@ -4577,6 +4782,7 @@
           const pTag = findShopTag(p.tag);
           const pColor = findShopColor(p.nameColor);
           remoteCubes.push(Object.assign({
+            uid: p.uid,
             name: p.name,
             tagLabel: pTag ? pTag.label : "",
             tagColor: pTag ? pTag.color : "",
@@ -4584,6 +4790,14 @@
           }, p.cube));
         }
       }
+      // Hide & seek: seekers can't see hiders (ghosts always stay visible)
+      try {
+        const hg = hnsGame();
+        if (remoteCubes && hg && hg.level === state.currentFile && hnsAmSeeker(hg)) {
+          const sk = hnsSeekers(hg);
+          remoteCubes = remoteCubes.filter((rc) => rc.ghost || (rc.uid && sk[rc.uid]));
+        }
+      } catch (e) {}
     }
 
         // Ghost playback as remote cube
@@ -6619,6 +6833,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnPauseRestart").addEventListener("click", () => { resumeGame(); restartLevel(); });
     el("btnPausePractice").addEventListener("click", togglePractice);
     el("btnPauseSlow").addEventListener("click", toggleSlowmo);
+    el("btnPauseHns").addEventListener("click", () => { hnsToggle(); syncPracticeUI(); });
     el("btnPauseHeat").addEventListener("click", toggleHeat);
     el("hudPractice").addEventListener("click", () => {
       if (state.practice && state.playing && !state.paused) placePracticeCheckpoint();
