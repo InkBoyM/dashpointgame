@@ -650,6 +650,26 @@
     return (save_.data.pets || []).indexOf(id) !== -1;
   }
 
+  const SHOP_FX = [
+    { id: "rain", label: "Rain", cost: 2000, icon: "🌧", blurb: "Stormy streaks" },
+    { id: "snow", label: "Snow", cost: 5000, icon: "❄", blurb: "Drifting flakes" },
+    { id: "embers", label: "Embers", cost: 12000, icon: "🔥", blurb: "Rising sparks" },
+  ];
+
+  function findShopFx(id) {
+    for (let i = 0; i < SHOP_FX.length; i++) if (SHOP_FX[i].id === id) return SHOP_FX[i];
+    return null;
+  }
+
+  function ownsFx(id) {
+    return (save_.data.effects || []).indexOf(id) !== -1;
+  }
+
+  function equippedFxId() {
+    const e = save_.data.effect || "";
+    return findShopFx(e) && ownsFx(e) ? e : "";
+  }
+
   function equippedPetId() {
     return findShopPet(save_.data.pet) ? save_.data.pet : "";
   }
@@ -808,7 +828,7 @@
   }
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, mutators: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", bellSeen: {}, follows: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, mutators: {}, effects: [], effect: "", hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", bellSeen: {}, follows: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
   }
 
   function touchUIDefaults() {
@@ -881,6 +901,8 @@
       s.frame = findShopFrame(s.frame) ? s.frame : "";
       s.trails = Array.isArray(s.trails) ? s.trails.filter(function (id) { return !!findShopTrail(id); }) : [];
       s.trail = findShopTrail(s.trail) ? s.trail : "";
+      s.effects = Array.isArray(s.effects) ? s.effects.filter(function (id) { return !!findShopFx(id); }) : [];
+      s.effect = findShopFx(s.effect) && s.effects.indexOf(s.effect) !== -1 ? s.effect : "";
       // migrate: wisp was renamed to ghost; bot/chick were removed
       if (Array.isArray(s.pets) && s.pets.indexOf("wisp") !== -1 && s.pets.indexOf("ghost") === -1) s.pets.push("ghost");
       if (s.pet === "wisp") s.pet = "ghost";
@@ -2847,6 +2869,7 @@
     renderShopPets();
     renderShopBg();
     renderShopPacks();
+    renderShopFx();
     syncCoinUI();
   }
 
@@ -3296,6 +3319,55 @@
     applyGraphics();
     syncGfxUI();
     showNotice(p.label + " pack unlocked!", false);
+    renderShop();
+    syncHomeStats();
+    syncCoinUI();
+  }
+
+  function renderShopFx() {
+    const box = el("shopFxGrid");
+    if (!box) return;
+    box.innerHTML = "";
+    SHOP_FX.forEach(function (f) {
+      const owned = ownsFx(f.id);
+      const equipped = save_.data.effect === f.id;
+      const cost = coinAmount(f.cost);
+      const can = hasCoins(cost);
+      const b = document.createElement("button");
+      b.className = "skin-tile" + (equipped ? " selected" : "") + (!owned && !can ? " cant" : "");
+      const hint = owned ? (equipped ? "EQUIPPED" : "TAP TO EQUIP") : can ? "TAP TO BUY" : "NEED " + fmtCoins(cost);
+      b.innerHTML =
+        '<span class="fx-icon" style="font-size:40px;line-height:48px">' + f.icon + "</span>" +
+        '<span class="skin-name">' + escapeHtml(f.label) + "</span>" +
+        '<span class="skin-hint">' + escapeHtml(f.blurb) + "</span>" +
+        '<span class="shop-cost">' + coinIcon() + fmtCoins(cost) + "</span>" +
+        '<span class="skin-hint">' + escapeHtml(hint) + "</span>";
+      b.addEventListener("click", function () {
+        if (owned) {
+          save_.data.effect = equipped ? "" : f.id;
+          save();
+          renderShopFx();
+          return;
+        }
+        buyShopFx(f);
+      });
+      box.appendChild(b);
+    });
+  }
+
+  function buyShopFx(f) {
+    if (!f || ownsFx(f.id)) return;
+    const cost = coinAmount(f.cost);
+    if (!hasCoins(cost)) {
+      showNotice("Not enough coins", true);
+      return;
+    }
+    subCoins(cost);
+    save_.data.effects = save_.data.effects || [];
+    save_.data.effects.push(f.id);
+    save_.data.effect = f.id;
+    save();
+    showNotice(f.label + " effect unlocked!", false);
     renderShop();
     syncHomeStats();
     syncCoinUI();
@@ -4625,6 +4697,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       heat: state.heatmap,
       fx: gfxFlags(),
       customBg: customBgImg,
+      weather: equippedFxId(),
       customBgBlur: bgBlurPx(),
     });
     try {
@@ -6958,7 +7031,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       if (!u) { profileMsg("Not logged in"); return; }
       const st = el("profCloudStatus"); if (st) st.textContent = "Uploading…";
       try {
-        const saved = await NET.syncCloud({ deaths: save_.data.deaths, jumps: save_.data.jumps, playtime: Number(save_.data.playtime) || 0, coins: save_.data.coins, coinPaid: save_.data.coinPaid, coinMigrated: !!save_.data.coinMigrated, codes: save_.data.codes, skin: save_.data.skin, unlocked: save_.data.unlocked, beaten: save_.data.beaten, best: save_.data.best, secretA: !!save_.data.secretA, spaceMenu: !!save_.data.spaceMenu, tags: save_.data.tags, tag: save_.data.tag, nameColors: save_.data.nameColors, nameColor: save_.data.nameColor, frames: save_.data.frames, frame: save_.data.frame, trails: save_.data.trails, trail: save_.data.trail, chestFree: save_.data.chestFree, championKeys: save_.data.championKeys });
+        const saved = await NET.syncCloud({ deaths: save_.data.deaths, jumps: save_.data.jumps, playtime: Number(save_.data.playtime) || 0, coins: save_.data.coins, coinPaid: save_.data.coinPaid, coinMigrated: !!save_.data.coinMigrated, codes: save_.data.codes, skin: save_.data.skin, unlocked: save_.data.unlocked, beaten: save_.data.beaten, best: save_.data.best, secretA: !!save_.data.secretA, spaceMenu: !!save_.data.spaceMenu, tags: save_.data.tags, tag: save_.data.tag, nameColors: save_.data.nameColors, nameColor: save_.data.nameColor, frames: save_.data.frames, frame: save_.data.frame, trails: save_.data.trails, trail: save_.data.trail, chestFree: save_.data.chestFree, championKeys: save_.data.championKeys, effects: save_.data.effects, effect: save_.data.effect || "" });
         if (st) st.textContent = "Cloud updated " + new Date(saved.updatedAt).toLocaleTimeString();
         profileMsg("Synced to cloud");
         syncHomeStats();
@@ -7008,6 +7081,13 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
           save_.data.trails = Object.keys(tr);
         }
         if (cloud.trail && !save_.data.trail && findShopTrail(cloud.trail) && ownsTrail(cloud.trail)) save_.data.trail = cloud.trail;
+        if (Array.isArray(cloud.effects)) {
+          const fx = {};
+          (save_.data.effects || []).forEach(function (id) { fx[id] = true; });
+          cloud.effects.forEach(function (id) { if (findShopFx(id)) fx[id] = true; });
+          save_.data.effects = Object.keys(fx);
+        }
+        if (cloud.effect && !save_.data.effect && findShopFx(cloud.effect) && ownsFx(cloud.effect)) save_.data.effect = cloud.effect;
         lastPublishedTag = undefined;
         if (cloud.chestFree && typeof cloud.chestFree === "object") {
           save_.data.chestFree = save_.data.chestFree || {};

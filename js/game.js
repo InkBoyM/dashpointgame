@@ -4233,7 +4233,8 @@
     } else if (gfx === "ultra" && pack.background) drawUltraBackdrop(ctx, w, h, pack.background);
     else if (gfx === "drawing") drawBackdrop(ctx, w, h, Date.now() / 1000, { top: grayHex(level.theme.top), mid: grayHex(level.theme.mid), bottom: grayHex(level.theme.bottom) }, false);
     else drawBackdrop(ctx, w, h, Date.now() / 1000, level.theme, gfx === "simple");
-    drawWeather(ctx, w, h, level.theme && level.theme.weather);
+    // Shop-bought effect wins; otherwise the level's own theme weather.
+    drawWeather(ctx, w, h, extras.weather || (level.theme && level.theme.weather));
 
     ctx.save();
     ctx.scale(zoom, zoom);
