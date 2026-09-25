@@ -1905,7 +1905,7 @@
     opts = opts || {};
     if (!box) return [];
     box.innerHTML = '<p class="loading-note">Loading leaderboard…</p>';
-    var file = entry.file || entry.id || "unknown";
+    var file = opts.boardKey || entry.file || entry.id || "unknown";
     var name = entry.level ? entry.level.name : file;
     if (!window.DPNet || !DPNet.getLeaderboard) {
       box.innerHTML = '<p class="loading-note">Online leaderboard is unavailable.</p>';
@@ -2049,10 +2049,11 @@
     await fetchLevelLeaderboard(el("mainLbBox"), entry, { canRace: false });
   }
 
-  async function showLeaderboardAfterWin(entry, time){
+  async function showLeaderboardAfterWin(entry, time, boardKey, comboLabel){
     var box = el("leaderboardBox");
     if (!box) return;
-    var file = entry.file || entry.id || "unknown";
+    var file = boardKey || entry.file || entry.id || "unknown";
+    var racing = !comboLabel;
     try {
       var u = (window.DPNet && DPNet.getUser) ? DPNet.getUser() : null;
       var res = null;
@@ -2067,8 +2068,9 @@
       }
       var list = await fetchLevelLeaderboard(box, entry, {
         user: u,
-        canRace: true,
-        titleExtra: u ? " · tap a player to race" : "",
+        boardKey: file,
+        canRace: racing,
+        titleExtra: (u && racing ? " · tap a player to race" : "") + (comboLabel || ""),
         empty: (u ? "No leaderboard yet — you are #1!" : "No times yet.") + "<br>Your time: " + fmtTime(time),
         extraRow: extra,
       });
@@ -3691,6 +3693,17 @@
     (list || []).forEach((x) => { if (x) p += (x.bonus | 0); });
     return p;
   }
+  // Leaderboard key: clean runs share the level board, every mutator combo
+  // gets its own board per level (ids sorted so order doesn't matter).
+  function mutBoardKey(file, mutIds) {
+    const base = file || "unknown";
+    if (!mutIds || !mutIds.length) return base;
+    return base + "|mut:" + mutIds.slice().sort().join("+");
+  }
+  function mutComboLabel(mutIds) {
+    if (!mutIds || !mutIds.length) return "";
+    return " [" + mutIds.map((id) => ((mutById(id) || {}).name || id)).join("+") + "]";
+  }
   function applyMutGameplay(gameplay, ids) {
     if (!gameplay || !ids) return;
     if (ids.indexOf("lowg") !== -1) {
@@ -4029,15 +4042,16 @@
     el("winCard").classList.add("visible");
     checkUnlocks();
 
-    // Ghost save + leaderboard submit (clean runs only — mutators change physics)
+    // Ghost save (clean runs only — mutator physics would desync replays)
     if (!mutIds.length) {
     try {
       var lvlFile = entry.file || entry.id || "unknown";
       var ghostToSave = { points: ghostTrail.slice(), time: t, skin: save_.data.skin, name: (window.DPNet && DPNet.getUser && DPNet.getUser() ? DPNet.getUser().name : "player") };
       if (ghostTrail.length) { DPNet.saveGhostLocal(lvlFile, ghostToSave); DPNet.saveGhostCloud(lvlFile, ghostToSave); }
     } catch(e){}
-    try { showLeaderboardAfterWin(entry, t); } catch(e){}
     }
+    // Leaderboard submit: main board when clean, own board per mutator combo
+    try { showLeaderboardAfterWin(entry, t, mutBoardKey(entry.file || entry.id, mutIds), mutComboLabel(mutIds)); } catch(e){}
     if (firstClear && entry.file === CLIMB_FILE) {
       showNotice("Space mode unlocked — turn it on in Settings!", false);
       syncSpaceSettings();
