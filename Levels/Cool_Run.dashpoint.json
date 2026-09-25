@@ -2902,8 +2902,7 @@
   "theme": {
     "top": "#040810",
     "mid": "#0a1628",
-    "bottom": "#122a4a"
-  },
+    "bottom": "#122a4a", "weather": "snow"},
   "meta": {
     "createdAt": "2026-09-12T15:38:50.547Z",
     "updatedAt": "2026-09-12T16:26:49.699Z",

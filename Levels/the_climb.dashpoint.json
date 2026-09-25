@@ -1777,6 +1777,7 @@
     }
   ],
   "texts": [],
+  "theme": {"top": "#06121f", "mid": "#0d2b45", "bottom": "#134a6e", "bg": "", "weather": "snow"},
   "gameplay": {
     "moveSpeed": 320,
     "accel": 2800,

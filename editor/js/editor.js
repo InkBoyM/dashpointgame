@@ -2826,6 +2826,9 @@
     document.querySelectorAll("#bgChips .chip").forEach((b) => {
       b.classList.toggle("active", (b.dataset.bg || "") === (th.bg || ""));
     });
+    document.querySelectorAll("#weatherChips .chip").forEach((b) => {
+      b.classList.toggle("active", (b.dataset.weather || "") === (th.weather || ""));
+    });
     ["Top", "Mid", "Bottom"].forEach((k) => {
       const inp = document.getElementById("th" + k);
       if (inp && document.activeElement !== inp && !inp.dataset.editing) {
@@ -2920,6 +2923,7 @@
             mid: state.level.theme.mid,
             bottom: state.level.theme.bottom,
             bg: id,
+            weather: state.level.theme.weather || "",
           });
           markDirty(true);
           syncInspector();
@@ -2928,10 +2932,36 @@
         bgBox.appendChild(b);
       });
     }
+    const WX_LABELS = { "": "None", rain: "Rain", snow: "Snow", embers: "Embers" };
+    const wxBox = document.getElementById("weatherChips");
+    if (wxBox && DP.WEATHER_IDS) {
+      DP.WEATHER_IDS.forEach((id) => {
+        const b = document.createElement("button");
+        b.className = "chip";
+        b.dataset.weather = id;
+        b.textContent = WX_LABELS[id] || id;
+        b.title = id ? WX_LABELS[id] + " particles" : "No weather";
+        b.addEventListener("click", () => {
+          if (state.playing) return;
+          pushUndo();
+          state.level.theme = DP.sanitizeTheme({
+            top: state.level.theme.top,
+            mid: state.level.theme.mid,
+            bottom: state.level.theme.bottom,
+            bg: state.level.theme.bg || "",
+            weather: id,
+          });
+          markDirty(true);
+          syncInspector();
+          setStatus("Weather: " + (WX_LABELS[id] || id));
+        });
+        wxBox.appendChild(b);
+      });
+    }
     ["Top", "Mid", "Bottom"].forEach((k) => {
       const inp = document.getElementById("th" + k);
       inp.addEventListener("input", () => {
-        applyTheme({ top: document.getElementById("thTop").value, mid: document.getElementById("thMid").value, bottom: document.getElementById("thBottom").value, bg: state.level.theme.bg || "" }, false);
+        applyTheme({ top: document.getElementById("thTop").value, mid: document.getElementById("thMid").value, bottom: document.getElementById("thBottom").value, bg: state.level.theme.bg || "", weather: state.level.theme.weather || "" }, false);
         syncThemeUI();
       });
       inp.addEventListener("focus", () => {

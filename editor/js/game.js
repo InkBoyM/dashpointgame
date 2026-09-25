@@ -823,6 +823,64 @@
   // Looping theme backgrounds (assets/bg/*.png, seamless 256px tiles).
   // Level theme.bg picks one; "" keeps the gradient.
   const BG_IDS = ["", "meadow", "glacier", "volcano", "desert", "cave", "space", "sunset"];
+  const WEATHER_IDS = ["", "rain", "snow", "embers"];
+  function wmod(v, m) {
+    return ((v % m) + m) % m;
+  }
+  function whash(i, k) {
+    const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453;
+    return x - Math.floor(x);
+  }
+  // Screen-space weather particles over the backdrop (behind tiles).
+  // Stateless: positions derive from time, so no per-frame allocation.
+  function drawWeather(ctx, w, h, kind) {
+    if (!kind || !(w > 0) || !(h > 0)) return;
+    let t = 0;
+    try {
+      t = Date.now() / 1000;
+    } catch (e) {}
+    const n = Math.max(50, Math.min(200, Math.round((w * h) / 9000)));
+    ctx.save();
+    try {
+      if (kind === "rain") {
+        ctx.strokeStyle = "rgba(150,200,255,0.45)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i < n; i++) {
+          const sp = 700 + whash(i, 1) * 400;
+          const x = wmod(whash(i, 2) * (w + 200) - t * 120, w + 200) - 100;
+          const y = wmod(whash(i, 3) * (h + 60) + t * sp, h + 60) - 30;
+          ctx.moveTo(x, y);
+          ctx.lineTo(x - 4, y + 14);
+        }
+        ctx.stroke();
+      } else if (kind === "snow") {
+        ctx.fillStyle = "rgba(255,255,255,0.8)";
+        for (let j = 0; j < n; j++) {
+          const fall = 40 + whash(j, 1) * 50;
+          const sx = wmod(whash(j, 2) * (w + 40) + Math.sin(t * 0.8 + j) * 24, w + 40) - 20;
+          const sy = wmod(whash(j, 3) * (h + 40) + t * fall, h + 40) - 20;
+          ctx.beginPath();
+          ctx.arc(sx, sy, 1 + whash(j, 4) * 2, 0, 6.2832);
+          ctx.fill();
+        }
+      } else if (kind === "embers") {
+        ctx.globalCompositeOperation = "lighter";
+        const m = Math.max(30, Math.round(n * 0.6));
+        for (let k = 0; k < m; k++) {
+          const rise = 70 + whash(k, 1) * 90;
+          const ex = wmod(whash(k, 2) * (w + 40) + Math.sin(t * 1.3 + k * 1.7) * 30, w + 40) - 20;
+          const ey = h + 20 - wmod(whash(k, 3) * (h + 40) + t * rise, h + 40);
+          const fl = 0.55 + 0.45 * Math.sin(t * 9 + k * 2.2);
+          ctx.fillStyle = "rgba(255," + Math.round(110 + 90 * fl) + ",30," + (0.35 + 0.45 * fl).toFixed(2) + ")";
+          ctx.beginPath();
+          ctx.arc(ex, ey, 1 + whash(k, 4) * 2, 0, 6.2832);
+          ctx.fill();
+        }
+      }
+    } catch (e) {}
+    ctx.restore();
+  }
   const BG_KEYS = { meadow: "bgMeadow", glacier: "bgGlacier", volcano: "bgVolcano", desert: "bgDesert", cave: "bgCave", space: "bgSpace", sunset: "bgSunset" };
 
   // Effect zones: rects in tiles { c, r, w, h, kind, power }.
@@ -922,11 +980,13 @@
   function sanitizeTheme(raw) {
     const t = raw && typeof raw === "object" ? raw : {};
     const bg = String(t.bg || "");
+    const weather = String(t.weather || "");
     return {
       top: isValidHex(t.top) ? t.top.toLowerCase() : DEFAULT_THEME.top,
       mid: isValidHex(t.mid) ? t.mid.toLowerCase() : DEFAULT_THEME.mid,
       bottom: isValidHex(t.bottom) ? t.bottom.toLowerCase() : DEFAULT_THEME.bottom,
       bg: BG_IDS.indexOf(bg) !== -1 ? bg : "",
+      weather: WEATHER_IDS.indexOf(weather) !== -1 ? weather : "",
     };
   }
 
@@ -4049,6 +4109,7 @@
     } else if (gfx === "ultra" && pack.background) drawUltraBackdrop(ctx, w, h, pack.background);
     else if (gfx === "drawing") drawBackdrop(ctx, w, h, Date.now() / 1000, { top: grayHex(level.theme.top), mid: grayHex(level.theme.mid), bottom: grayHex(level.theme.bottom) }, false);
     else drawBackdrop(ctx, w, h, Date.now() / 1000, level.theme, gfx === "simple");
+    drawWeather(ctx, w, h, level.theme && level.theme.weather);
 
     ctx.save();
     ctx.scale(zoom, zoom);
@@ -4601,6 +4662,7 @@
     DEFAULT_THEME,
     THEMES,
     BG_IDS,
+    WEATHER_IDS,
     sanitizeTheme,
     hexToRgba,
     sanitizeText,

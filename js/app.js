@@ -808,7 +808,7 @@
   }
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", bellSeen: {}, follows: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, mutators: {}, endlessBest: 0, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", bellSeen: {}, follows: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
   }
 
   function touchUIDefaults() {
@@ -863,6 +863,8 @@
       s.beaten = s.beaten || {};
       s.best = s.best || {};
       s.attempts = s.attempts || {};
+      s.mutators = s.mutators && typeof s.mutators === "object" ? s.mutators : {};
+      s.endlessBest = Number(s.endlessBest) || 0;
       s.spaceMenu = !!(s.spaceMenu || s.arcadeMenu);
       s.jumps = s.jumps | 0;
       s.playtime = Number(s.playtime) || 0;
@@ -2377,6 +2379,16 @@
         "</span></span>" +
         (done ? '<span class="level-done">\u2713 CLEARED</span>' : "") +
         (best ? '<span class="level-best">BEST ' + fmtTime(best) + "</span>" : "");
+      const mutBtn = document.createElement("button");
+      mutBtn.type = "button";
+      mutBtn.className = "px-btn tiny level-lb";
+      mutBtn.textContent = "MUTS";
+      mutBtn.title = "Play with mutators for bonus coins";
+      mutBtn.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        openMutModal(i);
+      });
+      b.appendChild(mutBtn);
       const lbBtn = document.createElement("button");
       lbBtn.type = "button";
       lbBtn.className = "px-btn tiny level-lb";
@@ -2826,7 +2838,8 @@
       });
       box.appendChild(b);
     });
-    }
+    syncEndlessBtn();
+  }
     renderShopTags();
     renderShopColors();
     renderShopFrames();
@@ -3660,11 +3673,115 @@
   const cam = { x: 0, y: 0, zoom: 4 };
   const ctx = () => el("view").getContext("2d");
 
+  // ---- MUTATORS: optional per-level run remixes ----
+  const MUTATORS = [
+    { id: "lowg", name: "LOW-G", desc: "Floaty jumps, slow falls", bonus: 25 },
+    { id: "turbo", name: "TURBO", desc: "+35% run speed", bonus: 25 },
+    { id: "fullhop", name: "FULL HOP", desc: "Jumps always go full height", bonus: 15 },
+    { id: "mirror", name: "MIRROR", desc: "Level flipped left-right", bonus: 40 },
+  ];
+  function mutById(id) {
+    for (let i = 0; i < MUTATORS.length; i++) if (MUTATORS[i].id === id) return MUTATORS[i];
+    return null;
+  }
+  function activeMuts() {
+    const m = save_.data.mutators || {};
+    return MUTATORS.filter((x) => !!m[x.id]);
+  }
+  function mutBonusPct(list) {
+    let p = 0;
+    (list || []).forEach((x) => { if (x) p += (x.bonus | 0); });
+    return p;
+  }
+  function applyMutGameplay(gameplay, ids) {
+    if (!gameplay || !ids) return;
+    if (ids.indexOf("lowg") !== -1) {
+      gameplay.gravity = Math.round(gameplay.gravity * 0.55);
+      gameplay.maxFall = Math.round(gameplay.maxFall * 0.8);
+      gameplay.jumpForce = Math.round(gameplay.jumpForce * 0.92);
+    }
+    if (ids.indexOf("turbo") !== -1) {
+      gameplay.moveSpeed = Math.round(gameplay.moveSpeed * 1.35);
+      gameplay.accel = Math.round(gameplay.accel * 1.35);
+      gameplay.friction = Math.round(gameplay.friction * 1.3);
+      gameplay.airAccel = Math.round(gameplay.airAccel * 1.35);
+    }
+    if (ids.indexOf("fullhop") !== -1) gameplay.jumpCut = 1;
+  }
+  function mirrorLevelJson(json) {
+    const T = DP.TILE;
+    const cols = json.cols | 0;
+    const mc = (c) => cols - 1 - (c | 0);
+    const SWAP = { slopeL: "slopeR", slopeR: "slopeL", convL: "convR", convR: "convL" };
+    (json.tiles || []).forEach((t) => {
+      t.c = mc(t.c);
+      if (SWAP[t.id]) t.id = SWAP[t.id];
+      const rot = ((t.rot | 0) % 360 + 360) % 360;
+      t.rot = rot === 0 ? 0 : (360 - rot) % 360;
+      if (t.ox) t.ox = -(t.ox | 0);
+    });
+    if (json.spawn) json.spawn.c = mc(json.spawn.c);
+    (json.texts || []).forEach((t) => { t.c = mc(t.c); });
+    (json.pictures || []).forEach((p) => { p.x = cols * T - (p.x | 0) - (p.w | 0); });
+    (json.widgets || []).forEach((w) => { w.x = cols * T - (w.x | 0) - (w.w | 0); });
+    (json.triggers || []).forEach((tr) => {
+      tr.tc = mc(tr.tc);
+      tr.dx = -(Number(tr.dx) || 0);
+      (tr.areas || []).forEach((a) => { a[0] = mc(a[0]); });
+    });
+    (json.platforms || []).forEach((pl) => {
+      pl.c = mc(pl.c);
+      (pl.path || []).forEach((step) => { step[0] = -(step[0] | 0); });
+    });
+    (json.zones || []).forEach((z) => {
+      z.c = cols - ((z.c | 0) + (z.w | 0 || 1));
+      if (z.kind === "windL") z.kind = "windR";
+      else if (z.kind === "windR") z.kind = "windL";
+    });
+    return json;
+  }
+  let mutLevelIndex = -1;
+  function openMutModal(i) {
+    mutLevelIndex = i;
+    const box = el("mutGrid");
+    box.innerHTML = "";
+    MUTATORS.forEach((m) => {
+      const on = !!(save_.data.mutators || {})[m.id];
+      const b = document.createElement("button");
+      b.className = "skin-tile" + (on ? " selected" : "");
+      b.innerHTML = '<span class="skin-name">' + escapeHtml(m.name) + "</span>" +
+        '<span class="skin-hint">' + escapeHtml(m.desc) + "</span>" +
+        '<span class="shop-cost">+' + m.bonus + "% COINS</span>";
+      b.addEventListener("click", function () {
+        save_.data.mutators = save_.data.mutators || {};
+        save_.data.mutators[m.id] = !save_.data.mutators[m.id];
+        save();
+        openMutModal(mutLevelIndex);
+      });
+      box.appendChild(b);
+    });
+    const n = mutBonusPct(activeMuts());
+    el("mutBonus").textContent = n > 0 ? "Active bonus: +" + n + "% clear coins" : "No mutators active — clean run.";
+    openModal("modalMutators");
+  }
+
   function beginPlay(entry) {
     if (!entry) return;
     state.currentFile = entry.id ? "net:" + entry.id : entry.file;
     state.currentMeta = entry.meta || null;
-    state.engine = new DP.Engine(entry.level.clone(), { skin: save_.data.skin, trail: equippedTrailId(), pet: equippedPetId() });
+    state.endless = false;
+    state.endlessOver = false;
+    const mutIds = state.pendingMut || [];
+    state.pendingMut = [];
+    state.mutList = mutIds;
+    let lvl = entry.level.clone();
+    if (mutIds.indexOf("mirror") !== -1) {
+      try {
+        lvl = DP.Level.fromJSON(mirrorLevelJson(lvl.toJSON()));
+      } catch (e) {}
+    }
+    applyMutGameplay(lvl.gameplay, mutIds);
+    state.engine = new DP.Engine(lvl, { skin: save_.data.skin, trail: equippedTrailId(), pet: equippedPetId() });
     if (DP.Music) DP.Music.play(entry.level.song);
     state.playing = true;
     state.deaths = 0;
@@ -3691,7 +3808,8 @@
     cam.y = state.engine.player.y + state.engine.player.h / 2 - el("view").height / cam.zoom / 2;
     el("winCard").classList.remove("visible");
     el("btnWinMenu").textContent = state.netEntry ? "NETWORK" : "LEVELS";
-    el("btnWinNext").textContent = state.netEntry ? "BACK" : "NEXT \u9654";
+    el("btnWinNext").textContent = state.netEntry ? "BACK" : "NEXT ▸";
+    el("winTitle").textContent = "CLEARED!";
     show("game");
     syncAuthorChip();
     setStatusHud();
@@ -3708,6 +3826,9 @@
     const meta = entry.meta || null;
     const file = entry.file || "";
     el("introTitle").textContent = (entry.level && entry.level.name) || meta?.title || "LEVEL";
+    if (state.mutList && state.mutList.length) {
+      el("introTitle").textContent += " [" + state.mutList.map((id) => ((mutById(id) || {}).name || id)).join("+") + "]";
+    }
     el("introAuthor").textContent = "by " + (meta?.authorName || (entry.level ? "DashPoint" : "?"));
     let tier = 2;
     try {
@@ -3731,7 +3852,8 @@
   }
 
   function setStatusHud() {
-    el("hudTime").textContent = (state.engine ? state.engine.time : 0).toFixed(2);
+    if (state.endless && state.engine) el("hudTime").textContent = Math.floor(endlessDist()) + "m";
+    else el("hudTime").textContent = (state.engine ? state.engine.time : 0).toFixed(2);
     el("hudDeaths").textContent = "deaths " + state.deaths;
     el("hudPractice").classList.toggle("hidden", !state.practice && !state.slowmo);
     if (state.slowmo) el("hudPractice").textContent = "SLOW-MO";
@@ -3759,6 +3881,10 @@
 
   function togglePractice() {
     if (!state.engine || !state.playing) return;
+    if (state.endless) {
+      showNotice("No practice in Endless — death ends the run", true);
+      return;
+    }
     state.practice = !state.practice;
     if (!state.practice) {
       state.slowmo = false;
@@ -3801,6 +3927,10 @@
     state.engine.pendingCoinGrant = 0;
     if (state.engine.clearCheckpoint) state.engine.clearCheckpoint();
     state.engine.reset();
+    if (state.endless) {
+      state.endlessOver = false;
+      state.endlessBestX = state.endlessStartX;
+    }
     if (DP.Music) DP.Music.play(state.engine.level.song);
     el("winCard").classList.remove("visible");
     el("pauseCard").classList.remove("visible");
@@ -3862,6 +3992,10 @@
     state.paused = false;
     state.practice = false;
     state.slowmo = false;
+    state.endless = false;
+    state.endlessOver = false;
+    state.mutList = [];
+    state.pendingMut = [];
     tuffDiscard();
     presenceTick();
     el("pauseCard").classList.remove("visible");
@@ -3893,26 +4027,134 @@
     }
     const firstClear = save_.data.beaten[entry.file] === undefined;
     save_.data.beaten[entry.file] = true;
-    if (save_.data.best[entry.file] === undefined || t < save_.data.best[entry.file]) {
+    const mutIds = state.mutList || [];
+    if (!mutIds.length && (save_.data.best[entry.file] === undefined || t < save_.data.best[entry.file])) {
       save_.data.best[entry.file] = t;
     }
     let gained = 0;
     if (firstClear) gained = grantCoins(coinsForFile(entry.file, entry.meta), "level:" + entry.file);
+    let bonus = 0;
+    if (mutIds.length) {
+      const base = Number(coinsForFile(entry.file, entry.meta)) || 0;
+      const pct = mutBonusPct(mutIds.map(mutById));
+      if (base > 0 && pct > 0) bonus = grantCoins(Math.round(base * pct / 100));
+    }
     save();
-    el("winText").textContent = "Time " + fmtTime(t) + " · deaths " + state.deaths + (firstClear ? " · FIRST CLEAR!" : "") + (gained ? " · +" + fmtCoins(gained) + " coins" : "");
+    el("winText").textContent = "Time " + fmtTime(t) + " · deaths " + state.deaths + (firstClear ? " · FIRST CLEAR!" : "") + (gained ? " · +" + fmtCoins(gained) + " coins" : "") + (bonus > 0 ? " · ⚡MUTS +" + fmtCoins(bonus) + " coins" : (mutIds.length ? " · ⚡MUTS" : ""));
     el("winCard").classList.add("visible");
     checkUnlocks();
 
-    // Ghost save + leaderboard submit
+    // Ghost save + leaderboard submit (clean runs only — mutators change physics)
+    if (!mutIds.length) {
     try {
       var lvlFile = entry.file || entry.id || "unknown";
       var ghostToSave = { points: ghostTrail.slice(), time: t, skin: save_.data.skin, name: (window.DPNet && DPNet.getUser && DPNet.getUser() ? DPNet.getUser().name : "player") };
       if (ghostTrail.length) { DPNet.saveGhostLocal(lvlFile, ghostToSave); DPNet.saveGhostCloud(lvlFile, ghostToSave); }
     } catch(e){}
-    try { showLeaderboardAfterWin(entry, t); } catch(e){}    if (firstClear && entry.file === CLIMB_FILE) {
+    try { showLeaderboardAfterWin(entry, t); } catch(e){}
+    }
+    if (firstClear && entry.file === CLIMB_FILE) {
       showNotice("Space mode unlocked — turn it on in Settings!", false);
       syncSpaceSettings();
     }
+  }
+
+  // ---- ENDLESS MODE: generated run, death ends it, best distance ----
+  function endlessDist() {
+    if (!state.engine) return 0;
+    return Math.max(0, (state.engine.player.x - (state.endlessStartX || 0)) / DP.TILE);
+  }
+  function syncEndlessBtn() {
+    const b = el("endlessBest");
+    if (b) b.textContent = "BEST " + (Number(save_.data.endlessBest) || 0) + "m";
+  }
+  function buildEndlessLevel() {
+    const COLS = 600, ROWS = 20, G = ROWS - 2;
+    const tiles = [];
+    const put = (c, r, id) => {
+      if (c >= 0 && c < COLS && r >= 0 && r < ROWS) tiles.push({ c: c, r: r, id: id });
+    };
+    let seed = (Math.random() * 1e9) | 0;
+    const rnd = () => {
+      seed = (seed * 1664525 + 1013904223) | 0;
+      return (seed >>> 0) / 4294967296;
+    };
+    let c = 0;
+    for (; c < 16; c++) { put(c, G, "brick"); put(c, G + 1, "brick"); }
+    while (c < COLS - 8) {
+      const diff = Math.min(1, c / COLS);
+      const r = rnd();
+      if (r < 0.22) {
+        const w = 2 + Math.floor(rnd() * (2 + diff * 2));
+        put(c + Math.floor(w / 2), G - 2, "coin10");
+        c += w;
+      } else if (r < 0.42) {
+        const w = 1 + Math.floor(rnd() * (1 + diff * 2));
+        for (let i = 0; i < w; i++) put(c + i, G - 1, "spike");
+        c += w + 1;
+      } else if (r < 0.58) {
+        const h = 1 + (rnd() < diff ? 1 : 0);
+        const w = 3 + Math.floor(rnd() * 3);
+        for (let i = 0; i < w; i++) for (let k = 0; k < h; k++) put(c + i, G - 1 - k, "brick");
+        if (rnd() < 0.5) put(c + Math.floor(w / 2), G - 2 - h, "coin10");
+        c += w + 1;
+      } else {
+        const w = 3 + Math.floor(rnd() * 5);
+        for (let i = 0; i < w; i++) {
+          put(c + i, G, "brick");
+          put(c + i, G + 1, "brick");
+          if (rnd() < 0.12 + diff * 0.1) put(c + i, G - 1, "spike");
+          else if (rnd() < 0.2) put(c + i, G - 2, "coin10");
+        }
+        c += w;
+      }
+    }
+    for (; c < COLS; c++) { put(c, G, "brick"); put(c, G + 1, "brick"); }
+    return DP.Level.fromJSON({
+      format: "dashpoint-level",
+      version: 1,
+      name: "Endless Run",
+      cols: COLS,
+      rows: ROWS,
+      tileSize: 32,
+      spawn: { c: 2, r: ROWS - 3 },
+      tiles: tiles,
+      texts: [],
+      gameplay: {},
+      theme: { top: "#1a0b2e", mid: "#3b1153", bottom: "#7a2a1e", bg: "", weather: "embers" },
+      song: "",
+    });
+  }
+  function startEndless() {
+    state.pendingMut = [];
+    state.mutList = [];
+    beginPlay({ file: "endless", name: "Endless Run", level: buildEndlessLevel() });
+    state.endless = true;
+    state.endlessOver = false;
+    state.endlessStartX = state.engine.player.x;
+    state.endlessBestX = state.endlessStartX;
+    el("winTitle").textContent = "RUN OVER";
+    el("btnWinNext").textContent = "NEW RUN ▸";
+    showNotice("Endless: how far can you get? Death ends the run.", false);
+  }
+  function endEndlessRun() {
+    if (state.endlessOver) return;
+    state.endlessOver = true;
+    const m = Math.floor(endlessDist());
+    const prev = Number(save_.data.endlessBest) || 0;
+    const isBest = m > prev;
+    if (isBest) save_.data.endlessBest = m;
+    let got = 0;
+    const coins = Math.floor(m / 10);
+    if (coins > 0) got = grantCoins(coins);
+    save();
+    syncCoinUI();
+    syncHomeStats();
+    syncEndlessBtn();
+    el("winTitle").textContent = "RUN OVER";
+    el("winText").textContent = "Distance " + m + "m" + (isBest && m > 0 ? " · NEW BEST!" : " · best " + Math.max(prev, m) + "m") + (got ? " · +" + fmtCoins(got) + " coins" : "");
+    el("winCard").classList.add("visible");
+    el("btnWinNext").textContent = "NEW RUN ▸";
   }
 
   function spectateTarget() {
@@ -4376,6 +4618,16 @@
     // practice saves nothing, and leaving practice kills slow-mo)
     const edt = (state.slowmo && state.practice) ? dt * 0.5 : dt;
     state.engine.update(edt);
+    if (state.endless && state.engine && !state.engine.dead && !state.practice) {
+      if (state.engine.player.x > state.endlessBestX) state.endlessBestX = state.engine.player.x;
+      const d = Math.max(0, (state.endlessBestX - state.endlessStartX) / DP.TILE);
+      const lv = state.engine.level;
+      if (lv && lv.gameplay) {
+        const boost = Math.min(160, d * 0.25);
+        lv.gameplay.moveSpeed = 320 + Math.round(boost);
+        lv.gameplay.accel = 2800 + Math.round(boost * 4);
+      }
+    }
     if (state.engine.orbFlash > 0 && !wasOrb) haptic("orb");
     if (state.engine.padFlash > 0 && !wasPad) haptic("pad");
     if (state.engine.dashFlash > 0 && !wasDash) haptic("dash");
@@ -4412,8 +4664,9 @@
       haptic("death");
       recordHeatDeath();
       try { tuffLogDeath(); } catch (e) {}
+      if (state.endless && !state.practice) endEndlessRun();
     }
-    if (state.engine.dead && save_.data.autoRespawn && state.engine.deathTimer > 0.55) respawn();
+    if (state.engine.dead && !state.endless && save_.data.autoRespawn && state.engine.deathTimer > 0.55) respawn();
     if (state.engine.won && !state.winShown) {
       state.winShown = true;
       haptic("win");
@@ -6376,6 +6629,13 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     const btnDownloadHome = el("btnDownloadHome");
     if (btnDownloadHome) btnDownloadHome.addEventListener("click", () => openModal("modalDownload"));
     el("btnOpenShop").addEventListener("click", () => openModal("modalShop"));
+    el("btnEndless").addEventListener("click", () => startEndless());
+    el("btnMutPlay").addEventListener("click", () => {
+      const ids = activeMuts().map((m) => m.id);
+      state.pendingMut = ids;
+      closeModal("modalMutators");
+      if (mutLevelIndex >= 0) startLevel(mutLevelIndex);
+    });
     (function initPainter() {
       var pal = el("paintPalette");
       if (pal && !pal.dataset.done) {
@@ -6548,6 +6808,10 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       if (mainLbPlayIndex >= 0) startLevel(mainLbPlayIndex);
     });
     el("btnWinNext").addEventListener("click", () => {
+      if (state.endless) {
+        startEndless();
+        return;
+      }
       if (state.netEntry) {
         quitToLevels();
         return;
@@ -6809,7 +7073,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       if (!u) { profileMsg("Not logged in"); return; }
       const st = el("profCloudStatus"); if (st) st.textContent = "Uploading…";
       try {
-        const saved = await NET.syncCloud({ deaths: save_.data.deaths, jumps: save_.data.jumps, playtime: Number(save_.data.playtime) || 0, coins: save_.data.coins, coinPaid: save_.data.coinPaid, coinMigrated: !!save_.data.coinMigrated, codes: save_.data.codes, skin: save_.data.skin, unlocked: save_.data.unlocked, beaten: save_.data.beaten, best: save_.data.best, secretA: !!save_.data.secretA, spaceMenu: !!save_.data.spaceMenu, tags: save_.data.tags, tag: save_.data.tag, nameColors: save_.data.nameColors, nameColor: save_.data.nameColor, frames: save_.data.frames, frame: save_.data.frame, trails: save_.data.trails, trail: save_.data.trail, chestFree: save_.data.chestFree, championKeys: save_.data.championKeys });
+        const saved = await NET.syncCloud({ deaths: save_.data.deaths, jumps: save_.data.jumps, playtime: Number(save_.data.playtime) || 0, coins: save_.data.coins, coinPaid: save_.data.coinPaid, coinMigrated: !!save_.data.coinMigrated, codes: save_.data.codes, skin: save_.data.skin, unlocked: save_.data.unlocked, beaten: save_.data.beaten, best: save_.data.best, secretA: !!save_.data.secretA, spaceMenu: !!save_.data.spaceMenu, tags: save_.data.tags, tag: save_.data.tag, nameColors: save_.data.nameColors, nameColor: save_.data.nameColor, frames: save_.data.frames, frame: save_.data.frame, trails: save_.data.trails, trail: save_.data.trail, chestFree: save_.data.chestFree, championKeys: save_.data.championKeys, endlessBest: Number(save_.data.endlessBest) || 0 });
         if (st) st.textContent = "Cloud updated " + new Date(saved.updatedAt).toLocaleTimeString();
         profileMsg("Synced to cloud");
         syncHomeStats();
@@ -6868,6 +7132,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         }
         if (cloud.beaten) { for (var k in cloud.beaten) save_.data.beaten[k]=true; }
         if (cloud.best) { for (var k2 in cloud.best) { if (save_.data.best[k2]==null || cloud.best[k2] < save_.data.best[k2]) save_.data.best[k2]=cloud.best[k2]; } }
+        if (cloud.endlessBest != null) save_.data.endlessBest = Math.max(Number(save_.data.endlessBest) || 0, Number(cloud.endlessBest) || 0);
         if (cloud.skin) save_.data.skin = cloud.skin;
         if (cloud.secretA) save_.data.secretA = true;
         if (cloud.spaceMenu) save_.data.spaceMenu = true;

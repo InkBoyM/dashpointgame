@@ -67,6 +67,9 @@
       <h1 class="bar-title">LEVELS</h1>
       <span class="bar-spacer"></span>
     </header>
+    <div class="row-end" style="padding:10px 12px 0">
+      <button class="px-btn small gold" id="btnEndless">ENDLESS &#9654; <span id="endlessBest">BEST 0m</span></button>
+    </div>
     <div class="level-list" id="levelList"></div>
   </div>
 
@@ -121,7 +124,7 @@
     </div>
     <div class="overlay-card" id="winCard">
       <div class="card">
-        <h2>CLEARED!</h2>
+        <h2 id="winTitle">CLEARED!</h2>
         <p id="winText">Nice run.</p>
         <div id="leaderboardBox" class="leaderboard"></div>
         <div class="card-actions">
@@ -741,6 +744,19 @@
         <button class="px-btn small gold" id="btnLiEdit" style="display:none">EDIT LEVEL</button>
         <button class="px-btn small danger" id="btnLiDelete" style="display:none">DELETE LEVEL</button>
         <button class="px-btn small" data-close="modalLevelInfo">BACK</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-root" id="modalMutators">
+    <div class="modal">
+      <h2>MUTATORS</h2>
+      <p class="hint">Remix this run. Every active mutator boosts clear coins. No best times or leaderboard entries while mutating.</p>
+      <div class="skin-grid" id="mutGrid"></div>
+      <p class="hint" id="mutBonus"></p>
+      <div class="row" style="margin-top:14px; justify-content:center; gap:10px">
+        <button class="px-btn good" id="btnMutPlay">PLAY</button>
+        <button class="px-btn small" data-close="modalMutators">BACK</button>
       </div>
     </div>
   </div>

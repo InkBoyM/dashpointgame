@@ -3483,8 +3483,7 @@
   "theme": {
     "top": "#040810",
     "mid": "#0a1628",
-    "bottom": "#122a4a"
-  },
+    "bottom": "#122a4a", "weather": "rain"},
   "meta": {
     "createdAt": "2026-09-11T00:43:57.779Z",
     "updatedAt": "2026-09-11T02:02:38.310Z",
