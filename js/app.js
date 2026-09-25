@@ -4623,6 +4623,68 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
   let netTab = "levels";
   let netCurrentId = null;
 
+  let inviteShown = {};
+
+  function inviteKey(inv) {
+    return String((inv && inv.fromUid) || "") + ":" + String((inv && inv.code) || "") + ":" + String((inv && inv.ts) || 0);
+  }
+
+  function removeInviteToast(key) {
+    const host = el("inviteToasts");
+    if (!host) return;
+    const row = host.querySelector('[data-invite="' + String(key).replace(/"/g, "") + '"]');
+    if (!row) return;
+    row.classList.remove("show");
+    setTimeout(function () { if (row.parentNode) row.remove(); }, 280);
+  }
+
+  async function acceptInvite(inv) {
+    if (!inv || !inv.code) return;
+    showNotice("Joining " + (inv.fromName || "player") + "'s room…", false);
+    try {
+      if (!MP.isActive() || String(MP.getCode()) !== String(inv.code)) {
+        await Promise.race([MP.join(inv.code), new Promise(function (_, reject) {
+          setTimeout(function () { reject(new Error("Couldn't join (network?). The room may be gone — ask for a fresh invite.")); }, 12000);
+        })]);
+      }
+      try { await NET.clearInvite(inv.fromUid); } catch (e) {}
+      showNotice("Joined " + (inv.fromName || "player") + "'s room", false);
+      try { syncMpUI(); } catch (e) {}
+      removeInviteToast(inviteKey(inv));
+    } catch (err) {
+      showNotice(String(err.message || err), true);
+    }
+  }
+
+  function showInviteToast(inv) {
+    if (!inv || !inv.code) return;
+    const key = inviteKey(inv);
+    if (inviteShown[key]) return;
+    if (MP.isActive() && String(MP.getCode()) === String(inv.code)) return;
+    const host = el("inviteToasts");
+    if (!host) return;
+    inviteShown[key] = true;
+    const box = document.createElement("div");
+    box.className = "invite-toast";
+    box.setAttribute("data-invite", key);
+    box.innerHTML =
+      '<div class="invite-toast-text"><div class="invite-toast-title">ROOM INVITE</div>' +
+      '<div class="invite-toast-name">' + escapeHtml(inv.fromName || "player") + " invited you — tap to join " + escapeHtml(inv.code) + "</div></div>" +
+      '<button class="px-btn small good invite-toast-join" type="button">JOIN</button>' +
+      '<button class="invite-toast-x" type="button" aria-label="Dismiss">×</button>';
+    box.querySelector(".invite-toast-join").addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      acceptInvite(inv);
+    });
+    box.querySelector(".invite-toast-x").addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      removeInviteToast(key);
+    });
+    box.addEventListener("click", function () { acceptInvite(inv); });
+    host.appendChild(box);
+    requestAnimationFrame(function () { box.classList.add("show"); });
+  }
+
   function showNotice(msg, bad) {
     const box = document.createElement("div");
     box.className = "achv" + (bad ? " notice-bad" : " notice");
@@ -5482,6 +5544,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
             code: inv.code,
             text: (inv.fromName || "player") + " invited you to room " + inv.code,
           });
+          try { showInviteToast(inv); } catch (e) {}
         });
       } catch (e) {}
       try {
@@ -5532,11 +5595,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
           const first = !inviteBaselined;
           inviteBaselined = true;
           inviteBaselineTs = maxTs;
-          if (first) return; // initial snapshot: baseline only, no spam for old invites
-          if (fresh.length) {
-            const f0 = fresh[fresh.length - 1];
-            showNotice((f0.fromName || "Someone") + " invited you to room " + (f0.code || "?") + " — open the bell to join!", false);
-          }
+          const toShow = first ? list : fresh;
+          toShow.forEach(function (inv) { try { showInviteToast(inv); } catch (e) {} });
           checkBell().then(function () {
             try {
               if (el("modalBell") && el("modalBell").classList.contains("visible")) renderBell();
@@ -5604,19 +5664,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         } else {
           row.addEventListener("click", async function () {
             closeModal("modalBell");
-            showNotice("Joining " + (ev.fromName || "player") + "'s room…", false);
-            try {
-              if (!MP.isActive() || String(MP.getCode()) !== ev.code) {
-                await Promise.race([MP.join(ev.code), new Promise(function (_, reject) {
-                  setTimeout(function () { reject(new Error("Couldn't join (network?). The room may be gone — ask for a fresh invite.")); }, 12000);
-                })]);
-              }
-              try { await NET.clearInvite(ev.fromUid); } catch (e) {}
-              showNotice("Joined " + (ev.fromName || "player") + "'s room", false);
-              try { syncMpUI(); } catch (e) {}
-            } catch (err) {
-              showNotice(String(err.message || err), true);
-            }
+            await acceptInvite(ev);
           });
           seen["i:" + ev.fromUid] = Math.max(seen["i:" + ev.fromUid] || 0, ev.ts);
         }

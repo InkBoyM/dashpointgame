@@ -940,6 +940,51 @@ body.gfx-ultra canvas { image-rendering: auto; }
 .achv.notice-bad { border-color: var(--red); }
 .achv.notice .achv-name { font-weight: 700; font-size: 13px; max-width: 340px; }
 
+#inviteToasts {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(440px, calc(100vw - 24px));
+  pointer-events: none;
+}
+.invite-toast {
+  pointer-events: auto;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 4px solid var(--ink-dark);
+  box-shadow: inset 2px 2px 0 rgba(255,255,255,.08), 6px 6px 0 rgba(0,0,0,.45);
+  padding: 12px 14px;
+  opacity: 0;
+  transform: translateY(-16px);
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+.invite-toast.show { opacity: 1; transform: translateY(0); }
+.invite-toast-text { flex: 1; min-width: 0; }
+.invite-toast-title { font-size: 11px; font-weight: 900; letter-spacing: 2px; color: var(--good); }
+.invite-toast-name { font-size: 13px; font-weight: 700; }
+.invite-toast-join { flex: none; }
+.invite-toast-x {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--ink-dark);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+
 /* ---------- ACHIEVEMENT POPUPS ---------- */
 #achievements {
   position: fixed;
