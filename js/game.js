@@ -1868,8 +1868,11 @@
   const TRAILS = {
     sparkle: { rate: 40, life: [0.3, 0.6], size: [2, 4], vx: [-20, 20], vy: [-30, -70], colors: ["#ffffff", "#ffd23c", "#fff3c2"], grav: 60, drag: 1.5 },
     bubbles: { rate: 22, life: [0.5, 1.0], size: [2, 5], vx: [-15, 15], vy: [-60, -110], colors: ["#2ee6ff", "#9beaff", "#ffffff"], grav: -40, drag: 1.2, ring: true },
+    wisp: { rate: 36, life: [0.5, 0.9], size: [2, 5], vx: [-15, 15], vy: [-70, -130], colors: ["#e6d6ff", "#b45cff", "#ffffff"], grav: -60, drag: 1.2, ring: true },
     fire: { rate: 55, life: [0.25, 0.5], size: [3, 6], vx: [-25, 25], vy: [-40, -100], colors: ["#ff5a1a", "#ff9d2e", "#ffd23c"], grav: -120, drag: 1.8 },
+    volt: { rate: 70, life: [0.2, 0.45], size: [2, 4], vx: [-60, 60], vy: [-40, -120], colors: ["#fff23c", "#2ee6ff", "#ffffff"], grav: 200, drag: 2.0 },
     rainbow: { rate: 50, life: [0.35, 0.7], size: [2, 5], vx: [-30, 30], vy: [-20, -60], colors: ["#ffffff"], grav: 30, drag: 1.5, rainbow: true },
+    meteor: { rate: 30, life: [0.4, 0.8], size: [4, 8], vx: [-40, 40], vy: [-20, -60], colors: ["#ff5a1a", "#ff2e2e", "#ffd23c"], grav: 300, drag: 0.8 },
   };
 
   function solidBox(c, r, tile) {

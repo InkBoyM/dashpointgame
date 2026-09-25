@@ -569,10 +569,14 @@
 
   const SHOP_FRAMES = [
     { id: "bronze", label: "Bronze", cls: "frame-bronze", cost: 1000 },
+    { id: "gold", label: "Gold", cls: "frame-gold", cost: 5000 },
     { id: "silver", label: "Silver", cls: "frame-silver", cost: 10000 },
     { id: "neon", label: "Neon", cls: "frame-neon", cost: 100000 },
     { id: "royal", label: "Royal", cls: "frame-royal", cost: 1000000 },
+    { id: "abyss", label: "Abyss", cls: "frame-abyss", cost: 5000000 },
+    { id: "frost", label: "Frost", cls: "frame-frost", cost: 20000000 },
     { id: "inferno", label: "Inferno", cls: "frame-inferno", cost: 50000000 },
+    { id: "solar", label: "Solar", cls: "frame-solar", cost: 200000000 },
     { id: "prism", label: "Prism", cls: "frame-prism", cost: 500000000 },
   ];
 
@@ -605,8 +609,11 @@
   const SHOP_TRAILS = [
     { id: "sparkle", label: "Sparkle", cost: 5000, dots: ["#ffffff", "#ffd23c", "#fff3c2"] },
     { id: "bubbles", label: "Bubbles", cost: 25000, dots: ["#2ee6ff", "#9beaff", "#ffffff"] },
+    { id: "wisp", label: "Wisp", cost: 75000, dots: ["#e6d6ff", "#b45cff", "#ffffff"] },
     { id: "fire", label: "Fire", cost: 250000, dots: ["#ff5a1a", "#ff9d2e", "#ffd23c"] },
+    { id: "volt", label: "Volt", cost: 750000, dots: ["#fff23c", "#2ee6ff", "#ffffff"] },
     { id: "rainbow", label: "Rainbow", cost: 2000000, dots: ["#ff5a5a", "#ffd23c", "#3ee07a", "#2ee6ff", "#b45cff"] },
+    { id: "meteor", label: "Meteor", cost: 8000000, dots: ["#ff5a1a", "#ff2e2e", "#ffd23c"] },
   ];
 
   function findShopTrail(id) {
@@ -828,7 +835,7 @@
   }
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, mutators: {}, effects: [], effect: "", hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", bellSeen: {}, follows: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, effects: [], effect: "", hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", bellSeen: {}, follows: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
   }
 
   function touchUIDefaults() {
@@ -883,7 +890,6 @@
       s.beaten = s.beaten || {};
       s.best = s.best || {};
       s.attempts = s.attempts || {};
-      s.mutators = s.mutators && typeof s.mutators === "object" ? s.mutators : {};
       s.spaceMenu = !!(s.spaceMenu || s.arcadeMenu);
       s.jumps = s.jumps | 0;
       s.playtime = Number(s.playtime) || 0;
@@ -1927,7 +1933,7 @@
     opts = opts || {};
     if (!box) return [];
     box.innerHTML = '<p class="loading-note">Loading leaderboard…</p>';
-    var file = opts.boardKey || entry.file || entry.id || "unknown";
+    var file = entry.file || entry.id || "unknown";
     var name = entry.level ? entry.level.name : file;
     if (!window.DPNet || !DPNet.getLeaderboard) {
       box.innerHTML = '<p class="loading-note">Online leaderboard is unavailable.</p>';
@@ -2071,11 +2077,10 @@
     await fetchLevelLeaderboard(el("mainLbBox"), entry, { canRace: false });
   }
 
-  async function showLeaderboardAfterWin(entry, time, boardKey, comboLabel){
+  async function showLeaderboardAfterWin(entry, time){
     var box = el("leaderboardBox");
     if (!box) return;
-    var file = boardKey || entry.file || entry.id || "unknown";
-    var racing = !comboLabel;
+    var file = entry.file || entry.id || "unknown";
     try {
       var u = (window.DPNet && DPNet.getUser) ? DPNet.getUser() : null;
       var res = null;
@@ -2090,9 +2095,8 @@
       }
       var list = await fetchLevelLeaderboard(box, entry, {
         user: u,
-        boardKey: file,
-        canRace: racing,
-        titleExtra: (u && racing ? " · tap a player to race" : "") + (comboLabel || ""),
+        canRace: true,
+        titleExtra: u ? " · tap a player to race" : "",
         empty: (u ? "No leaderboard yet — you are #1!" : "No times yet.") + "<br>Your time: " + fmtTime(time),
         extraRow: extra,
       });
@@ -2402,16 +2406,6 @@
         "</span></span>" +
         (done ? '<span class="level-done">\u2713 CLEARED</span>' : "") +
         (best ? '<span class="level-best">BEST ' + fmtTime(best) + "</span>" : "");
-      const mutBtn = document.createElement("button");
-      mutBtn.type = "button";
-      mutBtn.className = "px-btn tiny level-lb";
-      mutBtn.textContent = "MUTS";
-      mutBtn.title = "Play with mutators for bonus coins";
-      mutBtn.addEventListener("click", function (ev) {
-        ev.stopPropagation();
-        openMutModal(i);
-      });
-      b.appendChild(mutBtn);
       const lbBtn = document.createElement("button");
       lbBtn.type = "button";
       lbBtn.className = "px-btn tiny level-lb";
@@ -3745,124 +3739,11 @@
   const cam = { x: 0, y: 0, zoom: 4 };
   const ctx = () => el("view").getContext("2d");
 
-  // ---- MUTATORS: optional per-level run remixes ----
-  const MUTATORS = [
-    { id: "lowg", name: "LOW-G", desc: "Floaty jumps, slow falls", bonus: 25 },
-    { id: "turbo", name: "TURBO", desc: "+35% run speed", bonus: 25 },
-    { id: "fullhop", name: "FULL HOP", desc: "Jumps always go full height", bonus: 15 },
-    { id: "mirror", name: "MIRROR", desc: "Level flipped left-right", bonus: 40 },
-  ];
-  function mutById(id) {
-    for (let i = 0; i < MUTATORS.length; i++) if (MUTATORS[i].id === id) return MUTATORS[i];
-    return null;
-  }
-  function activeMuts() {
-    const m = save_.data.mutators || {};
-    return MUTATORS.filter((x) => !!m[x.id]);
-  }
-  function mutBonusPct(list) {
-    let p = 0;
-    (list || []).forEach((x) => { if (x) p += (x.bonus | 0); });
-    return p;
-  }
-  // Leaderboard key: clean runs share the level board, every mutator combo
-  // gets its own board per level (ids sorted so order doesn't matter).
-  function mutBoardKey(file, mutIds) {
-    const base = file || "unknown";
-    if (!mutIds || !mutIds.length) return base;
-    return base + "|mut:" + mutIds.slice().sort().join("+");
-  }
-  function mutComboLabel(mutIds) {
-    if (!mutIds || !mutIds.length) return "";
-    return " [" + mutIds.map((id) => ((mutById(id) || {}).name || id)).join("+") + "]";
-  }
-  function applyMutGameplay(gameplay, ids) {
-    if (!gameplay || !ids) return;
-    if (ids.indexOf("lowg") !== -1) {
-      gameplay.gravity = Math.round(gameplay.gravity * 0.55);
-      gameplay.maxFall = Math.round(gameplay.maxFall * 0.8);
-      gameplay.jumpForce = Math.round(gameplay.jumpForce * 0.92);
-    }
-    if (ids.indexOf("turbo") !== -1) {
-      gameplay.moveSpeed = Math.round(gameplay.moveSpeed * 1.35);
-      gameplay.accel = Math.round(gameplay.accel * 1.35);
-      gameplay.friction = Math.round(gameplay.friction * 1.3);
-      gameplay.airAccel = Math.round(gameplay.airAccel * 1.35);
-    }
-    if (ids.indexOf("fullhop") !== -1) gameplay.jumpCut = 1;
-  }
-  function mirrorLevelJson(json) {
-    const T = DP.TILE;
-    const cols = json.cols | 0;
-    const mc = (c) => cols - 1 - (c | 0);
-    const SWAP = { slopeL: "slopeR", slopeR: "slopeL", convL: "convR", convR: "convL" };
-    (json.tiles || []).forEach((t) => {
-      t.c = mc(t.c);
-      if (SWAP[t.id]) t.id = SWAP[t.id];
-      const rot = ((t.rot | 0) % 360 + 360) % 360;
-      t.rot = rot === 0 ? 0 : (360 - rot) % 360;
-      if (t.ox) t.ox = -(t.ox | 0);
-    });
-    if (json.spawn) json.spawn.c = mc(json.spawn.c);
-    (json.texts || []).forEach((t) => { t.c = mc(t.c); });
-    (json.pictures || []).forEach((p) => { p.x = cols * T - (p.x | 0) - (p.w | 0); });
-    (json.widgets || []).forEach((w) => { w.x = cols * T - (w.x | 0) - (w.w | 0); });
-    (json.triggers || []).forEach((tr) => {
-      tr.tc = mc(tr.tc);
-      tr.dx = -(Number(tr.dx) || 0);
-      (tr.areas || []).forEach((a) => { a[0] = mc(a[0]); });
-    });
-    (json.platforms || []).forEach((pl) => {
-      pl.c = mc(pl.c);
-      (pl.path || []).forEach((step) => { step[0] = -(step[0] | 0); });
-    });
-    (json.zones || []).forEach((z) => {
-      z.c = cols - ((z.c | 0) + (z.w | 0 || 1));
-      if (z.kind === "windL") z.kind = "windR";
-      else if (z.kind === "windR") z.kind = "windL";
-    });
-    return json;
-  }
-  let mutLevelIndex = -1;
-  function openMutModal(i) {
-    mutLevelIndex = i;
-    const box = el("mutGrid");
-    box.innerHTML = "";
-    MUTATORS.forEach((m) => {
-      const on = !!(save_.data.mutators || {})[m.id];
-      const b = document.createElement("button");
-      b.className = "skin-tile" + (on ? " selected" : "");
-      b.innerHTML = '<span class="skin-name">' + escapeHtml(m.name) + "</span>" +
-        '<span class="skin-hint">' + escapeHtml(m.desc) + "</span>" +
-        '<span class="shop-cost">+' + m.bonus + "% COINS</span>";
-      b.addEventListener("click", function () {
-        save_.data.mutators = save_.data.mutators || {};
-        save_.data.mutators[m.id] = !save_.data.mutators[m.id];
-        save();
-        openMutModal(mutLevelIndex);
-      });
-      box.appendChild(b);
-    });
-    const n = mutBonusPct(activeMuts());
-    el("mutBonus").textContent = n > 0 ? "Active bonus: +" + n + "% clear coins" : "No mutators active — clean run.";
-    openModal("modalMutators");
-  }
-
   function beginPlay(entry) {
     if (!entry) return;
     state.currentFile = entry.id ? "net:" + entry.id : entry.file;
     state.currentMeta = entry.meta || null;
-    const mutIds = state.pendingMut || [];
-    state.pendingMut = [];
-    state.mutList = mutIds;
-    let lvl = entry.level.clone();
-    if (mutIds.indexOf("mirror") !== -1) {
-      try {
-        lvl = DP.Level.fromJSON(mirrorLevelJson(lvl.toJSON()));
-      } catch (e) {}
-    }
-    applyMutGameplay(lvl.gameplay, mutIds);
-    state.engine = new DP.Engine(lvl, { skin: save_.data.skin, trail: equippedTrailId(), pet: equippedPetId() });
+    state.engine = new DP.Engine(entry.level.clone(), { skin: save_.data.skin, trail: equippedTrailId(), pet: equippedPetId() });
     if (DP.Music) DP.Music.play(entry.level.song);
     state.playing = true;
     state.deaths = 0;
@@ -3907,9 +3788,6 @@
     const meta = entry.meta || null;
     const file = entry.file || "";
     el("introTitle").textContent = (entry.level && entry.level.name) || meta?.title || "LEVEL";
-    if (state.mutList && state.mutList.length) {
-      el("introTitle").textContent += " [" + state.mutList.map((id) => ((mutById(id) || {}).name || id)).join("+") + "]";
-    }
     el("introAuthor").textContent = "by " + (meta?.authorName || (entry.level ? "DashPoint" : "?"));
     let tier = 2;
     try {
@@ -4064,8 +3942,6 @@
     state.paused = false;
     state.practice = false;
     state.slowmo = false;
-    state.mutList = [];
-    state.pendingMut = [];
     tuffDiscard();
     presenceTick();
     el("pauseCard").classList.remove("visible");
@@ -4097,33 +3973,23 @@
     }
     const firstClear = save_.data.beaten[entry.file] === undefined;
     save_.data.beaten[entry.file] = true;
-    const mutIds = state.mutList || [];
-    if (!mutIds.length && (save_.data.best[entry.file] === undefined || t < save_.data.best[entry.file])) {
+    if (save_.data.best[entry.file] === undefined || t < save_.data.best[entry.file]) {
       save_.data.best[entry.file] = t;
     }
     let gained = 0;
     if (firstClear) gained = grantCoins(coinsForFile(entry.file, entry.meta), "level:" + entry.file);
-    let bonus = 0;
-    if (mutIds.length) {
-      const base = Number(coinsForFile(entry.file, entry.meta)) || 0;
-      const pct = mutBonusPct(mutIds.map(mutById));
-      if (base > 0 && pct > 0) bonus = grantCoins(Math.round(base * pct / 100));
-    }
     save();
-    el("winText").textContent = "Time " + fmtTime(t) + " · deaths " + state.deaths + (firstClear ? " · FIRST CLEAR!" : "") + (gained ? " · +" + fmtCoins(gained) + " coins" : "") + (bonus > 0 ? " · ⚡MUTS +" + fmtCoins(bonus) + " coins" : (mutIds.length ? " · ⚡MUTS" : ""));
+    el("winText").textContent = "Time " + fmtTime(t) + " · deaths " + state.deaths + (firstClear ? " · FIRST CLEAR!" : "") + (gained ? " · +" + fmtCoins(gained) + " coins" : "");
     el("winCard").classList.add("visible");
     checkUnlocks();
 
-    // Ghost save (clean runs only — mutator physics would desync replays)
-    if (!mutIds.length) {
+    // Ghost save + leaderboard submit
     try {
       var lvlFile = entry.file || entry.id || "unknown";
       var ghostToSave = { points: ghostTrail.slice(), time: t, skin: save_.data.skin, name: (window.DPNet && DPNet.getUser && DPNet.getUser() ? DPNet.getUser().name : "player") };
       if (ghostTrail.length) { DPNet.saveGhostLocal(lvlFile, ghostToSave); DPNet.saveGhostCloud(lvlFile, ghostToSave); }
     } catch(e){}
-    }
-    // Leaderboard submit: main board when clean, own board per mutator combo
-    try { showLeaderboardAfterWin(entry, t, mutBoardKey(entry.file || entry.id, mutIds), mutComboLabel(mutIds)); } catch(e){}
+    try { showLeaderboardAfterWin(entry, t); } catch(e){}
     if (firstClear && entry.file === CLIMB_FILE) {
       showNotice("Space mode unlocked — turn it on in Settings!", false);
       syncSpaceSettings();
@@ -6592,12 +6458,6 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     const btnDownloadHome = el("btnDownloadHome");
     if (btnDownloadHome) btnDownloadHome.addEventListener("click", () => openModal("modalDownload"));
     el("btnOpenShop").addEventListener("click", () => openModal("modalShop"));
-    el("btnMutPlay").addEventListener("click", () => {
-      const ids = activeMuts().map((m) => m.id);
-      state.pendingMut = ids;
-      closeModal("modalMutators");
-      if (mutLevelIndex >= 0) startLevel(mutLevelIndex);
-    });
     (function initPainter() {
       var pal = el("paintPalette");
       if (pal && !pal.dataset.done) {
