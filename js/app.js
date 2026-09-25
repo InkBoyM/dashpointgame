@@ -808,7 +808,7 @@
   }
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, mutators: {}, endlessBest: 0, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", bellSeen: {}, follows: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, mutators: {}, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", bellSeen: {}, follows: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
   }
 
   function touchUIDefaults() {
@@ -864,7 +864,6 @@
       s.best = s.best || {};
       s.attempts = s.attempts || {};
       s.mutators = s.mutators && typeof s.mutators === "object" ? s.mutators : {};
-      s.endlessBest = Number(s.endlessBest) || 0;
       s.spaceMenu = !!(s.spaceMenu || s.arcadeMenu);
       s.jumps = s.jumps | 0;
       s.playtime = Number(s.playtime) || 0;
@@ -2838,7 +2837,6 @@
       });
       box.appendChild(b);
     });
-    syncEndlessBtn();
   }
     renderShopTags();
     renderShopColors();
@@ -3769,8 +3767,6 @@
     if (!entry) return;
     state.currentFile = entry.id ? "net:" + entry.id : entry.file;
     state.currentMeta = entry.meta || null;
-    state.endless = false;
-    state.endlessOver = false;
     const mutIds = state.pendingMut || [];
     state.pendingMut = [];
     state.mutList = mutIds;
@@ -3852,8 +3848,7 @@
   }
 
   function setStatusHud() {
-    if (state.endless && state.engine) el("hudTime").textContent = Math.floor(endlessDist()) + "m";
-    else el("hudTime").textContent = (state.engine ? state.engine.time : 0).toFixed(2);
+    el("hudTime").textContent = (state.engine ? state.engine.time : 0).toFixed(2);
     el("hudDeaths").textContent = "deaths " + state.deaths;
     el("hudPractice").classList.toggle("hidden", !state.practice && !state.slowmo);
     if (state.slowmo) el("hudPractice").textContent = "SLOW-MO";
@@ -3881,10 +3876,6 @@
 
   function togglePractice() {
     if (!state.engine || !state.playing) return;
-    if (state.endless) {
-      showNotice("No practice in Endless — death ends the run", true);
-      return;
-    }
     state.practice = !state.practice;
     if (!state.practice) {
       state.slowmo = false;
@@ -3927,10 +3918,6 @@
     state.engine.pendingCoinGrant = 0;
     if (state.engine.clearCheckpoint) state.engine.clearCheckpoint();
     state.engine.reset();
-    if (state.endless) {
-      state.endlessOver = false;
-      state.endlessBestX = state.endlessStartX;
-    }
     if (DP.Music) DP.Music.play(state.engine.level.song);
     el("winCard").classList.remove("visible");
     el("pauseCard").classList.remove("visible");
@@ -3992,8 +3979,6 @@
     state.paused = false;
     state.practice = false;
     state.slowmo = false;
-    state.endless = false;
-    state.endlessOver = false;
     state.mutList = [];
     state.pendingMut = [];
     tuffDiscard();
@@ -4057,104 +4042,6 @@
       showNotice("Space mode unlocked — turn it on in Settings!", false);
       syncSpaceSettings();
     }
-  }
-
-  // ---- ENDLESS MODE: generated run, death ends it, best distance ----
-  function endlessDist() {
-    if (!state.engine) return 0;
-    return Math.max(0, (state.engine.player.x - (state.endlessStartX || 0)) / DP.TILE);
-  }
-  function syncEndlessBtn() {
-    const b = el("endlessBest");
-    if (b) b.textContent = "BEST " + (Number(save_.data.endlessBest) || 0) + "m";
-  }
-  function buildEndlessLevel() {
-    const COLS = 600, ROWS = 20, G = ROWS - 2;
-    const tiles = [];
-    const put = (c, r, id) => {
-      if (c >= 0 && c < COLS && r >= 0 && r < ROWS) tiles.push({ c: c, r: r, id: id });
-    };
-    let seed = (Math.random() * 1e9) | 0;
-    const rnd = () => {
-      seed = (seed * 1664525 + 1013904223) | 0;
-      return (seed >>> 0) / 4294967296;
-    };
-    let c = 0;
-    for (; c < 16; c++) { put(c, G, "brick"); put(c, G + 1, "brick"); }
-    while (c < COLS - 8) {
-      const diff = Math.min(1, c / COLS);
-      const r = rnd();
-      if (r < 0.22) {
-        const w = 2 + Math.floor(rnd() * (2 + diff * 2));
-        put(c + Math.floor(w / 2), G - 2, "coin10");
-        c += w;
-      } else if (r < 0.42) {
-        const w = 1 + Math.floor(rnd() * (1 + diff * 2));
-        for (let i = 0; i < w; i++) put(c + i, G - 1, "spike");
-        c += w + 1;
-      } else if (r < 0.58) {
-        const h = 1 + (rnd() < diff ? 1 : 0);
-        const w = 3 + Math.floor(rnd() * 3);
-        for (let i = 0; i < w; i++) for (let k = 0; k < h; k++) put(c + i, G - 1 - k, "brick");
-        if (rnd() < 0.5) put(c + Math.floor(w / 2), G - 2 - h, "coin10");
-        c += w + 1;
-      } else {
-        const w = 3 + Math.floor(rnd() * 5);
-        for (let i = 0; i < w; i++) {
-          put(c + i, G, "brick");
-          put(c + i, G + 1, "brick");
-          if (rnd() < 0.12 + diff * 0.1) put(c + i, G - 1, "spike");
-          else if (rnd() < 0.2) put(c + i, G - 2, "coin10");
-        }
-        c += w;
-      }
-    }
-    for (; c < COLS; c++) { put(c, G, "brick"); put(c, G + 1, "brick"); }
-    return DP.Level.fromJSON({
-      format: "dashpoint-level",
-      version: 1,
-      name: "Endless Run",
-      cols: COLS,
-      rows: ROWS,
-      tileSize: 32,
-      spawn: { c: 2, r: ROWS - 3 },
-      tiles: tiles,
-      texts: [],
-      gameplay: {},
-      theme: { top: "#1a0b2e", mid: "#3b1153", bottom: "#7a2a1e", bg: "", weather: "embers" },
-      song: "",
-    });
-  }
-  function startEndless() {
-    state.pendingMut = [];
-    state.mutList = [];
-    beginPlay({ file: "endless", name: "Endless Run", level: buildEndlessLevel() });
-    state.endless = true;
-    state.endlessOver = false;
-    state.endlessStartX = state.engine.player.x;
-    state.endlessBestX = state.endlessStartX;
-    el("winTitle").textContent = "RUN OVER";
-    el("btnWinNext").textContent = "NEW RUN ▸";
-    showNotice("Endless: how far can you get? Death ends the run.", false);
-  }
-  function endEndlessRun() {
-    if (state.endlessOver) return;
-    state.endlessOver = true;
-    const m = Math.floor(endlessDist());
-    const prev = Number(save_.data.endlessBest) || 0;
-    const isBest = m > prev;
-    if (isBest) save_.data.endlessBest = m;
-    let got = 0;
-    const coins = Math.floor(m / 10);
-    if (coins > 0) got = grantCoins(coins);
-    save();
-    syncCoinUI();
-    syncHomeStats();
-    syncEndlessBtn();
-    el("winTitle").textContent = "RUN OVER";
-    el("winText").textContent = "Distance " + m + "m" + (isBest && m > 0 ? " · NEW BEST!" : " · best " + Math.max(prev, m) + "m") + (got ? " · +" + fmtCoins(got) + " coins" : "");
-    el("winCard").classList.add("visible");
-    el("btnWinNext").textContent = "NEW RUN ▸";
   }
 
   function spectateTarget() {
@@ -4618,16 +4505,6 @@
     // practice saves nothing, and leaving practice kills slow-mo)
     const edt = (state.slowmo && state.practice) ? dt * 0.5 : dt;
     state.engine.update(edt);
-    if (state.endless && state.engine && !state.engine.dead && !state.practice) {
-      if (state.engine.player.x > state.endlessBestX) state.endlessBestX = state.engine.player.x;
-      const d = Math.max(0, (state.endlessBestX - state.endlessStartX) / DP.TILE);
-      const lv = state.engine.level;
-      if (lv && lv.gameplay) {
-        const boost = Math.min(160, d * 0.25);
-        lv.gameplay.moveSpeed = 320 + Math.round(boost);
-        lv.gameplay.accel = 2800 + Math.round(boost * 4);
-      }
-    }
     if (state.engine.orbFlash > 0 && !wasOrb) haptic("orb");
     if (state.engine.padFlash > 0 && !wasPad) haptic("pad");
     if (state.engine.dashFlash > 0 && !wasDash) haptic("dash");
@@ -4664,9 +4541,8 @@
       haptic("death");
       recordHeatDeath();
       try { tuffLogDeath(); } catch (e) {}
-      if (state.endless && !state.practice) endEndlessRun();
     }
-    if (state.engine.dead && !state.endless && save_.data.autoRespawn && state.engine.deathTimer > 0.55) respawn();
+    if (state.engine.dead && save_.data.autoRespawn && state.engine.deathTimer > 0.55) respawn();
     if (state.engine.won && !state.winShown) {
       state.winShown = true;
       haptic("win");
@@ -6629,7 +6505,6 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     const btnDownloadHome = el("btnDownloadHome");
     if (btnDownloadHome) btnDownloadHome.addEventListener("click", () => openModal("modalDownload"));
     el("btnOpenShop").addEventListener("click", () => openModal("modalShop"));
-    el("btnEndless").addEventListener("click", () => startEndless());
     el("btnMutPlay").addEventListener("click", () => {
       const ids = activeMuts().map((m) => m.id);
       state.pendingMut = ids;
@@ -6808,10 +6683,6 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       if (mainLbPlayIndex >= 0) startLevel(mainLbPlayIndex);
     });
     el("btnWinNext").addEventListener("click", () => {
-      if (state.endless) {
-        startEndless();
-        return;
-      }
       if (state.netEntry) {
         quitToLevels();
         return;
@@ -7073,7 +6944,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       if (!u) { profileMsg("Not logged in"); return; }
       const st = el("profCloudStatus"); if (st) st.textContent = "Uploading…";
       try {
-        const saved = await NET.syncCloud({ deaths: save_.data.deaths, jumps: save_.data.jumps, playtime: Number(save_.data.playtime) || 0, coins: save_.data.coins, coinPaid: save_.data.coinPaid, coinMigrated: !!save_.data.coinMigrated, codes: save_.data.codes, skin: save_.data.skin, unlocked: save_.data.unlocked, beaten: save_.data.beaten, best: save_.data.best, secretA: !!save_.data.secretA, spaceMenu: !!save_.data.spaceMenu, tags: save_.data.tags, tag: save_.data.tag, nameColors: save_.data.nameColors, nameColor: save_.data.nameColor, frames: save_.data.frames, frame: save_.data.frame, trails: save_.data.trails, trail: save_.data.trail, chestFree: save_.data.chestFree, championKeys: save_.data.championKeys, endlessBest: Number(save_.data.endlessBest) || 0 });
+        const saved = await NET.syncCloud({ deaths: save_.data.deaths, jumps: save_.data.jumps, playtime: Number(save_.data.playtime) || 0, coins: save_.data.coins, coinPaid: save_.data.coinPaid, coinMigrated: !!save_.data.coinMigrated, codes: save_.data.codes, skin: save_.data.skin, unlocked: save_.data.unlocked, beaten: save_.data.beaten, best: save_.data.best, secretA: !!save_.data.secretA, spaceMenu: !!save_.data.spaceMenu, tags: save_.data.tags, tag: save_.data.tag, nameColors: save_.data.nameColors, nameColor: save_.data.nameColor, frames: save_.data.frames, frame: save_.data.frame, trails: save_.data.trails, trail: save_.data.trail, chestFree: save_.data.chestFree, championKeys: save_.data.championKeys });
         if (st) st.textContent = "Cloud updated " + new Date(saved.updatedAt).toLocaleTimeString();
         profileMsg("Synced to cloud");
         syncHomeStats();
@@ -7132,7 +7003,6 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         }
         if (cloud.beaten) { for (var k in cloud.beaten) save_.data.beaten[k]=true; }
         if (cloud.best) { for (var k2 in cloud.best) { if (save_.data.best[k2]==null || cloud.best[k2] < save_.data.best[k2]) save_.data.best[k2]=cloud.best[k2]; } }
-        if (cloud.endlessBest != null) save_.data.endlessBest = Math.max(Number(save_.data.endlessBest) || 0, Number(cloud.endlessBest) || 0);
         if (cloud.skin) save_.data.skin = cloud.skin;
         if (cloud.secretA) save_.data.secretA = true;
         if (cloud.spaceMenu) save_.data.spaceMenu = true;
