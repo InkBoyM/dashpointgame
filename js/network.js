@@ -683,10 +683,58 @@ window.DPNet = (function () {
     try {
       const val = await getJSON("/dashpoint/leaderboards/" + sanitizeFirebaseKey(levelFile));
       if (!val) return [];
-      const list = Object.keys(val).map(function(uid){ var v=val[uid]; return { uid:uid, time:v.time, name:v.name, skin:v.skin, tag: v.tag || "", nameColor: v.nameColor || "", frame: v.frame || "", updatedAt:v.updatedAt }; });
+      const list = Object.keys(val).map(function(uid){ var v=val[uid]; return { uid:uid, time:v.time, name:v.name, skin:v.skin, tag: v.tag || "", nameColor: v.nameColor || "", frame: v.frame || "", updatedAt:v.updatedAt, edited: !!v.edited, origTime: v.origTime }; });
       list.sort(function(a,b){ return a.time - b.time; });
       return list.slice(0, limit);
     } catch(e){ return []; }
+  }
+
+  async function getLeaderboardEntry(levelFile, uid) {
+    uid = String(uid || "").trim();
+    if (!uid) return null;
+    try {
+      const v = await getJSON("/dashpoint/leaderboards/" + sanitizeFirebaseKey(levelFile) + "/" + encodeURIComponent(uid));
+      if (!v) return null;
+      return { uid: uid, time: v.time, name: v.name, skin: v.skin, tag: v.tag || "", nameColor: v.nameColor || "", frame: v.frame || "", updatedAt: v.updatedAt, edited: !!v.edited, origTime: v.origTime };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function adminSetLeaderboardTime(levelFile, uid, time) {
+    if (!isAdmin()) throw new Error("Admins only.");
+    uid = String(uid || "").trim();
+    if (!uid) throw new Error("Missing player.");
+    time = Number(time);
+    if (!isFinite(time) || time < 0) throw new Error("That time isn't valid.");
+    const path = "/dashpoint/leaderboards/" + sanitizeFirebaseKey(levelFile) + "/" + encodeURIComponent(uid);
+    const cur = await getJSON(path);
+    if (!cur) throw new Error("No time on this board.");
+    const orig = cur.origTime != null ? cur.origTime : cur.time;
+    await putJSON(path, {
+      time: time,
+      name: cur.name || "player",
+      skin: cur.skin | 0,
+      tag: cur.tag || "",
+      nameColor: cur.nameColor || "",
+      frame: cur.frame || "",
+      updatedAt: Date.now(),
+      edited: true,
+      origTime: orig,
+      editedAt: Date.now(),
+    });
+    return true;
+  }
+
+  async function adminRemoveLeaderboardTime(levelFile, uid) {
+    if (!isAdmin()) throw new Error("Admins only.");
+    uid = String(uid || "").trim();
+    if (!uid) throw new Error("Missing player.");
+    await deleteJSON("/dashpoint/leaderboards/" + sanitizeFirebaseKey(levelFile) + "/" + encodeURIComponent(uid));
+    try {
+      await deleteJSON("/dashpoint/ghosts/" + sanitizeFirebaseKey(levelFile) + "/" + encodeURIComponent(uid));
+    } catch (e) {}
+    return true;
   }
 
   async function getComments(levelId, limit) {
@@ -1212,6 +1260,9 @@ window.DPNet = (function () {
     downloadCloud: downloadCloud,
     submitLeaderboard: submitLeaderboard,
     getLeaderboard: getLeaderboard,
+    getLeaderboardEntry: getLeaderboardEntry,
+    adminSetLeaderboardTime: adminSetLeaderboardTime,
+    adminRemoveLeaderboardTime: adminRemoveLeaderboardTime,
     getComments: getComments,
     postComment: postComment,
     deleteComment: deleteComment,

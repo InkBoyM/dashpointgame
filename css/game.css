@@ -632,6 +632,10 @@ body.joystick #joystick { display: block; }
 .leaderboard .lb-rank { width: 28px; text-align: center; font-weight: 900; color: var(--gold); }
 .leaderboard .lb-name { flex: 1; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .leaderboard .lb-time { color: var(--good); font-weight: 900; }
+.leaderboard .lb-changed { margin-left: 6px; font-size: 9px; font-weight: 900; letter-spacing: 1px; color: var(--gold); }
+.leaderboard .lb-changed-hint { font-size: 9px; font-weight: 900; color: #9db4d8; letter-spacing: 1px; white-space: nowrap; }
+.leaderboard .lb-edited .lb-time { color: var(--gold); }
+.leaderboard .lb-admin { display: flex; gap: 4px; flex: none; }
 .leaderboard .lb-skin { width: 20px; height: 20px; image-rendering: pixelated; border: 1px solid var(--ink-dark); }
 .leaderboard .lb-me { border-color: var(--cyan); background: rgba(46,230,255,0.12); box-shadow: 0 0 0 1px var(--cyan); }
 .leaderboard .lb-race { cursor: pointer; }

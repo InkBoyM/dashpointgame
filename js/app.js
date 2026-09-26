@@ -1875,6 +1875,13 @@
     if (!entry) return;
     var file = entry.file || entry.id || entry.currentFile || "unknown";
     try {
+      if (DPNet.getLeaderboardEntry) {
+        var lb = await DPNet.getLeaderboardEntry(file, uid);
+        if (lb && lb.edited) {
+          showNotice("That time was changed — you can't race this ghost", true);
+          return;
+        }
+      }
       var ghost = await DPNet.getGhostCloud(file, uid);
       if (!ghost || !ghost.points || !ghost.points.length) {
         showNotice("No ghost available for " + (name||"this player") + " on this level", true);
@@ -1904,18 +1911,69 @@
     }
     return null;
   }
+  function parseLbTimeInput(raw) {
+    raw = String(raw || "").trim().replace(/s$/i, "");
+    if (!raw) return NaN;
+    if (raw.indexOf(":") !== -1) {
+      var parts = raw.split(":");
+      var m = Number(parts[0]);
+      var s = Number(parts[1]);
+      if (!isFinite(m) || !isFinite(s)) return NaN;
+      return m * 60 + s;
+    }
+    return Number(raw);
+  }
+
+  let lastLbPaint = null;
+
+  async function adminChangeLbTime(file, uid, name, current) {
+    var raw = prompt("New time in seconds for " + (name || "this player") + " (now " + fmtTime(current) + ")", Number(current).toFixed(2));
+    if (raw == null) return;
+    var next = parseLbTimeInput(raw);
+    if (!isFinite(next) || next < 0) { showNotice("That time isn't valid.", true); return; }
+    try {
+      await DPNet.adminSetLeaderboardTime(file, uid, next);
+      showNotice("Changed " + (name || "player") + "'s time to " + fmtTime(next), false);
+      if (lastLbPaint) await fetchLevelLeaderboard(lastLbPaint.box, lastLbPaint.entry, lastLbPaint.opts);
+    } catch (e) {
+      showNotice((DPNet.friendly && DPNet.friendly(e)) || String(e.message || e), true);
+    }
+  }
+
+  async function adminRemoveLbTime(file, uid, name) {
+    if (!confirm("Remove " + (name || "this player") + "'s time from the leaderboard?")) return;
+    try {
+      await DPNet.adminRemoveLeaderboardTime(file, uid);
+      showNotice("Removed " + (name || "player") + "'s time", false);
+      if (lastLbPaint) await fetchLevelLeaderboard(lastLbPaint.box, lastLbPaint.entry, lastLbPaint.opts);
+    } catch (e) {
+      showNotice((DPNet.friendly && DPNet.friendly(e)) || String(e.message || e), true);
+    }
+  }
+
   function paintLeaderboard(box, list, opts) {
     opts = opts || {};
     var u = opts.user || null;
     var canRace = !!opts.canRace;
+    var admin = !!(window.DPNet && DPNet.isAdmin && DPNet.isAdmin());
+    var file = opts.file || "";
     var html = '<div class="lb-title">' + (opts.title || "TOP 10") + "</div>";
     for (var i = 0; i < list.length; i++) {
       var row = list[i];
       var isMe = u && row.uid === u.uid;
-      var skinSrc = (window.DashPointSkins && window.DashPointSkins[row.skin - 1] ? window.DashPointSkins[row.skin - 1].src : "assets/skins/skin-1.png");
-      var race = canRace && !isMe;
+      var edited = !!row.edited;
+      var race = canRace && !isMe && !edited;
       var attr = race ? (' data-uid="' + escapeHtml(row.uid) + '" data-name="' + escapeHtml(row.name) + '"') : "";
-      html += '<div class="lb-row' + (isMe ? " lb-me" : race ? " lb-race" : "") + '"' + attr + '><span class="lb-rank">#' + (i + 1) + '</span>' + frameAvatarHtml(row.skin, isMe ? equippedFrameId() : (row.frame || frameForUid(row.uid))) + '<span class="lb-name">' + taggedNameHtml(row.name, row.tag || (isMe ? equippedTagId() : tagIdForUid(row.uid)), isMe ? " (you)" : "", row.nameColor || (isMe ? equippedNameColorId() : nameColorForUid(row.uid))) + '</span><span class="lb-time">' + fmtTime(row.time) + "</span>" + (race ? '<span class="lb-race-hint">RACE ▶</span>' : "") + "</div>";
+      var timeHtml = fmtTime(row.time) + (edited ? '<span class="lb-changed">CHANGED</span>' : "");
+      var hint = race ? '<span class="lb-race-hint">RACE ▶</span>' : (edited ? '<span class="lb-changed-hint">NO GHOST</span>' : "");
+      var adminBtns = "";
+      if (admin && file && row.uid) {
+        adminBtns = '<span class="lb-admin">' +
+          '<button type="button" class="px-btn tiny lb-edit" data-uid="' + escapeHtml(row.uid) + '" data-name="' + escapeHtml(row.name || "player") + '" data-time="' + escapeHtml(String(row.time)) + '">CHANGE</button>' +
+          '<button type="button" class="px-btn tiny danger lb-del" data-uid="' + escapeHtml(row.uid) + '" data-name="' + escapeHtml(row.name || "player") + '">REMOVE</button>' +
+          "</span>";
+      }
+      html += '<div class="lb-row' + (isMe ? " lb-me" : "") + (race ? " lb-race" : "") + (edited ? " lb-edited" : "") + '"' + attr + '><span class="lb-rank">#' + (i + 1) + '</span>' + frameAvatarHtml(row.skin, isMe ? equippedFrameId() : (row.frame || frameForUid(row.uid))) + '<span class="lb-name">' + taggedNameHtml(row.name, row.tag || (isMe ? equippedTagId() : tagIdForUid(row.uid)), isMe ? " (you)" : "", row.nameColor || (isMe ? equippedNameColorId() : nameColorForUid(row.uid))) + '</span><span class="lb-time">' + timeHtml + "</span>" + hint + adminBtns + "</div>";
     }
     if (opts.extraRow) html += opts.extraRow;
     box.innerHTML = html;
@@ -1924,10 +1982,25 @@
         r.addEventListener("click", function () { raceGhost(r.dataset.uid, r.dataset.name); });
       });
     }
+    if (admin && file) {
+      box.querySelectorAll(".lb-edit").forEach(function (b) {
+        b.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          adminChangeLbTime(file, b.dataset.uid, b.dataset.name, Number(b.dataset.time));
+        });
+      });
+      box.querySelectorAll(".lb-del").forEach(function (b) {
+        b.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          adminRemoveLbTime(file, b.dataset.uid, b.dataset.name);
+        });
+      });
+    }
   }
 
   async function fetchLevelLeaderboard(box, entry, opts) {
     opts = opts || {};
+    lastLbPaint = { box: box, entry: entry, opts: opts };
     if (!box) return [];
     box.innerHTML = '<p class="loading-note">Loading leaderboard…</p>';
     var file = entry.file || entry.id || "unknown";
@@ -1946,6 +2019,7 @@
       paintLeaderboard(box, list, {
         user: u,
         canRace: !!opts.canRace,
+        file: file,
         title: "TOP 10 — " + escapeHtml(name) + (opts.titleExtra || ""),
         extraRow: opts.extraRow || "",
       });
