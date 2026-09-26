@@ -235,6 +235,20 @@ canvas { image-rendering: pixelated; }
   vertical-align: 1px;
   white-space: nowrap;
 }
+.admin-chip {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 7px;
+  border: 2px solid var(--gold);
+  background: var(--gold);
+  color: #12203a;
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  box-shadow: 2px 2px 0 rgba(0,0,0,0.35);
+  vertical-align: 1px;
+  white-space: nowrap;
+}
 .release {
   background: var(--panel-2);
   border: 2px solid var(--ink-dark);

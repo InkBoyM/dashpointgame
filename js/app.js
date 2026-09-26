@@ -741,6 +741,14 @@
     return '<span class="rank-chip" style="color:' + rank.color + ";border-color:" + rank.color + '">[' + escapeHtml(rank.label) + "]</span>";
   }
 
+  function isSignedInAdmin() {
+    try { return !!(window.DPNet && DPNet.isAdmin && DPNet.isAdmin()); } catch (e) { return false; }
+  }
+
+  function adminChipHtml() {
+    return '<span class="admin-chip">ADMIN</span>';
+  }
+
   function clearsForUid(uid) {
     uid = String(uid || "");
     if (!uid) return -1;
@@ -816,7 +824,7 @@
         home.innerHTML = "";
       } else {
         home.classList.remove("hidden");
-        home.innerHTML = "<b>" + (color ? '<span style="color:' + color.color + '">' + escapeHtml(u.name || "player") + "</span>" : escapeHtml(u.name || "player")) + "</b>" + (tag ? ' <span class="acct-tag-wrap">Tag: ' + tagChipHtml(tag) + "</span>" : "");
+        home.innerHTML = "<b>" + (color ? '<span style="color:' + color.color + '">' + escapeHtml(u.name || "player") + "</span>" : escapeHtml(u.name || "player")) + "</b>" + (tag ? ' <span class="acct-tag-wrap">Tag: ' + tagChipHtml(tag) + "</span>" : "") + (isSignedInAdmin() ? " " + adminChipHtml() : "");
       }
     }
     publishPublicTag();
