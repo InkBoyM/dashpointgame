@@ -15,6 +15,7 @@
     "The_Tunnel.dashpoint.json": 4,
     "Agony.dashpoint.json": 5,
     "The_Tower_of_Torture.dashpoint.json": 5,
+    "The_Tower_of_Agony.dashpoint.json": 5,
   };
 
   function diffTier(d) {
@@ -497,6 +498,7 @@
     "Cool_Run.dashpoint.json",
     "Agony.dashpoint.json",
     "The_Tower_of_Torture.dashpoint.json",
+    "The_Tower_of_Agony.dashpoint.json",
     "The_Tunnel.dashpoint.json",
   ];
 
