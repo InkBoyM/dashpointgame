@@ -4991,7 +4991,8 @@
     if (!apiKey) { showNotice("Add your Groq API key in Settings → Verity first", true); return; }
     verityBusy = true;
     pushVerityMsg("you", text, false);
-    const crashout = /capital of france|france.{0,16}capital|what does (a|the) cow say|what do cows say|\bmoo\b/i.test(text);
+    const crashout = (/france/i.test(text) && /(capital|captial|capitol)/i.test(text)) ||
+      /what does (a|the) cow say|what do cows say|\bmoo\b/i.test(text);
     const backrooms = /backroom/i.test(text);
     veritySetMood(crashout ? "angry-talking" : "talking");
     const thinking = renderVerityThinking();
@@ -7045,7 +7046,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
   /* ---------------- /DASHPOINT NETWORK ---------------- */
 
   function onKeyDown(ev) {
-    if (!isTyping(ev) && ev.altKey && (ev.key === "?" || (ev.code === "Slash" && ev.shiftKey))) {
+    if (!isTyping(ev) && ev.altKey && ev.code === "KeyS") {
       ev.preventDefault();
       toggleVerity();
       return;
