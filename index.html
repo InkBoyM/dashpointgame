@@ -538,25 +538,6 @@
       <p class="hint" id="profCloudStatus"></p>
 
       <hr class="sep" />
-      <div class="section-title">Multiplayer</div>
-      <div class="stat-row"><span>Status</span><b id="profMpState">Offline</b></div>
-      <div class="row-gap" id="profMpIdleRow">
-        <button class="px-btn small gold" id="btnProfHost">HOST ROOM</button>
-        <input class="px-input code" id="profCode" type="text" maxlength="5" placeholder="CODE" />
-        <button class="px-btn small" id="btnProfJoin">JOIN</button>
-      </div>
-      <div class="row-gap" id="profMpActiveRow" style="display:none">
-        <button class="px-btn small" id="btnProfCopy">COPY CODE</button>
-        <button class="px-btn small danger" id="btnProfLeave">LEAVE</button>
-      </div>
-      <div class="section-title" style="margin-top:10px">Players in room</div>
-      <div class="net-results" id="profPlayerList" style="max-height:160px"></div>
-      <hr class="sep" />
-      <div class="section-title">Friends</div>
-      <p class="hint">Followed players, live presence. Tap to open a profile.</p>
-      <label class="hint"><input type="checkbox" id="profSharePresence" checked /> Share what I'm playing</label>
-      <div class="net-results" id="friendList" style="max-height:160px"></div>
-      <hr class="sep" />
       <div class="section-title">Stats</div>
       <div class="row-gap"><button class="px-btn small gold" id="btnProfStats">VIEW STATS</button></div>
       <hr class="sep" />
@@ -620,12 +601,44 @@
           <b>SEARCH</b>
           <span>Find levels &amp; players</span>
         </button>
+        <button class="net-tile" id="netMultiplayer">
+          <img src="assets/ui/net-multiplayer.png" alt="" />
+          <b>MULTIPLAYER</b>
+          <span>Host, join, and play with friends</span>
+        </button>
         <button class="net-tile" id="netBoards">
           <img src="assets/ui/net.png" alt="" />
           <b>LEADERBOARDS</b>
           <span>Global tops</span>
         </button>
       </div>
+    </div>
+  </div>
+
+  <div class="screen" id="screen-netmp">
+    <header class="topbar">
+      <button class="px-btn small" id="btnNetBackMp">&#9664; BACK</button>
+      <h1 class="bar-title">MULTIPLAYER</h1>
+      <span class="bar-spacer"></span>
+    </header>
+    <div class="net-mp-body">
+      <div class="section-title">Room</div>
+      <div class="stat-row"><span>Status</span><b id="profMpState">Offline</b></div>
+      <div class="row-gap" id="profMpIdleRow">
+        <button class="px-btn small gold" id="btnProfHost">HOST ROOM</button>
+        <input class="px-input code" id="profCode" type="text" maxlength="5" placeholder="CODE" />
+        <button class="px-btn small" id="btnProfJoin">JOIN</button>
+      </div>
+      <div class="row-gap" id="profMpActiveRow" style="display:none">
+        <button class="px-btn small" id="btnProfCopy">COPY CODE</button>
+        <button class="px-btn small danger" id="btnProfLeave">LEAVE</button>
+      </div>
+      <div class="section-title" style="margin-top:10px">Players in room</div>
+      <div class="net-results" id="profPlayerList"></div>
+      <div class="section-title" style="margin-top:14px">Friends</div>
+      <p class="hint">Followed players. If they're in a room, tap JOIN to hop in.</p>
+      <label class="hint"><input type="checkbox" id="profSharePresence" checked /> Share what I'm playing</label>
+      <div class="net-results" id="friendList"></div>
     </div>
   </div>
 

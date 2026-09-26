@@ -2419,7 +2419,7 @@
     if (name === "levels") renderLevels();
     if (name === "game") resizeCanvas();
     if (name === "home") renderLotd();
-    if (name === "network" || name === "netsaved" || name === "netsearch" || name === "netboards") state.netBack = name;
+    if (name === "network" || name === "netsaved" || name === "netsearch" || name === "netboards" || name === "netmp") state.netBack = name;
   }
 
   function lotdDateStr(d) {
@@ -5191,6 +5191,11 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     if (which === "saved") show("netsaved");
     else if (which === "search") show("netsearch");
     else if (which === "boards") show("netboards");
+    else if (which === "mp") {
+      show("netmp");
+      try { syncMpUI(); } catch (e) {}
+      try { renderFriendList(); } catch (e) {}
+    }
   }
 
   function starString(n) {
@@ -5761,7 +5766,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     } catch (e) {}
     const ids = Object.keys(follows);
     if (!ids.length) {
-      box.innerHTML = '<p class="loading-note">No follows yet — open a player profile and FOLLOW them.</p>';
+      box.innerHTML = '<p class="loading-note">No follows yet — open a player profile and FOLLOW them. When they host a room, JOIN shows up here.</p>';
       return;
     }
     box.innerHTML = '<p class="loading-note">Loading presence…</p>';
@@ -6673,6 +6678,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnNetBackSaved").addEventListener("click", () => show("network"));
     el("btnNetBackSearch").addEventListener("click", () => show("network"));
     el("btnNetBackBoards").addEventListener("click", () => show("network"));
+    el("btnNetBackMp").addEventListener("click", () => show("network"));
+    el("netMultiplayer").addEventListener("click", () => { showPanel("mp"); });
     el("netBoards").addEventListener("click", () => {
       showPanel("boards");
       renderBoards();
@@ -6765,7 +6772,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       }
       if (state.screen === "game") { ev.preventDefault(); if (state.paused) quitToLevels(); else pauseGame(); }
       else if (state.screen === "network") show("home");
-      else if (state.screen === "netsaved" || state.screen === "netsearch") show("network");
+      else if (state.screen === "netsaved" || state.screen === "netsearch" || state.screen === "netboards" || state.screen === "netmp") show("network");
       else if (state.screen === "levels") show("home");
       return;
     }
@@ -7121,7 +7128,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
 
     // ---- Profile modal ----
     const pb = el("btnProfileHome");
-    if (pb) pb.addEventListener("click", () => { openModal("modalProfile"); renderFriendList(); prefillSocials(); });
+    if (pb) pb.addEventListener("click", () => { openModal("modalProfile"); prefillSocials(); });
 
     function profileMsg(t) { var m = el("profMsg"); if (m) m.textContent = t || ""; }
 

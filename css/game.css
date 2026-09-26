@@ -413,7 +413,9 @@ body.has-newver #btnSettingsHome::after {
 #screen-levels,
 #screen-network,
 #screen-netsaved,
-#screen-netsearch {
+#screen-netsearch,
+#screen-netboards,
+#screen-netmp {
   background:
     radial-gradient(ellipse at 50% -10%, rgba(46, 230, 255, 0.08), transparent 50%),
     linear-gradient(180deg, #0d1830 0%, #101f3c 100%);
@@ -1207,9 +1209,10 @@ body.gfx-ultra canvas { image-rendering: auto; }
 .bell-row.bell-act:hover { filter: brightness(1.08); }
 .bell-go { font-size: 11px; font-weight: 900; letter-spacing: 1px; color: var(--good); flex: none; }
 .net-body { flex: 1; overflow: auto; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-.net-grid { display: flex; gap: clamp(12px, 3vw, 30px); justify-content: center; width: 100%; max-width: 900px; }
+.net-grid { display: flex; flex-wrap: wrap; gap: clamp(12px, 3vw, 24px); justify-content: center; width: 100%; max-width: 1100px; }
 .net-tile {
-  flex: 1;
+  flex: 1 1 150px;
+  max-width: 210px;
   display: flex; flex-direction: column; align-items: center; gap: 8px;
   padding: clamp(14px, 3vh, 28px) 12px;
   background: var(--panel-2);
@@ -1241,6 +1244,17 @@ body.gfx-ultra canvas { image-rendering: auto; }
 .comment-time { font-size: 10px; color: #9db4d8; font-weight: 400; }
 .comment-body { font-size: 13px; overflow-wrap: anywhere; }
 .comment-acts { display: flex; gap: 6px; justify-content: flex-end; }
+.net-mp-body {
+  flex: 1;
+  overflow: auto;
+  width: min(720px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 16px 0 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#screen-netmp .net-results { max-height: 28vh; }
 #screen-netsearch .net-results,
 #screen-netsaved .level-list {
   max-height: none;
