@@ -4889,6 +4889,7 @@
     try { return (localStorage.getItem(VERITY_KEY_SLOT) || "").trim(); } catch (e) { return ""; }
   }
   // Tried in order — Groq retires model IDs often, so fall through on failure.
+  // Winners move to the front so the next ask starts with a working model.
   const VERITY_MODELS = ["llama-3.3-70b-versatile", "openai/gpt-oss-20b", "llama-3.1-8b-instant"];
   const VERITY_SYSTEM = [
     "You are Verity, the official assistant living inside DashPoint (he/him), a small pixel cube buddy.",
@@ -5023,7 +5024,7 @@
     msgs.push({ role: "user", content: text + (extras.length ? "\n" + extras.join("\n") : "") });
     let reply = "";
     let lastErr = null;
-    for (const model of VERITY_MODELS) {
+    for (const model of VERITY_MODELS.slice()) {
       try {
         const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
@@ -5031,11 +5032,20 @@
           body: JSON.stringify({ model: model, messages: msgs, temperature: 0.5, max_tokens: 300 }),
         });
         if (res.status === 401) throw new Error("API key rejected — re-paste it in Settings → Verity");
-        if (!res.ok) { lastErr = new Error("Groq " + res.status + " on " + model); continue; }
+        if (!res.ok) {
+          let detail = "";
+          try { detail = (await res.text()).slice(0, 160); } catch (e) {}
+          lastErr = new Error("Groq " + res.status + " on " + model + (detail ? ": " + detail : ""));
+          continue;
+        }
         const data = await res.json();
         reply = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content
           ? String(data.choices[0].message.content).trim() : "";
-        if (reply) break;
+        if (reply) {
+          const at = VERITY_MODELS.indexOf(model);
+          if (at > 0) { VERITY_MODELS.splice(at, 1); VERITY_MODELS.unshift(model); }
+          break;
+        }
         lastErr = new Error("Empty reply on " + model);
       } catch (err) {
         lastErr = err;
