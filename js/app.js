@@ -5015,7 +5015,7 @@
     let lastErr = null;
     for (const model of VERITY_MODELS) {
       try {
-        const res = await fetch("https://api.groq.com/openai/chat/completions", {
+        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + apiKey },
           body: JSON.stringify({ model: model, messages: msgs, temperature: 0.8, max_tokens: 300 }),
