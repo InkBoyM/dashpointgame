@@ -7045,7 +7045,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
   /* ---------------- /DASHPOINT NETWORK ---------------- */
 
   function onKeyDown(ev) {
-    if (!isTyping(ev) && ev.altKey && ev.key === "?") {
+    if (!isTyping(ev) && ev.altKey && (ev.key === "?" || (ev.code === "Slash" && ev.shiftKey))) {
       ev.preventDefault();
       toggleVerity();
       return;
@@ -7131,6 +7131,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     const btnDownloadHome = el("btnDownloadHome");
     if (btnDownloadHome) btnDownloadHome.addEventListener("click", () => openModal("modalDownload"));
     el("btnOpenShop").addEventListener("click", () => openModal("modalShop"));
+    el("btnVerityHome").addEventListener("click", () => toggleVerity());
     const vk = el("setVerityKey");
     if (vk) {
       try { vk.value = localStorage.getItem("dashpoint.verityKey") || ""; } catch (e) {}
