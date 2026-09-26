@@ -5020,7 +5020,7 @@
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + apiKey },
           body: JSON.stringify({ model: model, messages: msgs, temperature: 0.8, max_tokens: 300 }),
         });
-        if (res.status === 401) throw new Error("API key rejected (401)");
+        if (res.status === 401) throw new Error("API key rejected — re-paste it in Settings → Verity");
         if (!res.ok) { lastErr = new Error("Groq " + res.status + " on " + model); continue; }
         const data = await res.json();
         reply = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content
