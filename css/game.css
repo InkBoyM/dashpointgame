@@ -132,6 +132,46 @@ canvas { image-rendering: pixelated; }
   50% { transform: translate3d(0, -18px, 0) rotate(12deg); }
 }
 
+.home-corner {
+  position: absolute;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  z-index: 6;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+.home-admin-badge {
+  font-weight: 900;
+  letter-spacing: 2px;
+  font-size: 14px;
+  color: #12203a;
+  background: var(--gold);
+  border: 3px solid var(--ink-dark);
+  box-shadow: 3px 3px 0 rgba(6, 12, 24, 0.4);
+  padding: 6px 12px;
+}
+.home-admin-badge.hidden { display: none; }
+.home-bell-btn {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  border-radius: 18px;
+  background: rgba(17, 27, 46, 0.9);
+  border: 3px solid #22334f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 42px;
+  line-height: 1;
+  color: #fff;
+  box-shadow: 4px 4px 0 rgba(6, 12, 24, 0.4);
+}
+.home-bell-btn:hover { border-color: #2c4269; filter: brightness(1.08); }
+.home-bell-btn .bell-count { top: -6px; right: -6px; }
+
 .home-center {
   position: relative;
   z-index: 2;  flex: 1;
@@ -1359,6 +1399,9 @@ body.custom-bg .hud-chip {
   .ui-space .hs-chip { font-size: 10px; padding: 5px 8px; border-width: 2px; }
   .ui-space .home-skin { width: 32px; height: 32px; }
   .home-settings-btn { width: 64px; height: 64px; padding: 11px; }
+  .home-corner { top: calc(8px + env(safe-area-inset-top, 0px)); right: calc(8px + env(safe-area-inset-right, 0px)); gap: 8px; }
+  .home-admin-badge { font-size: 12px; padding: 4px 8px; letter-spacing: 1.5px; }
+  .home-bell-btn { width: 76px; height: 76px; font-size: 34px; border-radius: 16px; }
 
   .topbar { padding: 8px 10px; gap: 10px; }
   .bar-title { font-size: 16px; letter-spacing: 2px; }

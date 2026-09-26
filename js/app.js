@@ -827,6 +827,8 @@
         home.innerHTML = "<b>" + (color ? '<span style="color:' + color.color + '">' + escapeHtml(u.name || "player") + "</span>" : escapeHtml(u.name || "player")) + "</b>" + (tag ? ' <span class="acct-tag-wrap">Tag: ' + tagChipHtml(tag) + "</span>" : "") + (isSignedInAdmin() ? " " + adminChipHtml() : "");
       }
     }
+    const adminBadge = el("homeAdminBadge");
+    if (adminBadge) adminBadge.classList.toggle("hidden", !isSignedInAdmin());
     publishPublicTag();
   }
 
@@ -5891,11 +5893,20 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
   }
 
   function syncBellUI() {
-    const b = el("bellCount");
-    if (!b) return;
     const n = bellUnread();
-    b.textContent = n > 9 ? "9+" : String(n);
-    b.classList.toggle("hidden", n <= 0);
+    const label = n > 9 ? "9+" : String(n);
+    ["bellCount", "bellCountHome"].forEach(function (id) {
+      const b = el(id);
+      if (!b) return;
+      b.textContent = label;
+      b.classList.toggle("hidden", n <= 0);
+    });
+  }
+
+  function openBell() {
+    openModal("modalBell");
+    renderBell();
+    checkBell().then(renderBell).catch(function () {});
   }
 
   async function checkBell() {
@@ -6672,11 +6683,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         renderBoards();
       });
     });
-    el("btnBell").addEventListener("click", () => {
-      openModal("modalBell");
-      renderBell();
-      checkBell().then(renderBell).catch(() => {});
-    });
+    el("btnBell").addEventListener("click", openBell);
+    if (el("btnBellHome")) el("btnBellHome").addEventListener("click", openBell);
     el("netQuery").addEventListener("input", renderResults);
     el("netQuery").addEventListener("keydown", (ev) => ev.stopPropagation());
     document.querySelectorAll("#screen-netsearch .chip[data-tab]").forEach((b) => {
