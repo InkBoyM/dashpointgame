@@ -847,7 +847,7 @@
   }
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, effects: [], effect: "", streak: { n: 0, day: "" }, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", bellSeen: {}, follows: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, effects: [], effect: "", suspend: null, streak: { n: 0, day: "" }, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", bellSeen: {}, follows: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
   }
 
   function touchUIDefaults() {
@@ -902,6 +902,7 @@
       s.beaten = s.beaten || {};
       s.best = s.best || {};
       s.attempts = s.attempts || {};
+      s.suspend = (s.suspend && typeof s.suspend === "object") ? s.suspend : null;
       s.streak = (s.streak && typeof s.streak === "object") ? { n: s.streak.n | 0, day: String(s.streak.day || "") } : { n: 0, day: "" };
       s.spaceMenu = !!(s.spaceMenu || s.arcadeMenu);
       s.jumps = s.jumps | 0;
@@ -2543,6 +2544,23 @@
       box.innerHTML = '<p class="loading-note">NO LEVELS FOUND</p>';
       return;
     }
+    const susp = save_.data.suspend;
+    if (susp && (susp.file || susp.netId)) {
+      let nm = "Unknown level";
+      if (susp.netId) nm = (susp.meta && susp.meta.title) || "Network level";
+      else {
+        const found = state.levels.find((x) => x.file === susp.file);
+        if (found) nm = found.level.name;
+      }
+      const rb = document.createElement("button");
+      rb.type = "button";
+      rb.className = "level-card resume-card";
+      rb.innerHTML = '<span class="level-num">▶</span>' +
+        '<span class="level-info"><span class="level-name">RESUME: ' + escapeHtml(nm) + "</span>" +
+        '<span class="level-meta">saved run · ' + fmtTime(susp.time || 0) + "</span></span>";
+      rb.addEventListener("click", function () { resumeSuspend(); });
+      box.appendChild(rb);
+    }
     const order = state.levels
       .map((entry, i) => ({ entry: entry, i: i }))
       .sort(function (a, b) {
@@ -3902,13 +3920,115 @@
   const ctx = () => el("view").getContext("2d");
 
   let adminTpHold = null; // { time, until } — keep run time across admin teleport / instant death
-  function beginPlay(entry) {
+  // ---- Save & resume: suspend a run, resume it later intact ----
+  function saveSuspend() {
+    if (!state.engine || !state.playing) return;
+    if (state.practice) { showNotice("No saving in practice runs", true); return; }
+    if (state.engine.dead || state.engine.won) { showNotice("Can't save right now", true); return; }
+    // Flush pending coin grants first so nothing is lost.
+    if (state.engine.pendingCoinGrant) {
+      const n = state.engine.pendingCoinGrant | 0;
+      state.engine.pendingCoinGrant = 0;
+      if (n > 0) {
+        const got = grantCoins(n);
+        if (got) { save(); syncCoinUI(); }
+      }
+    }
+    const e = state.engine, p = e.player;
+    save_.data.suspend = {
+      file: state.currentFile,
+      netId: state.netEntry ? state.netEntry.id : null,
+      meta: state.netEntry ? state.netEntry.meta : (state.currentMeta || null),
+      player: { x: p.x, y: p.y, vx: p.vx, vy: p.vy },
+      time: e.time || 0,
+      deaths: state.deaths | 0,
+      checkpoint: (e.checkpoint && !e.checkpoint.practice && typeof e.checkpoint.c === "number")
+        ? { c: e.checkpoint.c, r: e.checkpoint.r, ox: e.checkpoint.ox | 0, oy: e.checkpoint.oy | 0 }
+        : null,
+      collected: Array.from(e.collected || []),
+      touched: Array.from(e.touched || []),
+      ts: Date.now(),
+    };
+    save();
+    showNotice("Progress saved — resume anytime from LEVELS", false);
+    quitToLevels();
+  }
+  function numOr(n, fb) {
+    n = Number(n);
+    return isFinite(n) ? n : fb;
+  }
+  function applyResume(snap) {
+    const e = state.engine;
+    if (!e || !snap) return;
+    try {
+      const p = e.player, sp = snap.player || {};
+      p.x = numOr(sp.x, p.x);
+      p.y = numOr(sp.y, p.y);
+      p.vx = numOr(sp.vx, 0);
+      p.vy = numOr(sp.vy, 0);
+      e.time = Math.max(0, numOr(snap.time, 0));
+      state.deaths = Math.max(0, snap.deaths | 0);
+      e.collected = new Set(Array.isArray(snap.collected) ? snap.collected : []);
+      e.touched = new Set(Array.isArray(snap.touched) ? snap.touched : []);
+      e.checkpoint = (snap.checkpoint && isFinite(snap.checkpoint.c)) ? {
+        c: snap.checkpoint.c | 0,
+        r: snap.checkpoint.r | 0,
+        ox: snap.checkpoint.ox | 0,
+        oy: snap.checkpoint.oy | 0,
+      } : null;
+      e.pendingCoinGrant = 0;
+      cam.x = p.x + p.w / 2 - el("view").width / cam.zoom / 2;
+      cam.y = p.y + p.h / 2 - el("view").height / cam.zoom / 2;
+      if (!ghostMode) resetGhostTrail();
+    } catch (err) {}
+  }
+  function resumeSuspend() {
+    const s = save_.data.suspend;
+    if (!s || (!s.file && !s.netId)) return;
+    if (s.netId) { resumeNetSuspend(s); return; }
+    const idx = state.levels.findIndex((e) => e.file === s.file);
+    if (idx < 0) {
+      showNotice("Original level is gone", true);
+      save_.data.suspend = null;
+      save();
+      renderLevels();
+      return;
+    }
+    state.netEntry = null;
+    state.current = idx;
+    beginPlay(state.levels[idx], { resume: s });
+    showNotice("Run resumed — good luck!", false);
+  }
+  async function resumeNetSuspend(s) {
+    let json = null;
+    try { json = await NET.fetchLevel(s.netId); }
+    catch (err) {
+      try { const sv = NET.getSave(s.netId); if (sv) json = sv.json; } catch (e) {}
+    }
+    if (!json) { showNotice("Couldn't load that level (network?)", true); return; }
+    let level = null;
+    try { level = DP.Level.parse(JSON.stringify(json)); }
+    catch (err) { showNotice("That level failed to load", true); return; }
+    const entry = { file: "net:" + s.netId, id: s.netId, meta: s.meta || null, level: level };
+    state.netEntry = entry;
+    state.current = -1;
+    beginPlay(entry, { resume: s });
+    showNotice("Run resumed — good luck!", false);
+  }
+
+  function beginPlay(entry, opts) {
     if (!entry) return;
     adminTpHold = null;
     state.currentFile = entry.id ? "net:" + entry.id : entry.file;
     state.currentMeta = entry.meta || null;
     state.hns = null;
     state.hnsFreeze = false;
+    const snap = opts && opts.resume;
+    // A fresh run of a suspended file abandons the old snapshot.
+    if (!snap && save_.data.suspend && save_.data.suspend.file === state.currentFile) {
+      save_.data.suspend = null;
+      save();
+    }
     state.engine = new DP.Engine(entry.level.clone(), { skin: save_.data.skin, trail: equippedTrailId(), pet: equippedPetId() });
     if (DP.Music) DP.Music.play(entry.level.song);
     state.playing = true;
@@ -3925,12 +4045,14 @@
     setSpectate(null);
     clearChatBubbles();
     el("pauseCard").classList.remove("visible");
-    // track attempts per level (lightweight)
+    // track attempts per level (lightweight; resumes don't count as new attempts)
+    if (!snap) {
     try {
       if (!save_.data.attempts[state.currentFile]) save_.data.attempts[state.currentFile] = { attempts: 0, deaths: 0 };
       save_.data.attempts[state.currentFile].attempts += 1;
       save();
     } catch(e) {}
+    }
     cam.zoom = playZoom();
     cam.x = state.engine.player.x + state.engine.player.w / 2 - el("view").width / cam.zoom / 2;
     cam.y = state.engine.player.y + state.engine.player.h / 2 - el("view").height / cam.zoom / 2;
@@ -3940,6 +4062,7 @@
     el("winTitle").textContent = "CLEARED!";
     show("game");
     syncAuthorChip();
+    if (snap) applyResume(snap);
     setStatusHud();
     showIntro(entry);
     tuffStartRun();
@@ -4151,6 +4274,7 @@
     }
     const firstClear = save_.data.beaten[entry.file] === undefined;
     save_.data.beaten[entry.file] = true;
+    if (save_.data.suspend && save_.data.suspend.file === entry.file) save_.data.suspend = null;
     if (save_.data.best[entry.file] === undefined || t < save_.data.best[entry.file]) {
       save_.data.best[entry.file] = t;
     }
@@ -6948,6 +7072,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnQuit").addEventListener("click", togglePause);
     el("btnPauseResume").addEventListener("click", resumeGame);
     el("btnPauseRestart").addEventListener("click", () => { resumeGame(); restartLevel(); });
+    el("btnPauseSave").addEventListener("click", () => { saveSuspend(); });
     el("btnPausePractice").addEventListener("click", togglePractice);
     el("btnPauseSlow").addEventListener("click", toggleSlowmo);
     el("btnPauseHns").addEventListener("click", () => { hnsToggle(); syncPracticeUI(); });
