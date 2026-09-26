@@ -3889,8 +3889,10 @@
   const cam = { x: 0, y: 0, zoom: 4 };
   const ctx = () => el("view").getContext("2d");
 
+  let adminTpHold = null; // { time, until } — keep run time across admin teleport / instant death
   function beginPlay(entry) {
     if (!entry) return;
+    adminTpHold = null;
     state.currentFile = entry.id ? "net:" + entry.id : entry.file;
     state.currentMeta = entry.meta || null;
     state.hns = null;
@@ -4036,6 +4038,7 @@
 
   function restartLevel() {
     if (!state.engine) return;
+    adminTpHold = null;
     state.engine.collected = new Set();
     state.engine.pendingCoinGrant = 0;
     if (state.engine.clearCheckpoint) state.engine.clearCheckpoint();
@@ -4063,7 +4066,9 @@
 
   function respawn() {
     if (!state.engine) return;
-    state.engine.reset(); // checkpoint spawn keeps the run time
+    const hold = adminTpHold && performance.now() < adminTpHold.until;
+    state.engine.reset(hold ? { keepTime: true } : undefined); // checkpoint spawn keeps the run time
+    if (hold) state.engine.time = Math.max(state.engine.time || 0, adminTpHold.time);
     if (DP.Music) DP.Music.play(state.engine.level.song);
     el("winCard").classList.remove("visible");
     state.paused = false;
@@ -4392,11 +4397,15 @@
     }
     adminTpIdx = (((adminTpIdx + (dir || 1)) % mates.length) + mates.length) % mates.length;
     const m = mates[adminTpIdx];
+    const saved = state.engine.time || 0;
+    adminTpHold = { time: saved, until: performance.now() + 2000 };
     const p = state.engine.player;
     p.x = m.cube.x;
     p.y = m.cube.y;
     p.vx = 0;
     p.vy = 0;
+    state.engine.time = saved;
+    state.engine.tpSafe = 0.8;
     if (state.engine.dead) {
       state.engine.dead = false;
       state.engine.deathTimer = 0;
@@ -4781,6 +4790,9 @@
     // practice saves nothing, and leaving practice kills slow-mo)
     const edt = (state.slowmo && state.practice) ? dt * 0.5 : dt;
     state.engine.update(edt);
+    if (adminTpHold && performance.now() < adminTpHold.until && state.engine.time < adminTpHold.time) {
+      state.engine.time = adminTpHold.time;
+    }
     if (state.engine.orbFlash > 0 && !wasOrb) haptic("orb");
     if (state.engine.padFlash > 0 && !wasPad) haptic("pad");
     if (state.engine.dashFlash > 0 && !wasDash) haptic("dash");
@@ -6711,7 +6723,13 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     }
     if (!isTyping(ev)) {
       const kq = ev.code;
-      if (MP.isActive() && ev.altKey && !ev.repeat && (kq === "ArrowDown" || kq === "ArrowUp") && state.screen === "game" && state.playing && !state.paused && NET.isAdmin && NET.isAdmin()) { ev.preventDefault(); adminTeleport(kq === "ArrowDown" ? 1 : -1); return; }
+      if (ev.altKey && (kq === "ArrowDown" || kq === "ArrowUp") && NET.isAdmin && NET.isAdmin()) {
+        ev.preventDefault();
+        if (MP.isActive() && !ev.repeat && state.screen === "game" && state.playing && !state.paused) {
+          adminTeleport(kq === "ArrowDown" ? 1 : -1);
+        }
+        return;
+      }
       state.keys.add(ev.code);
     }
     if (ev.code === "KeyA" && ev.altKey && el("modalSkins").classList.contains("visible")) {

@@ -1998,6 +1998,7 @@
       this.won = false;
       this.deathReason = "";
       this.time = keepTime;
+      this.tpSafe = 0;
       this.deathTimer = 0;
       this.winTimer = 0;
       this.flash = 0;
@@ -2758,6 +2759,7 @@
     }
 
     kill(reason) {
+      if (this.tpSafe > 0) return;
       if (this.dead || this.won) return;
       this.dead = true;
       this.deathReason = reason || "spike";
@@ -2784,6 +2786,7 @@
       if (this.gravFlash > 0) this.gravFlash = Math.max(0, this.gravFlash - dt);
       if (this.djFlash > 0) this.djFlash = Math.max(0, this.djFlash - dt);
       if (this.portalCd > 0) this.portalCd = Math.max(0, this.portalCd - dt);
+      if (this.tpSafe > 0) this.tpSafe = Math.max(0, this.tpSafe - dt);
 
       if (this.dead) {
         this.deathTimer += dt;
