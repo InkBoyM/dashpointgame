@@ -3925,31 +3925,47 @@
     if (!state.engine || !state.playing) return;
     if (state.practice) { showNotice("No saving in practice runs", true); return; }
     if (state.engine.dead || state.engine.won) { showNotice("Can't save right now", true); return; }
-    // Flush pending coin grants first so nothing is lost.
-    if (state.engine.pendingCoinGrant) {
-      const n = state.engine.pendingCoinGrant | 0;
-      state.engine.pendingCoinGrant = 0;
-      if (n > 0) {
-        const got = grantCoins(n);
-        if (got) { save(); syncCoinUI(); }
+    try {
+      // Flush pending coin grants first so nothing is lost.
+      if (state.engine.pendingCoinGrant) {
+        const n = state.engine.pendingCoinGrant | 0;
+        state.engine.pendingCoinGrant = 0;
+        if (n > 0) {
+          const got = grantCoins(n);
+          if (got) { save(); syncCoinUI(); }
+        }
       }
+      const e = state.engine, p = e.player;
+      // Meta is stored minimal: a rich object here can break the save write.
+      let meta = null;
+      const srcMeta = state.netEntry ? state.netEntry.meta : state.currentMeta;
+      if (srcMeta && typeof srcMeta === "object") {
+        meta = {
+          id: srcMeta.id != null ? String(srcMeta.id) : null,
+          title: srcMeta.title != null ? String(srcMeta.title).slice(0, 48) : null,
+          authorName: srcMeta.authorName != null ? String(srcMeta.authorName).slice(0, 16) : null,
+          authorUid: srcMeta.authorUid != null ? String(srcMeta.authorUid) : null,
+        };
+      }
+      save_.data.suspend = {
+        file: state.currentFile,
+        netId: state.netEntry ? state.netEntry.id : null,
+        meta: meta,
+        player: { x: p.x, y: p.y, vx: p.vx, vy: p.vy },
+        time: e.time || 0,
+        deaths: state.deaths | 0,
+        checkpoint: (e.checkpoint && !e.checkpoint.practice && typeof e.checkpoint.c === "number")
+          ? { c: e.checkpoint.c, r: e.checkpoint.r, ox: e.checkpoint.ox | 0, oy: e.checkpoint.oy | 0 }
+          : null,
+        collected: Array.from(e.collected || []),
+        touched: Array.from(e.touched || []),
+        ts: Date.now(),
+      };
+      save();
+    } catch (err) {
+      showNotice("Couldn't save (storage full?) — freeing space may help", true);
+      return;
     }
-    const e = state.engine, p = e.player;
-    save_.data.suspend = {
-      file: state.currentFile,
-      netId: state.netEntry ? state.netEntry.id : null,
-      meta: state.netEntry ? state.netEntry.meta : (state.currentMeta || null),
-      player: { x: p.x, y: p.y, vx: p.vx, vy: p.vy },
-      time: e.time || 0,
-      deaths: state.deaths | 0,
-      checkpoint: (e.checkpoint && !e.checkpoint.practice && typeof e.checkpoint.c === "number")
-        ? { c: e.checkpoint.c, r: e.checkpoint.r, ox: e.checkpoint.ox | 0, oy: e.checkpoint.oy | 0 }
-        : null,
-      collected: Array.from(e.collected || []),
-      touched: Array.from(e.touched || []),
-      ts: Date.now(),
-    };
-    save();
     showNotice("Progress saved — resume anytime from LEVELS", false);
     quitToLevels();
   }
