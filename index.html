@@ -428,6 +428,9 @@
       <p class="hint">How solid other players' ghosts look when you race them.</p>
       <div class="slider-row"><span>Background blur</span><b id="setBlurVal">12px</b></div>
       <input type="range" id="setBlur" min="0" max="24" step="1" value="12" />
+      <div class="slider-row"><span>Verity (Groq) API key</span></div>
+      <input class="px-input" id="setVerityKey" type="password" maxlength="200" placeholder="gsk_…" autocomplete="off" />
+      <p class="hint">Powers Verity (ALT+?). Stored only on this device, never uploaded. Free keys at groq.com.</p>
       <p class="hint">Frosted-glass strength over a custom background. Higher = more frosted.</p>
       <div class="section-title">GRAPHICS</div>
       <div class="gfx-row" id="gfxRow">
@@ -785,6 +788,23 @@
       <div class="row" style="margin-top:14px; justify-content:flex-end; gap:10px">
         <button class="px-btn small" id="btnAdCancel">CANCEL</button>
         <button class="px-btn small danger" id="btnAdConfirm">DELETE</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-root" id="modalVerity">
+    <div class="modal verity-modal">
+      <div class="modal-head">
+        <h2><img id="verityImg" src="assets/verity/verity-normal.png" alt="Verity" /> VERITY</h2>
+      </div>
+      <p class="hint">DashPoint's assistant. Ask about controls, levels, records, players. ALT+? summons me anywhere.</p>
+      <div class="verity-msgs" id="verityMsgs"></div>
+      <div class="row-gap" style="margin-top:8px">
+        <input class="px-input" id="verityInput" maxlength="300" placeholder="Ask Verity…" autocomplete="off" />
+        <button class="px-btn small gold" id="btnVeritySend">ASK</button>
+      </div>
+      <div class="row-end">
+        <button class="px-btn small" data-close="modalVerity">CLOSE</button>
       </div>
     </div>
   </div>
