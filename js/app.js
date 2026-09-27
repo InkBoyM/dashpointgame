@@ -56,6 +56,10 @@
   //   PATCH (x.y.z) — fixes, tweaks, balance, shop content drops
   // Newest entry first; APP_VER is always RELEASES[0].v.
   const RELEASES = [
+    { v: "1.6.1", title: "Tutorial on first launch", items: [
+      "The UI walkthrough opens automatically the first time you start the game",
+      "Replay anytime from Settings or the ? button on home",
+    ] },
     { v: "1.6.0", title: "UI tutorial", items: [
       "First-run walkthrough of home, skins, network, multiplayer, and controls",
       "Replay anytime from Settings or the ? button on home",
@@ -2489,12 +2493,6 @@
   function maybeStartTour() {
     if (tourOn) return;
     if (save_.data.seenTutorial) return;
-    const played = Object.keys(save_.data.beaten || {}).length || (save_.data.deaths | 0) || (save_.data.jumps | 0);
-    if (played) {
-      save_.data.seenTutorial = true;
-      save();
-      return;
-    }
     startUiTour();
   }
 
@@ -7664,7 +7662,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     syncCoinUI();
     syncFpsVis();
     show("home");
-    maybeShowStreak();
+    maybeStartTour();
+    if (!tourOn) maybeShowStreak();
     requestAnimationFrame(frame);
     setTimeout(function () { try { checkBell(); } catch (e) {} }, 12000);
     // Presence heartbeat: refresh what-I'm-playing every minute so friends
