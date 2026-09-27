@@ -4891,6 +4891,38 @@
   // Tried in order — Groq retires model IDs often, so fall through on failure.
   // Winners move to the front so the next ask starts with a working model.
   const VERITY_MODELS = ["llama-3.3-70b-versatile", "openai/gpt-oss-20b", "llama-3.1-8b-instant"];
+  let verityModelsLive = null;
+  // Self-healing: ask Groq which models this key can actually use right now.
+  async function verityModelList(apiKey) {
+    if (verityModelsLive && Date.now() - verityModelsLive.at < 864e5) return verityModelsLive.ids;
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/models", {
+        headers: { Authorization: "Bearer " + apiKey },
+      });
+      if (!res.ok) throw new Error("models " + res.status);
+      const data = await res.json();
+      let ids = ((data && data.data) || []).map(function (x) { return x && x.id; }).filter(function (id) {
+        return typeof id === "string" && /llama|gpt|qwen|kimi|gemma|mixtral|deepseek|moonshot/i.test(id) &&
+          !/whisper|guard|tts|embed|vision|compound/i.test(id);
+      });
+      const pref = [/gpt-oss-120b/, /gpt-oss-20b/, /kimi/, /llama-4/, /qwen/, /llama-3\.3/, /llama-3\.1-70b/, /llama-3\.1-8b/, /gemma/, /llama3-/];
+      const rank = function (id) {
+        for (let i = 0; i < pref.length; i++) if (pref[i].test(id)) return i;
+        return pref.length;
+      };
+      ids.sort(function (a, b) { return rank(a) - rank(b); });
+      if (!ids.length) throw new Error("no models");
+      verityModelsLive = { at: Date.now(), ids: ids.slice(0, 4) };
+      try { localStorage.setItem("dashpoint.verityModels", JSON.stringify(verityModelsLive)); } catch (e) {}
+      return verityModelsLive.ids;
+    } catch (e) {
+      try {
+        const cached = JSON.parse(localStorage.getItem("dashpoint.verityModels") || "null");
+        if (cached && cached.ids && cached.ids.length) return cached.ids;
+      } catch (e2) {}
+      return VERITY_MODELS.slice();
+    }
+  }
   const VERITY_SYSTEM = [
     "You are Verity, the official assistant living inside DashPoint (he/him), a small pixel cube buddy.",
     "DashPoint is a free 2D precision platformer: jump with orbs/pads, dodge spikes/saws/crushers, beat the campaign plus community network levels, build your own in the editor, hang out in live rooms (race, spectate, hide & seek).",
@@ -5002,7 +5034,7 @@
     verityBusy = true;
     pushVerityMsg("you", text, false);
     const backrooms = /backroom/i.test(text);
-    const bait = (/france/i.test(text) && /(capital|captial|capitol)/i.test(text)) ||
+    const bait = (/france/i.test(text) && /(capital|captial|capitol|catial)/i.test(text)) ||
       /what does (a|the) cow say|what do cows say|\bmoo\b/i.test(text);
     veritySetMood(capsRatio(text) > 0.5 ? "angry-talking" : "talking");
     const thinking = renderVerityThinking();
@@ -5024,7 +5056,8 @@
     msgs.push({ role: "user", content: text + (extras.length ? "\n" + extras.join("\n") : "") });
     let reply = "";
     let lastErr = null;
-    for (const model of VERITY_MODELS.slice()) {
+    const models = await verityModelList(apiKey);
+    for (const model of models) {
       try {
         const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
@@ -5034,18 +5067,18 @@
         if (res.status === 401) throw new Error("API key rejected — re-paste it in Settings → Verity");
         if (!res.ok) {
           let detail = "";
-          try { detail = (await res.text()).slice(0, 160); } catch (e) {}
+          try {
+            const raw = await res.text();
+            try { detail = JSON.parse(raw).error.message || raw; } catch (e) { detail = raw; }
+            detail = String(detail).slice(0, 140);
+          } catch (e) {}
           lastErr = new Error("Groq " + res.status + " on " + model + (detail ? ": " + detail : ""));
           continue;
         }
         const data = await res.json();
         reply = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content
           ? String(data.choices[0].message.content).trim() : "";
-        if (reply) {
-          const at = VERITY_MODELS.indexOf(model);
-          if (at > 0) { VERITY_MODELS.splice(at, 1); VERITY_MODELS.unshift(model); }
-          break;
-        }
+        if (reply) break;
         lastErr = new Error("Empty reply on " + model);
       } catch (err) {
         lastErr = err;
