@@ -444,6 +444,11 @@
       "rot": 180
     },
     {
+      "c": 37,
+      "r": 12,
+      "id": "checkpoint"
+    },
+    {
       "c": 38,
       "r": 12,
       "id": "spike"
@@ -10899,15 +10904,15 @@
   "zones": [],
   "song": "",
   "theme": {
-    "top": "#040810",
-    "mid": "#0a1628",
-    "bottom": "#122a4a",
-    "bg": "",
+    "top": "#0d0406",
+    "mid": "#2a0a12",
+    "bottom": "#48121a",
+    "bg": "volcano",
     "weather": ""
   },
   "meta": {
     "createdAt": "2026-09-02T17:15:53.517Z",
-    "updatedAt": "2026-09-26T22:38:59.184Z",
+    "updatedAt": "2026-09-27T16:32:57.014Z",
     "editor": "DashPoint Level Builder 0.1",
     "autosave": true
   }
