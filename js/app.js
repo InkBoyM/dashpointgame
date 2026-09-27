@@ -56,6 +56,10 @@
   //   PATCH (x.y.z) — fixes, tweaks, balance, shop content drops
   // Newest entry first; APP_VER is always RELEASES[0].v.
   const RELEASES = [
+    { v: "1.6.0", title: "UI tutorial", items: [
+      "First-run walkthrough of home, skins, network, multiplayer, and controls",
+      "Replay anytime from Settings or the ? button on home",
+    ] },
     { v: "1.5.0", title: "Intros, bell, what's new", items: [
       "Level intro cards show title, author and difficulty on every start",
       "Activity bell: new comments on your levels, lost leaderboard crowns",
@@ -847,7 +851,7 @@
   }
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, effects: [], effect: "", suspend: null, streak: { n: 0, day: "" }, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", bellSeen: {}, follows: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, effects: [], effect: "", suspend: null, streak: { n: 0, day: "" }, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", seenTutorial: false, bellSeen: {}, follows: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
   }
 
   function touchUIDefaults() {
@@ -1007,6 +1011,8 @@
     touch: { left: false, right: false, jump: false },
     lastFrame: 0,
   };
+  let tourOn = false;
+  let tourIdx = 0;
 
   // ---- Touch controls (phones/tablets) + pinch zoom ----
   const pinch = { ids: [], dist: 0, joy: false };
@@ -2376,6 +2382,7 @@
     showNotice("Day " + s.n + " streak claimed: " + r.label, false);
   }
   function maybeShowStreak() {
+    if (tourOn) return;
     if (state.streakShown) return;
     try {
       if (streakStatus().claimable) {
@@ -2383,6 +2390,112 @@
         openStreakModal();
       }
     } catch (e) {}
+  }
+
+  function tourCloseModals() {
+    document.querySelectorAll(".modal-root.visible").forEach(function (m) { m.classList.remove("visible"); });
+  }
+
+  const TOUR_STEPS = [
+    { title: "WELCOME TO DASHPOINT", body: "This quick tour shows where everything lives. You can skip anytime, or replay it from Settings or the ? button on home.", screen: "home" },
+    { title: "PLAY", body: "Official campaign levels. Beat them to unlock skins and coins. Harder faces mean harder levels — torture is the top.", screen: "home", target: "#btnPlay" },
+    { title: "SKINS", body: "Your cube locker. Some skins unlock by beating levels or dying enough. Others you buy.", screen: "home", target: "#btnSkinsHome" },
+    { title: "UNLOCK & BUY", body: "SHOP spends coins on skins, tags, trails, and pets. CHEST and WHEEL gamble coins. CODES redeem free stuff.", screen: "home", modal: "modalSkins", target: "#skinUnlockRow" },
+    { title: "NETWORK", body: "The community hub: search players and levels, leaderboards, the editor, and multiplayer rooms.", screen: "home", target: "#btnNetwork" },
+    { title: "MAKE LEVELS", body: "EDITOR opens the level builder (desktop). Build a map, then post it so other players can download and comment.", screen: "network", target: "#netEditor" },
+    { title: "MULTIPLAYER", body: "Rooms live here now — not in Profile. Host a room or join with a 5-letter code.", screen: "network", target: "#netMultiplayer" },
+    { title: "HOST OR JOIN", body: "HOST ROOM creates a code to share. Type a friend's code and JOIN. Play the same level and you'll see each other's cubes.", screen: "netmp", target: "#profMpIdleRow" },
+    { title: "JOIN FRIENDS", body: "Follow players from their profile. If they host a room and share presence, JOIN appears here so you can hop in.", screen: "netmp", target: "#friendList" },
+    { title: "PROFILE", body: "Log in, set a username and bio, and sync progress to the cloud. Follow other players from their page.", screen: "home", target: "#btnProfileHome" },
+    { title: "SETTINGS", body: "Graphics, touch controls, ghost race opacity, and What's New. Replay this tour from here anytime.", screen: "home", target: "#btnSettingsHome" },
+    { title: "ACTIVITY BELL", body: "Invites, comments on your levels, and follows land here. A red number means something new.", screen: "home", target: "#btnBellHome" },
+    { title: "HOW TO PLAY", body: "Move with A/D or arrows. Jump with W, Up, or Space. R restarts. ESC pauses. In a room, Shift+arrows spectate and Alt+chat talks.", screen: "home" },
+  ];
+
+  function tourPrepare(step) {
+    tourCloseModals();
+    if (step.screen === "network") show("network");
+    else if (step.screen === "netmp") {
+      show("netmp");
+      try { syncMpUI(); } catch (e) {}
+      try { renderFriendList(); } catch (e) {}
+    } else show("home");
+    if (step.modal) openModal(step.modal);
+  }
+
+  function tourPlace() {
+    const step = TOUR_STEPS[tourIdx];
+    const spot = el("uiTourSpot");
+    const card = el("uiTourCard");
+    if (!step || !spot || !card) return;
+    el("uiTourStep").textContent = "STEP " + (tourIdx + 1) + " / " + TOUR_STEPS.length;
+    el("uiTourTitle").textContent = step.title;
+    el("uiTourBody").textContent = step.body;
+    el("btnTourNext").textContent = tourIdx === TOUR_STEPS.length - 1 ? "DONE" : "NEXT";
+    el("btnTourBack").disabled = tourIdx <= 0;
+    const t = step.target ? document.querySelector(step.target) : null;
+    if (t) {
+      try { t.scrollIntoView({ block: "center", inline: "nearest" }); } catch (e) {}
+      const r = t.getBoundingClientRect();
+      const pad = 8;
+      spot.style.left = Math.max(4, r.left - pad) + "px";
+      spot.style.top = Math.max(4, r.top - pad) + "px";
+      spot.style.width = Math.min(window.innerWidth - 8, r.width + pad * 2) + "px";
+      spot.style.height = Math.min(window.innerHeight - 8, r.height + pad * 2) + "px";
+      spot.classList.remove("hidden");
+      const cardW = Math.min(380, window.innerWidth - 24);
+      const cardH = 200;
+      let left = Math.min(Math.max(12, r.left), window.innerWidth - cardW - 12);
+      let top;
+      if (r.bottom + 16 + cardH < window.innerHeight) top = r.bottom + 14;
+      else if (r.top - 16 - cardH > 0) top = r.top - 14 - cardH;
+      else top = Math.max(12, (window.innerHeight - cardH) / 2);
+      card.style.left = left + "px";
+      card.style.top = top + "px";
+      card.style.transform = "none";
+    } else {
+      spot.classList.add("hidden");
+      card.style.left = "50%";
+      card.style.top = "50%";
+      card.style.transform = "translate(-50%, -50%)";
+    }
+  }
+
+  function tourShow(i) {
+    tourIdx = Math.max(0, Math.min(TOUR_STEPS.length - 1, i));
+    tourPrepare(TOUR_STEPS[tourIdx]);
+    requestAnimationFrame(function () { requestAnimationFrame(tourPlace); });
+  }
+
+  function startUiTour() {
+    tourOn = true;
+    tourCloseModals();
+    const root = el("uiTour");
+    if (root) root.classList.remove("hidden");
+    tourShow(0);
+  }
+
+  function endUiTour() {
+    tourOn = false;
+    const root = el("uiTour");
+    if (root) root.classList.add("hidden");
+    tourCloseModals();
+    show("home");
+    save_.data.seenTutorial = true;
+    save();
+    maybeShowStreak();
+  }
+
+  function maybeStartTour() {
+    if (tourOn) return;
+    if (save_.data.seenTutorial) return;
+    const played = Object.keys(save_.data.beaten || {}).length || (save_.data.deaths | 0) || (save_.data.jumps | 0);
+    if (played) {
+      save_.data.seenTutorial = true;
+      save();
+      return;
+    }
+    startUiTour();
   }
 
   function syncHomeStats() {
@@ -6903,6 +7016,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       return;
     }
     if (ev.code === "Escape") {
+      if (tourOn) { ev.preventDefault(); endUiTour(); return; }
       if (document.querySelector(".n-opts.open")) {
         ev.preventDefault();
         closeAllOpts();
@@ -7083,6 +7197,21 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       }
     });
     el("btnSettingsHome").addEventListener("click", () => openModal("modalSettings"));
+    function bindTourBtn(id) {
+      const b = el(id);
+      if (b) b.addEventListener("click", function (ev) { ev.stopPropagation(); startUiTour(); });
+    }
+    bindTourBtn("btnUiTour");
+    bindTourBtn("btnUiTourHome");
+    if (el("btnTourSkip")) el("btnTourSkip").addEventListener("click", endUiTour);
+    if (el("btnTourNext")) el("btnTourNext").addEventListener("click", function () {
+      if (tourIdx >= TOUR_STEPS.length - 1) endUiTour();
+      else tourShow(tourIdx + 1);
+    });
+    if (el("btnTourBack")) el("btnTourBack").addEventListener("click", function () {
+      if (tourIdx > 0) tourShow(tourIdx - 1);
+    });
+    window.addEventListener("resize", function () { if (tourOn) tourPlace(); });
     el("btnBackHome").addEventListener("click", () => show("home"));
     el("btnRestart").addEventListener("click", restartToCheckpoint);
     el("btnQuit").addEventListener("click", togglePause);
@@ -7659,5 +7788,6 @@ boot();
   setTimeout(() => {
     const splash = document.getElementById("splashRoot");
     if (splash) splash.classList.add("hidden");
+    try { maybeStartTour(); } catch (e) {}
   }, 1600);
   })();

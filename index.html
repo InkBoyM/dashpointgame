@@ -56,6 +56,7 @@
         <button class="home-settings-btn" id="btnProfileHome" title="Profile">
           <img src="assets/ui/profile.png" alt="" />
         </button>
+        <button class="home-settings-btn" id="btnUiTourHome" title="Tutorial">?</button>
       </div>
       <div class="home-foot">
         <img class="home-skin" id="homeSkinPreview" src="assets/skins/skin-1.png" alt="" title="Equipped skin" />
@@ -155,7 +156,7 @@
       <div class="skin-grid" id="skinGrid"></div>
       <p class="hint" id="skinHint">Beat levels and collect deaths to unlock new cubes. Buy extras in the shop.</p>
       <div class="row-end skin-actions">
-        <div class="row-gap">
+        <div class="row-gap" id="skinUnlockRow">
           <button class="px-btn small gold" id="btnOpenShop"><img src="assets/ui/coin.png" alt="" /><span>SHOP</span></button>
           <button class="px-btn small gold" id="btnOpenChest"><img src="assets/ui/chest-open.png" alt="" /><span>CHEST</span></button>
           <button class="px-btn small" id="btnOpenWheel"><img src="assets/ui/wheel.png" alt="" /><span>WHEEL</span></button>
@@ -418,6 +419,8 @@
   <div class="modal-root" id="modalSettings">
     <div class="modal">
       <h2>SETTINGS</h2>
+      <div class="row-gap"><button class="px-btn small gold" id="btnUiTour">UI TUTORIAL</button></div>
+      <p class="hint">A walkthrough of home, skins, network, multiplayer, and controls.</p>
       <label class="check-row"><input type="checkbox" id="setHitbox" /> Show hitboxes</label>
       <label class="check-row"><input type="checkbox" id="setFps" /> FPS (debug)</label>
       <label class="check-row"><input type="checkbox" id="setAuto" checked /> Auto-respawn</label>
@@ -576,6 +579,20 @@
 
   <div id="achievements"></div>
   <div id="inviteToasts"></div>
+  <div id="uiTour" class="ui-tour hidden" aria-live="polite">
+    <div class="ui-tour-catch"></div>
+    <div class="ui-tour-spot hidden" id="uiTourSpot"></div>
+    <div class="ui-tour-card" id="uiTourCard">
+      <div class="ui-tour-kicker" id="uiTourStep"></div>
+      <h2 id="uiTourTitle">TUTORIAL</h2>
+      <p id="uiTourBody"></p>
+      <div class="ui-tour-acts">
+        <button type="button" class="px-btn small" id="btnTourSkip">SKIP</button>
+        <button type="button" class="px-btn small" id="btnTourBack">BACK</button>
+        <button type="button" class="px-btn small good" id="btnTourNext">NEXT</button>
+      </div>
+    </div>
+  </div>
 
   <div class="screen" id="screen-network">
     <header class="topbar">
