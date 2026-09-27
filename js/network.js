@@ -965,6 +965,111 @@ window.DPNet = (function () {
     return ADMIN_EMAILS.indexOf(e) !== -1;
   }
 
+  function campaignDiffOf(meta) {
+    var n = (meta && meta.difficulty) | 0 || 1;
+    if (n < 1) n = 1;
+    if (n > 5) n = 5;
+    return n;
+  }
+
+  async function getCampaign() {
+    ensure();
+    let raw = null;
+    try { raw = await getJSON("/dashpoint/campaign"); } catch (e) { raw = null; }
+    raw = raw && typeof raw === "object" ? raw : {};
+    const extraIn = raw.extra && typeof raw.extra === "object" && !Array.isArray(raw.extra) ? raw.extra : {};
+    const swapRaw = raw.swap && typeof raw.swap === "object" && !Array.isArray(raw.swap) ? raw.swap : {};
+    const extra = {};
+    Object.keys(extraIn).forEach(function (id) {
+      const v = extraIn[id];
+      if (!v || typeof v !== "object") return;
+      extra[id] = {
+        id: String(v.id || id),
+        title: String(v.title || "Untitled").slice(0, 48),
+        difficulty: campaignDiffOf(v),
+        authorName: String(v.authorName || "").slice(0, 24),
+        addedAt: v.addedAt || 0,
+        addedBy: v.addedBy || "",
+      };
+    });
+    const swapByFile = {};
+    Object.keys(swapRaw).forEach(function (k) {
+      const v = swapRaw[k];
+      if (!v || typeof v !== "object") return;
+      const file = String(v.file || desanitizeFirebaseKey(k) || "");
+      if (!file) return;
+      swapByFile[file] = {
+        file: file,
+        id: String(v.id || ""),
+        title: String(v.title || "Untitled").slice(0, 48),
+        difficulty: campaignDiffOf(v),
+        authorName: String(v.authorName || "").slice(0, 24),
+        swappedAt: v.swappedAt || 0,
+        swappedBy: v.swappedBy || "",
+      };
+    });
+    return { extra: extra, swapByFile: swapByFile };
+  }
+
+  function campaignPayload(meta) {
+    return {
+      id: String((meta && meta.id) || "").trim(),
+      title: String((meta && meta.title) || "Untitled").slice(0, 48),
+      difficulty: campaignDiffOf(meta),
+      authorName: String((meta && meta.authorName) || "player").slice(0, 24),
+    };
+  }
+
+  async function adminAddCampaignLevel(meta) {
+    if (!isAdmin()) throw new Error("Admins only.");
+    const p = campaignPayload(meta);
+    if (!p.id) throw new Error("Missing level.");
+    const cur = await getCampaign();
+    if (cur.extra[p.id]) throw new Error("That level is already on the main list.");
+    Object.keys(cur.swapByFile).forEach(function (f) {
+      if (cur.swapByFile[f] && cur.swapByFile[f].id === p.id) throw new Error("That level already replaces a main level.");
+    });
+    p.addedAt = Date.now();
+    p.addedBy = getUserEmail();
+    await putJSON("/dashpoint/campaign/extra/" + encodeURIComponent(p.id), p);
+    return p;
+  }
+
+  async function adminSwapCampaignLevel(slotFile, meta) {
+    if (!isAdmin()) throw new Error("Admins only.");
+    slotFile = String(slotFile || "").trim();
+    if (!slotFile) throw new Error("Pick a main level to replace.");
+    const p = campaignPayload(meta);
+    if (!p.id) throw new Error("Missing level.");
+    try { await deleteJSON("/dashpoint/campaign/extra/" + encodeURIComponent(p.id)); } catch (e) {}
+    await putJSON("/dashpoint/campaign/swap/" + sanitizeFirebaseKey(slotFile), {
+      file: slotFile,
+      id: p.id,
+      title: p.title,
+      difficulty: p.difficulty,
+      authorName: p.authorName,
+      swappedAt: Date.now(),
+      swappedBy: getUserEmail(),
+    });
+    return true;
+  }
+
+  async function adminRemoveCampaignExtra(id) {
+    if (!isAdmin()) throw new Error("Admins only.");
+    id = String(id || "").trim();
+    if (!id) throw new Error("Missing level.");
+    await deleteJSON("/dashpoint/campaign/extra/" + encodeURIComponent(id));
+    return true;
+  }
+
+  async function adminClearCampaignSwap(slotFile) {
+    if (!isAdmin()) throw new Error("Admins only.");
+    slotFile = String(slotFile || "").trim();
+    if (!slotFile) throw new Error("Missing level.");
+    await deleteJSON("/dashpoint/campaign/swap/" + sanitizeFirebaseKey(slotFile));
+    return true;
+  }
+
   function canDeleteLevel(meta) {
     if (!meta) return false;
     if (isAdmin()) return true;
@@ -1281,6 +1386,11 @@ window.DPNet = (function () {
     saveLocal: saveLocal,
     deleteSave: deleteSave,
     isAdmin: isAdmin,
+    getCampaign: getCampaign,
+    adminAddCampaignLevel: adminAddCampaignLevel,
+    adminSwapCampaignLevel: adminSwapCampaignLevel,
+    adminRemoveCampaignExtra: adminRemoveCampaignExtra,
+    adminClearCampaignSwap: adminClearCampaignSwap,
     canDeleteLevel: canDeleteLevel,
     deleteNetworkLevel: deleteNetworkLevel,
     getDeletionNotices: getDeletionNotices,

@@ -500,6 +500,9 @@ body.has-newver #btnSettingsHome::after {
   margin-left: 4px;
   letter-spacing: 1px;
 }
+.level-card .n-opts { margin-left: 4px; }
+#csList { max-height: 360px; margin-top: 12px; }
+#csQuery { margin-top: 10px; }
 
 .loading-note { color: #9db4d8; letter-spacing: 1px; padding: 30px; text-align: center; }
 

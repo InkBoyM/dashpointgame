@@ -56,6 +56,10 @@
   //   PATCH (x.y.z) — fixes, tweaks, balance, shop content drops
   // Newest entry first; APP_VER is always RELEASES[0].v.
   const RELEASES = [
+    { v: "1.7.0", title: "Admin main levels", items: [
+      "Admins can add a network level to the official PLAY list",
+      "Admins can replace one official level with another",
+    ] },
     { v: "1.6.1", title: "Tutorial on first launch", items: [
       "The UI walkthrough opens automatically the first time you start the game",
       "Replay anytime from Settings or the ? button on home",
@@ -2097,7 +2101,8 @@
   async function computeCrowns() {
     if (crownsCache.map && Date.now() - crownsCache.at < 5 * 60 * 1000) return crownsCache.map;
     const map = {};
-    for (const f of LEVEL_FILES) {
+    const files = (state.levels && state.levels.length) ? state.levels.map(function (e) { return e.file; }) : LEVEL_FILES;
+    for (const f of files) {
       try {
         const list = await NET.getLeaderboard(f, 1);
         if (list && list.length && list[0].uid) map[list[0].uid] = (map[list[0].uid] || 0) + 1;
@@ -2603,11 +2608,63 @@
     return null;
   }
 
+  let campaignState = { extra: {}, swapByFile: {} };
+
+  function campaignSlotForNet(id) {
+    id = String(id || "");
+    const sw = campaignState.swapByFile || {};
+    for (const f in sw) if (sw[f] && sw[f].id === id) return f;
+    return "";
+  }
+
+  function entryDiff(entry) {
+    if (!entry) return 2;
+    if (entry.meta) return netDiff(entry.meta);
+    return localDiff(entry.file);
+  }
+
+  async function refreshCampaign() {
+    try {
+      if (NET.getCampaign) campaignState = await NET.getCampaign();
+      else campaignState = { extra: {}, swapByFile: {} };
+    } catch (e) {
+      campaignState = { extra: {}, swapByFile: {} };
+    }
+  }
+
+  async function reloadCampaignLevels() {
+    await loadLevels();
+    showNotice("Main levels updated", false);
+  }
+
+  function campaignEntry(kind, slot, info, level) {
+    return {
+      file: "net:" + info.id,
+      slot: slot || "",
+      netId: info.id,
+      campaign: kind,
+      meta: {
+        id: info.id,
+        title: info.title,
+        difficulty: info.difficulty,
+        authorName: info.authorName,
+        diffV: 2,
+      },
+      level: level,
+    };
+  }
+
+  async function parseNetworkCampaign(id) {
+    const json = await NET.fetchLevel(id);
+    return DP.Level.parse(JSON.stringify(json));
+  }
+
   async function loadLevels() {
     const box = el("levelList");
     box.innerHTML = '<p class="loading-note">LOADING…</p>';
     const loaded = [];
     const seen = {};
+    await refreshCampaign();
 
     const embedded = Array.isArray(window.DashPointLevelData) ? window.DashPointLevelData : [];
     const embedByFile = {};
@@ -2616,6 +2673,16 @@
     }
 
     for (const f of LEVEL_FILES) {
+      const sw = campaignState.swapByFile && campaignState.swapByFile[f];
+      if (sw && sw.id) {
+        try {
+          const level = await parseNetworkCampaign(sw.id);
+          loaded.push(campaignEntry("swap", f, sw, level));
+          seen[f] = true;
+          seen["net:" + sw.id] = true;
+          continue;
+        } catch (e) {}
+      }
       const live = await fetchCampaignLevel(f);
       if (live) {
         loaded.push({ file: f, level: live });
@@ -2627,6 +2694,18 @@
       try {
         loaded.push({ file: entry.file, level: DP.Level.parse(JSON.stringify(entry.json)) });
         seen[f] = true;
+      } catch (e) {}
+    }
+
+    const extras = Object.keys(campaignState.extra || {}).map(function (id) { return campaignState.extra[id]; });
+    extras.sort(function (a, b) { return (a.addedAt || 0) - (b.addedAt || 0); });
+    for (let xi = 0; xi < extras.length; xi++) {
+      const ex = extras[xi];
+      if (!ex || !ex.id || seen["net:" + ex.id]) continue;
+      try {
+        const level = await parseNetworkCampaign(ex.id);
+        loaded.push(campaignEntry("extra", "", ex, level));
+        seen["net:" + ex.id] = true;
       } catch (e) {}
     }
 
@@ -2675,7 +2754,7 @@
     const order = state.levels
       .map((entry, i) => ({ entry: entry, i: i }))
       .sort(function (a, b) {
-        return (LEVEL_DIFF[a.entry.file] || 2) - (LEVEL_DIFF[b.entry.file] || 2);
+        return entryDiff(a.entry) - entryDiff(b.entry);
       });
     order.forEach(function (pair, n) {
       const entry = pair.entry;
@@ -2683,14 +2762,14 @@
       const b = document.createElement("div");
       const done = save_.data.beaten[entry.file] !== undefined;
       const best = save_.data.best[entry.file];
-      const diff = diffTier(localDiff(entry.file));
+      const diff = diffTier(entryDiff(entry));
       b.className = "level-card diff-" + diff + (done ? " cleared" : "");
       b.setAttribute("role", "button");
       b.tabIndex = 0;
       b.style.animationDelay = n * 0.04 + "s";
       b.innerHTML =
         '<span class="level-num">' + (n + 1) + "</span>" +
-        '<span class="lc-face">' + diffFaceImg(localDiff(entry.file)) + "</span>" +
+        '<span class="lc-face">' + diffFaceImg(diff) + "</span>" +
         '<span class="level-info"><span class="level-name">' + escapeHtml(entry.level.name) + "</span>" +
         '<span class="level-meta">' + entry.level.cols + "\u00d7" + entry.level.rows +
         (entry.level.meta && entry.level.meta.tags && entry.level.meta.tags.length ? ' · <span class="level-tag">' + escapeHtml(entry.level.meta.tags.join(" · ")) + "</span>" : "") +
@@ -2706,6 +2785,30 @@
         showMainLevelLeaderboard(entry, i);
       });
       b.appendChild(lbBtn);
+      if (isSignedInAdmin()) {
+        const items = [];
+        if (entry.campaign === "extra" && entry.netId) {
+          items.push({
+            label: "REMOVE FROM MAIN",
+            danger: true,
+            onClick: function () { adminRemoveMainExtra(entry); },
+          });
+        }
+        if (entry.campaign === "swap" && entry.slot) {
+          items.push({
+            label: "RESTORE ORIGINAL",
+            onClick: function () { adminRestoreMainSlot(entry); },
+          });
+        }
+        if (entry.slot || LEVEL_FILES.indexOf(entry.file) !== -1) {
+          items.push({
+            label: "REPLACE",
+            gold: true,
+            onClick: function () { openCampaignReplaceNet(entry.slot || entry.file); },
+          });
+        }
+        if (items.length) b.appendChild(makeOptsMenu(items));
+      }
       b.addEventListener("click", function () { startLevel(i); });
       b.addEventListener("keydown", function (ev) {
         if (ev.target !== b) return;
@@ -5635,6 +5738,28 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         });
       }
     } catch (e) {}
+    try {
+      if (isSignedInAdmin() && meta && meta.id) {
+        if (campaignState.extra[meta.id]) {
+          optItems.push({
+            label: "REMOVE FROM MAIN",
+            danger: true,
+            onClick: function () { adminAddMainLevel(meta); },
+          });
+        } else if (!campaignSlotForNet(meta.id)) {
+          optItems.push({
+            label: "ADD TO MAIN",
+            gold: true,
+            onClick: function () { adminAddMainLevel(meta); },
+          });
+        }
+        optItems.push({
+          label: "REPLACE MAIN",
+          gold: true,
+          onClick: function () { openCampaignReplaceSlot(meta); },
+        });
+      }
+    } catch (e) {}
     if (optItems.length) row.appendChild(makeOptsMenu(optItems));
     return row;
   }
@@ -5705,6 +5830,161 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("adTitle").textContent = meta.title || "Untitled";
     el("adReason").value = "";
     el("modalAdminDelete").classList.add("visible");
+  }
+
+  async function adminAddMainLevel(meta) {
+    if (!meta || !meta.id) return;
+    if (campaignState.extra[meta.id]) {
+      if (!confirm("Remove \"" + (meta.title || "this level") + "\" from the official PLAY list?")) return;
+      try {
+        await NET.adminRemoveCampaignExtra(meta.id);
+        el("modalLevelInfo").classList.remove("visible");
+        await reloadCampaignLevels();
+      } catch (err) {
+        showNotice(NET.friendly(err), true);
+      }
+      return;
+    }
+    if (!confirm("Add \"" + (meta.title || "this level") + "\" to the official PLAY list for everyone?")) return;
+    try {
+      await NET.adminAddCampaignLevel(meta);
+      el("modalLevelInfo").classList.remove("visible");
+      await reloadCampaignLevels();
+    } catch (err) {
+      showNotice(NET.friendly(err), true);
+    }
+  }
+
+  async function adminRemoveMainExtra(entry) {
+    if (!entry || !entry.netId) return;
+    if (!confirm("Remove \"" + ((entry.level && entry.level.name) || "this level") + "\" from the official PLAY list?")) return;
+    try {
+      await NET.adminRemoveCampaignExtra(entry.netId);
+      await reloadCampaignLevels();
+    } catch (err) {
+      showNotice(NET.friendly(err), true);
+    }
+  }
+
+  async function adminRestoreMainSlot(entry) {
+    const slot = entry && entry.slot;
+    if (!slot) return;
+    if (!confirm("Restore the original official level in this slot?")) return;
+    try {
+      await NET.adminClearCampaignSwap(slot);
+      await reloadCampaignLevels();
+    } catch (err) {
+      showNotice(NET.friendly(err), true);
+    }
+  }
+
+  let campaignPick = { mode: "", slot: "", meta: null };
+
+  function campaignSlotLabel(file) {
+    const cur = (state.levels || []).find(function (e) {
+      return e.slot === file || e.file === file;
+    });
+    if (cur && cur.level && cur.level.name) {
+      return cur.level.name + (cur.campaign === "swap" ? " (replaced)" : "");
+    }
+    return String(file || "").replace(/\.dashpoint\.json$/i, "").replace(/_/g, " ");
+  }
+
+  function openCampaignReplaceSlot(meta) {
+    if (!meta || !meta.id) return;
+    campaignPick = { mode: "slot", slot: "", meta: meta };
+    el("csHead").textContent = "REPLACE MAIN LEVEL";
+    el("csHint").textContent = "Pick which official level to replace with " + (meta.title || "this level") + ".";
+    el("csQuery").classList.add("hidden");
+    el("csQuery").value = "";
+    el("modalCampaign").classList.add("visible");
+    renderCampaignPicker();
+  }
+
+  function openCampaignReplaceNet(slotFile) {
+    if (!slotFile) return;
+    campaignPick = { mode: "net", slot: slotFile, meta: null };
+    el("csHead").textContent = "CHANGE MAIN LEVEL";
+    el("csHint").textContent = "Pick a network level to use instead of " + campaignSlotLabel(slotFile) + ".";
+    el("csQuery").classList.remove("hidden");
+    el("csQuery").value = "";
+    el("modalCampaign").classList.add("visible");
+    ensureIndexes().then(renderCampaignPicker).catch(function () { renderCampaignPicker(); });
+  }
+
+  function renderCampaignPicker() {
+    const box = el("csList");
+    if (!box) return;
+    box.innerHTML = "";
+    if (campaignPick.mode === "slot") {
+      LEVEL_FILES.forEach(function (f) {
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = "net-row";
+        row.innerHTML = '<span class="n-main"><span class="n-title">' + escapeHtml(campaignSlotLabel(f)) + "</span>" +
+          '<div class="n-sub">' + escapeHtml(f) + "</div></span>";
+        row.addEventListener("click", function () { confirmCampaignSwap(f, campaignPick.meta); });
+        box.appendChild(row);
+      });
+      return;
+    }
+    const q = ((el("csQuery") && el("csQuery").value) || "").trim().toLowerCase();
+    const hits = (levelIndexCache || []).filter(function (l) {
+      if (!q) return true;
+      return String(l.title || "").toLowerCase().indexOf(q) !== -1 ||
+        String(l.authorName || "").toLowerCase().indexOf(q) !== -1;
+    }).slice(0, 40);
+    if (!hits.length) {
+      box.innerHTML = '<p class="loading-note">No network levels found.</p>';
+      return;
+    }
+    hits.forEach(function (l) {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "net-row";
+      row.innerHTML = '<span class="n-main"><span class="n-title">' + escapeHtml(l.title || "Untitled") + "</span>" +
+        '<div class="n-sub">by ' + escapeHtml(l.authorName || "?") + "</div></span>";
+      row.addEventListener("click", function () { confirmCampaignSwap(campaignPick.slot, l); });
+      box.appendChild(row);
+    });
+  }
+
+  async function confirmCampaignSwap(slotFile, meta) {
+    if (!slotFile || !meta || !meta.id) return;
+    if (!confirm("Replace \"" + campaignSlotLabel(slotFile) + "\" with \"" + (meta.title || "this level") + "\" on the official PLAY list?")) return;
+    try {
+      await NET.adminSwapCampaignLevel(slotFile, meta);
+      el("modalCampaign").classList.remove("visible");
+      el("modalLevelInfo").classList.remove("visible");
+      await reloadCampaignLevels();
+    } catch (err) {
+      showNotice(NET.friendly(err), true);
+    }
+  }
+
+  function syncCampaignAdminBtns(meta) {
+    const add = el("btnLiAddMain");
+    const rep = el("btnLiReplaceMain");
+    if (!add || !rep) return;
+    const admin = isSignedInAdmin();
+    if (!admin || !meta || !meta.id) {
+      add.style.display = "none";
+      rep.style.display = "none";
+      return;
+    }
+    const slot = campaignSlotForNet(meta.id);
+    const extra = !!(campaignState.extra && campaignState.extra[meta.id]);
+    add.style.display = slot ? "none" : "";
+    rep.style.display = "";
+    if (extra) {
+      add.textContent = "REMOVE FROM MAIN";
+      add.classList.add("danger");
+      add.classList.remove("gold");
+    } else {
+      add.textContent = "ADD TO MAIN";
+      add.classList.add("gold");
+      add.classList.remove("danger");
+    }
   }
 
   async function adminDeleteLevel() {
@@ -6688,7 +6968,9 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
   function openLevelInfo(sv) {
     levelInfoMeta = sv;
     const key = "net:" + (sv.id || sv.meta.id);
-    const meta = sv.meta;    el("liName").textContent = meta.title || "Untitled";
+    const meta = sv.meta || {};
+    if (!meta.id && sv.id) meta.id = sv.id;
+    el("liName").textContent = meta.title || "Untitled";
     el("liDiff").innerHTML = diffFaceImg(netDiff(meta));
     el("liAuthor").innerHTML = taggedNameHtml(meta.authorName || "—", tagIdForUid(meta.authorUid), "", nameColorForUid(meta.authorUid));
     const best = save_.data.best[key];
@@ -6702,6 +6984,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     try {
       el("btnLiDelete").style.display = (NET.canDeleteLevel && NET.canDeleteLevel(meta)) ? "" : "none";
     } catch(e){ el("btnLiDelete").style.display = "none"; }
+    syncCampaignAdminBtns(meta);
     commentLevelId = sv.id || (sv.meta && sv.meta.id) || "";
     renderComments();
     renderLike();
@@ -7256,6 +7539,15 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     });
     el("btnLiEdit").addEventListener("click", function(){ const m = levelInfoMeta; if (m) { el("modalLevelInfo").classList.remove("visible"); startEditLevel(m.meta); } });
     el("btnLiDelete").addEventListener("click", function(){ const m = levelInfoMeta; if (m) { el("modalLevelInfo").classList.remove("visible"); startDeleteLevel(m.meta); } });
+    if (el("btnLiAddMain")) el("btnLiAddMain").addEventListener("click", function () {
+      const m = levelInfoMeta;
+      if (m && m.meta) adminAddMainLevel(m.meta);
+    });
+    if (el("btnLiReplaceMain")) el("btnLiReplaceMain").addEventListener("click", function () {
+      const m = levelInfoMeta;
+      if (m && m.meta) openCampaignReplaceSlot(m.meta);
+    });
+    if (el("csQuery")) el("csQuery").addEventListener("input", function () { renderCampaignPicker(); });
     el("btnAdCancel").addEventListener("click", function(){ el("modalAdminDelete").classList.remove("visible"); pendingDeleteMeta = null; });
     el("btnAdConfirm").addEventListener("click", adminDeleteLevel);
     el("btnWinRestart").addEventListener("click", restartLevel);
@@ -7273,7 +7565,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       const order = state.levels
         .map((entry, i) => ({ entry: entry, i: i }))
         .sort(function (a, b) {
-          return localDiff(a.entry.file) - localDiff(b.entry.file);
+          return entryDiff(a.entry) - entryDiff(b.entry);
         });
       const pos = order.findIndex((p) => p.i === state.current);
       if (pos >= 0 && pos + 1 < order.length) startLevel(order[pos + 1].i);

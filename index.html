@@ -785,6 +785,8 @@
         <button class="px-btn small gold" id="btnLiComment">POST</button>
       </div>
       <div class="row-end">
+        <button class="px-btn small gold" id="btnLiAddMain" style="display:none">ADD TO MAIN</button>
+        <button class="px-btn small gold" id="btnLiReplaceMain" style="display:none">REPLACE MAIN</button>
         <button class="px-btn small gold" id="btnLiEdit" style="display:none">EDIT LEVEL</button>
         <button class="px-btn small danger" id="btnLiDelete" style="display:none">DELETE LEVEL</button>
         <button class="px-btn small" data-close="modalLevelInfo">BACK</button>
@@ -803,6 +805,16 @@
         <button class="px-btn small" id="btnAdCancel">CANCEL</button>
         <button class="px-btn small danger" id="btnAdConfirm">DELETE</button>
       </div>
+    </div>
+  </div>
+
+  <div class="modal-root" id="modalCampaign">
+    <div class="modal">
+      <h2 id="csHead">MAIN LEVELS</h2>
+      <p class="hint" id="csHint">Pick a level.</p>
+      <input class="px-input hidden" id="csQuery" maxlength="48" placeholder="Search network levels…" autocomplete="off" />
+      <div class="net-results" id="csList"></div>
+      <div class="row-end"><button class="px-btn small" data-close="modalCampaign">CANCEL</button></div>
     </div>
   </div>
 
