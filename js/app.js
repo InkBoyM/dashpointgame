@@ -2245,13 +2245,22 @@
   // ---- Discord record feed (main levels only) ----
   const RECORD_WEBHOOK = "https://discord.com/api/webhooks/1553954164709658686/SRIubj3GZmYEZB76aZTUqdh3BzGTA8DauWKi9CiKwmrJwicib3PDK461NynZ6qZAsGa4";
   const RECORD_BOT_AVATAR = "https://dashpointgame.templateslide.com/assets/skins/skin-35.png";
+  const RECORD_CHAT_WEBHOOK = "https://chat.googleapis.com/v1/spaces/AAQA66-xyJI/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=Xd-Baah-INIROywVyfQJ__TookdsE6opOH6jIAQcrUc";
   function sendRecordWebhook(text) {
     if (!text) return;
+    const msg = String(text).slice(0, 1500);
     try {
       fetch(RECORD_WEBHOOK, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: "DashPoint bot", avatar_url: RECORD_BOT_AVATAR, content: String(text).slice(0, 1500) }),
+        body: JSON.stringify({ username: "DashPoint bot", avatar_url: RECORD_BOT_AVATAR, content: msg }),
+      }).catch(function () {});
+    } catch (e) {}
+    try {
+      fetch(RECORD_CHAT_WEBHOOK, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: msg }),
       }).catch(function () {});
     } catch (e) {}
   }
