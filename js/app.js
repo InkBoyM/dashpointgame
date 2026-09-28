@@ -2215,7 +2215,7 @@
 
   // ---- Discord record feed (main levels only) ----
   const RECORD_WEBHOOK = "https://discord.com/api/webhooks/1553954164709658686/SRIubj3GZmYEZB76aZTUqdh3BzGTA8DauWKi9CiKwmrJwicib3PDK461NynZ6qZAsGa4";
-  const RECORD_BOT_AVATAR = "https://dashpointgame.templateslide.com/assets/social/social-discord.png";
+  const RECORD_BOT_AVATAR = "https://dashpointgame.templateslide.com/assets/skins/skin-35.png";
   function sendRecordWebhook(text) {
     if (!text) return;
     try {
