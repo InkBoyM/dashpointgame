@@ -821,6 +821,21 @@
   <script src="/gstatic/firebasejs/12.18.0/firebase-app-compat.js"></script>
   <script src="/gstatic/firebasejs/12.18.0/firebase-auth-compat.js"></script>
   <script src="/gstatic/firebasejs/12.18.0/firebase-database-compat.js"></script>
+  <script type="module">
+    // Discord Activity handshake: tells Discord we're loaded (dismisses its
+    // loading screen). No login/auth. Harmless no-op in a normal browser.
+    (async () => {
+      try {
+        if (window.self === window.top) return;
+        const { DiscordSDK } = await import("https://esm.sh/@discord/embedded-app-sdk@2");
+        const sdk = new DiscordSDK("1553966827628134400");
+        await Promise.race([
+          sdk.ready(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
+        ]);
+      } catch (e) { /* not inside Discord or handshake failed: play on */ }
+    })();
+  </script>
   <div id="hudFps" class="fps-debug hidden">FPS --</div>
   <script src="js/skins.js"></script>
   <script src="js/game.js"></script>
