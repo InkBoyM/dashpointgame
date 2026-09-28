@@ -2182,7 +2182,7 @@
 
   async function showLeaderboardAfterWin(entry, time){
     var box = el("leaderboardBox");
-    if (!box) return;
+    if (!box) return { list: [], rank: 0 };
     var file = entry.file || entry.id || "unknown";
     try {
       var u = (window.DPNet && DPNet.getUser) ? DPNet.getUser() : null;
@@ -2206,9 +2206,46 @@
       if (u && list.length && !list.find(function (x) { return x.uid === u.uid; }) && !(res && res.rank > 10)) {
         box.insertAdjacentHTML("beforeend", '<div class="lb-row lb-me"><span class="lb-rank">—</span><span class="lb-name">You</span><span class="lb-time">' + fmtTime(time) + "</span></div>");
       }
+      return { list: list, rank: res && res.rank ? res.rank : 0 };
     } catch(e){
       box.innerHTML = '<p class="loading-note">Leaderboard failed: ' + escapeHtml(e.message||String(e)) + '</p>';
+      return { list: [], rank: 0 };
     }
+  }
+
+  // ---- Discord record feed (main levels only) ----
+  const RECORD_WEBHOOK = "https://discord.com/api/webhooks/1553954164709658686/SRIubj3GZmYEZB76aZTUqdh3BzGTA8DauWKi9CiKwmrJwicib3PDK461NynZ6qZAsGa4";
+  const RECORD_BOT_AVATAR = "https://dashpointgame.templateslide.com/assets/social/social-discord.png";
+  function sendRecordWebhook(text) {
+    if (!text) return;
+    try {
+      fetch(RECORD_WEBHOOK, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "DashPoint bot", avatar_url: RECORD_BOT_AVATAR, content: String(text).slice(0, 1500) }),
+      }).catch(function () {});
+    } catch (e) {}
+  }
+  function sendRecordFeed(entry, t, firstClear, prevBest, rank) {
+    try {
+      const file = entry.file || "";
+      if (!file || file.indexOf("net:") === 0) return;
+      const u = (window.DPNet && DPNet.getUser) ? DPNet.getUser() : null;
+      if (!u) return;
+      const name = (entry.level && entry.level.name) || "a level";
+      const place = rank > 0 ? "#" + rank : "unranked";
+      let msg = "";
+      if (firstClear) {
+        msg = u.name + " just beat " + name + " for the first time! their current time is " + fmtTime(t) + " and they are in " + place;
+      } else if (rank === 1) {
+        msg = u.name + " just got the 1st place record in " + name + " " + fmtTime(t);
+      } else if (prevBest !== undefined && t < prevBest) {
+        msg = u.name + " got a new record in " + name + ": from " + fmtTime(prevBest) + " to " + fmtTime(t) + ". Their current place is " + place;
+      } else {
+        return;
+      }
+      sendRecordWebhook(msg);
+    } catch (e) {}
   }
 
 
@@ -4509,6 +4546,7 @@
     const firstClear = save_.data.beaten[entry.file] === undefined;
     save_.data.beaten[entry.file] = true;
     if (save_.data.suspend && save_.data.suspend.file === entry.file) save_.data.suspend = null;
+    const prevBest = save_.data.best[entry.file];
     if (save_.data.best[entry.file] === undefined || t < save_.data.best[entry.file]) {
       save_.data.best[entry.file] = t;
     }
@@ -4525,7 +4563,9 @@
       var ghostToSave = { points: ghostTrail.slice(), time: t, skin: save_.data.skin, name: (window.DPNet && DPNet.getUser && DPNet.getUser() ? DPNet.getUser().name : "player") };
       if (ghostTrail.length) { DPNet.saveGhostLocal(lvlFile, ghostToSave); DPNet.saveGhostCloud(lvlFile, ghostToSave); }
     } catch(e){}
-    try { showLeaderboardAfterWin(entry, t); } catch(e){}
+    try { showLeaderboardAfterWin(entry, t).then(function (lb) {
+      try { sendRecordFeed(entry, t, firstClear, prevBest, lb && lb.rank ? lb.rank : 0); } catch (e) {}
+    }).catch(function () {}); } catch(e){}
     if (firstClear && entry.file === CLIMB_FILE) {
       showNotice("Space mode unlocked — turn it on in Settings!", false);
       syncSpaceSettings();
