@@ -4748,14 +4748,15 @@
     const b = el("btnPauseMap");
     if (b) b.textContent = minimapOn() ? "MINIMAP: ON" : "MINIMAP: OFF";
   }
+  // Square viewport that follows the player (map scrolls as you climb).
+  const MINIMAP_VIEW_TILES = 26;
   function buildMinimapCache() {
     const lvl = state.engine && state.engine.level;
     const cv = el("minimap");
     if (!lvl || !cv) return null;
     const key = state.currentFile + "|" + lvl.cols + "x" + lvl.rows;
     if (state.minimapCache && state.minimapCache.key === key) return state.minimapCache;
-    const S = 150;
-    const s = Math.min(S / (lvl.cols * DP.TILE), S / (lvl.rows * DP.TILE));
+    const s = 150 / (MINIMAP_VIEW_TILES * DP.TILE);
     const w = Math.max(2, Math.round(lvl.cols * DP.TILE * s));
     const h = Math.max(2, Math.round(lvl.rows * DP.TILE * s));
     const off = document.createElement("canvas");
@@ -4795,22 +4796,34 @@
     const mc = buildMinimapCache();
     if (!mc) { cv.classList.add("hidden"); return; }
     cv.classList.remove("hidden");
-    if (cv.width !== mc.w || cv.height !== mc.h) { cv.width = mc.w; cv.height = mc.h; }
+    const V = 150;
+    if (cv.width !== V || cv.height !== V) { cv.width = V; cv.height = V; }
     const x = cv.getContext("2d");
     x.imageSmoothingEnabled = false;
-    x.clearRect(0, 0, cv.width, cv.height);
-    x.drawImage(mc.cv, 0, 0);
+    x.fillStyle = "rgba(4,8,12,0.9)";
+    x.fillRect(0, 0, V, V);
+    const pl = state.engine.player;
+    const ccx = (pl.x + pl.w / 2) * mc.s, ccy = (pl.y + pl.h / 2) * mc.s;
+    let sx = Math.round(ccx - V / 2), sy = Math.round(ccy - V / 2);
+    let dx = 0, dy = 0, sw = V, sh = V;
+    if (mc.w <= V) { sx = 0; sw = mc.w; dx = Math.round((V - mc.w) / 2); }
+    else sx = Math.max(0, Math.min(mc.w - V, sx));
+    if (mc.h <= V) { sy = 0; sh = mc.h; dy = Math.round((V - mc.h) / 2); }
+    else sy = Math.max(0, Math.min(mc.h - V, sy));
+    x.drawImage(mc.cv, sx, sy, sw, sh, dx, dy, sw, sh);
     const dot = function (wx, wy, color, size) {
+      const px = Math.round(wx * mc.s) - sx + dx;
+      const py = Math.round(wy * mc.s) - sy + dy;
+      if (px < -4 || py < -4 || px > V + 4 || py > V + 4) return;
       x.fillStyle = color;
       const s2 = size || 3;
-      x.fillRect(Math.round(wx * mc.s) - (s2 >> 1), Math.round(wy * mc.s) - (s2 >> 1), s2, s2);
+      x.fillRect(px - (s2 >> 1), py - (s2 >> 1), s2, s2);
     };
     try {
       for (const p of MP.peers()) {
         if (p.cube && p.level === state.currentFile && !p.cube.dead) dot(p.cube.x, p.cube.y, "#2ee6ff", 3);
       }
     } catch (e) {}
-    const pl = state.engine.player;
     dot(pl.x + pl.w / 2, pl.y + pl.h / 2, "#ffffff", 4);
   }
 
