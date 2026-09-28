@@ -7,6 +7,7 @@
   const DIFF_NAMES = ["Easy", "Normal", "Hard", "Harder", "Torture"];
   const LEVEL_DIFF = {
     "00_Welcome.dashpoint.json": 1,
+    "The_Hill.dashpoint.json": 1,
     "Orb_run.dashpoint.json": 2,
     "spike_run.dashpoint.json": 3,
     "the_climb.dashpoint.json": 3,
@@ -503,6 +504,7 @@
 
   const LEVEL_FILES = [
     "00_Welcome.dashpoint.json",
+    "The_Hill.dashpoint.json",
     "Orb_run.dashpoint.json",
     "spike_run.dashpoint.json",
     "the_climb.dashpoint.json",
