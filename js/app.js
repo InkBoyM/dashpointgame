@@ -2004,7 +2004,7 @@
           '<button type="button" class="px-btn tiny danger lb-del" data-uid="' + escapeHtml(row.uid) + '" data-name="' + escapeHtml(row.name || "player") + '">REMOVE</button>' +
           "</span>";
       }
-      html += '<div class="lb-row' + (isMe ? " lb-me" : "") + (race ? " lb-race" : "") + (edited ? " lb-edited" : "") + '"' + attr + '><span class="lb-rank">#' + (i + 1) + '</span>' + frameAvatarHtml(row.skin, isMe ? equippedFrameId() : (row.frame || frameForUid(row.uid))) + '<span class="lb-name">' + taggedNameHtml(row.name, row.tag || (isMe ? equippedTagId() : tagIdForUid(row.uid)), isMe ? " (you)" : "", row.nameColor || (isMe ? equippedNameColorId() : nameColorForUid(row.uid))) + '</span><span class="lb-time">' + timeHtml + "</span>" + hint + adminBtns + "</div>";
+      html += '<div class="lb-row' + (isMe ? " lb-me" : "") + (race ? " lb-race" : "") + (edited ? " lb-edited" : "") + '"' + attr + '><span class="lb-rank">#' + (i + 1) + '</span>' + frameAvatarHtml(row.skin, isMe ? equippedFrameId() : (row.frame || frameForUid(row.uid))) + (i === 0 && crownIcon() ? '<img class="lb-crown" src="' + crownIcon() + '" alt="crown" />' : "") + '<span class="lb-name">' + taggedNameHtml(row.name, row.tag || (isMe ? equippedTagId() : tagIdForUid(row.uid)), isMe ? " (you)" : "", row.nameColor || (isMe ? equippedNameColorId() : nameColorForUid(row.uid))) + '</span><span class="lb-time">' + timeHtml + "</span>" + hint + adminBtns + "</div>";
     }
     if (opts.extraRow) html += opts.extraRow;
     box.innerHTML = html;
@@ -2027,6 +2027,33 @@
         });
       });
     }
+  }
+
+  // ---- #1 crown: who holds the top time on this level ----
+  let crownIconCache = "";
+  function crownIcon() {
+    if (crownIconCache) return crownIconCache;
+    try {
+      const cv = document.createElement("canvas");
+      cv.width = 32;
+      cv.height = 32;
+      DP.drawCrownShape(cv.getContext("2d"), 0, 0, 32);
+      crownIconCache = cv.toDataURL("image/png");
+    } catch (e) {}
+    return crownIconCache;
+  }
+  function refreshCrown() {
+    try {
+      if (!MP.isActive() || !state.playing || !state.engine) return;
+      const file = state.currentFile || "";
+      if (!file || !DPNet.getLeaderboard) return;
+      const now = Date.now();
+      if (state.crown && state.crown.file === file && now - (state.crown.at || 0) < 60000) return;
+      DPNet.getLeaderboard(file, 1).then(function (list) {
+        if (!state.playing || (state.currentFile || "") !== file) return;
+        state.crown = { file: file, uid: (list && list[0] && list[0].uid) || "", at: Date.now() };
+      }).catch(function () {});
+    } catch (e) {}
   }
 
   async function fetchLevelLeaderboard(box, entry, opts) {
@@ -4302,6 +4329,7 @@
       save();
     }
     state.engine = new DP.Engine(entry.level.clone(), { skin: save_.data.skin, trail: equippedTrailId(), pet: equippedPetId() });
+    refreshCrown();
     if (DP.Music) DP.Music.play(entry.level.song);
     state.playing = true;
     state.deaths = 0;
@@ -5272,6 +5300,7 @@
     }
 
     let remoteCubes = null;
+    refreshCrown();
     if (MP.isActive()) {
       remoteCubes = [];
       for (const p of MP.peers()) {
@@ -5321,6 +5350,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       customBg: customBgImg,
       weather: equippedFxId(),
       customBgBlur: bgBlurPx(),
+      crownUid: (state.crown && state.crown.file === state.currentFile) ? state.crown.uid : "",
     });
     try {
       if (gfxMode() === "simple") DP.syncWidgetDom(el("widgetLayer"), [], null);

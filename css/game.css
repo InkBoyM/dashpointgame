@@ -690,6 +690,7 @@ body.joystick #joystick { display: block; }
 .leaderboard-full { max-height: min(50vh, 360px); }
 .leaderboard .lb-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--panel); border: 2px solid var(--ink-dark); margin-bottom: 4px; font-size: 12px; }
 .leaderboard .lb-rank { width: 28px; text-align: center; font-weight: 900; color: var(--gold); }
+.leaderboard .lb-crown, .lb-crown { width: 16px; height: 16px; image-rendering: pixelated; }
 .leaderboard .lb-name { flex: 1; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .leaderboard .lb-time { color: var(--good); font-weight: 900; }
 .leaderboard .lb-changed { margin-left: 6px; font-size: 9px; font-weight: 900; letter-spacing: 1px; color: var(--gold); }

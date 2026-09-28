@@ -4219,6 +4219,39 @@
     }
   }
 
+  // Vector crown for the current #1 holder: no asset file, same art in
+  // the world (canvas) and on leaderboard rows (via data URL).
+  function drawCrownShape(ctx, x, y, s) {
+    const u = s / 32;
+    const tri = (ax, ay, x0, x1, yb) => {
+      ctx.beginPath();
+      ctx.moveTo(x + ax * u, y + ay * u);
+      ctx.lineTo(x + x0 * u, y + yb * u);
+      ctx.lineTo(x + x1 * u, y + yb * u);
+      ctx.closePath();
+    };
+    // black underlay = outline
+    ctx.fillStyle = "#0a0f1e";
+    ctx.fillRect(x + 6 * u, y + 19 * u, 20 * u, 6 * u);
+    tri(9, 7.5, 5.5, 12.5, 20.5); ctx.fill();
+    tri(16, 3.5, 11.5, 20.5, 20.5); ctx.fill();
+    tri(23, 7.5, 19.5, 26.5, 20.5); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 16 * u, y + 22.5 * u, 2.4 * u, 0, 6.2832); ctx.fill();
+    // gold faces
+    ctx.fillStyle = "#ffd23c";
+    ctx.fillRect(x + 7 * u, y + 20 * u, 18 * u, 4 * u);
+    tri(9, 9, 6.5, 11.5, 20); ctx.fill();
+    tri(16, 5, 12.5, 19.5, 20); ctx.fill();
+    tri(23, 9, 20.5, 25.5, 20); ctx.fill();
+    // shade + gem + shine
+    ctx.fillStyle = "rgba(0,0,0,0.22)";
+    ctx.fillRect(x + 18 * u, y + 20 * u, 7 * u, 4 * u);
+    ctx.fillStyle = "#ff3b3b";
+    ctx.beginPath(); ctx.arc(x + 16 * u, y + 22 * u, 1.7 * u, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(x + 9.5 * u, y + 12 * u, 1.6 * u, 5 * u);
+  }
+
   function drawWorld(ctx, level, images, cam, extras) {
     extras = extras || {};
     const gfx = extras.graphics === "good" || extras.graphics === "simple" || extras.graphics === "dlls5" || extras.graphics === "ultra" || extras.graphics === "drawing" || extras.graphics === "revamped" || extras.graphics === "neon" ? extras.graphics : "normal";
@@ -4598,15 +4631,19 @@
           const nameW = ctx.measureText(rc.name).width;
           const gap = tagTxt ? ctx.measureText(" ").width : 0;
           const tagW = tagTxt ? ctx.measureText(tagTxt).width : 0;
-          const x0 = rdx + TILE / 2 - (nameW + gap + tagW) / 2;
+          const hasCrown = !!(rc.uid && extras.crownUid && rc.uid === extras.crownUid);
+          const crownW = hasCrown ? 18 : 0;
+          const x0 = rdx + TILE / 2 - (nameW + gap + tagW + crownW) / 2;
           const ny = rdy - 6;
-          ctx.strokeText(rc.name, x0, ny);
+          const nx = x0 + crownW;
+          if (hasCrown) drawCrownShape(ctx, x0, ny - 13, 14);
+          ctx.strokeText(rc.name, nx, ny);
           ctx.fillStyle = rc.dead ? "#7f93b0" : (rc.nameColor || "#ffd23c");
-          ctx.fillText(rc.name, x0, ny);
+          ctx.fillText(rc.name, nx, ny);
           if (tagTxt) {
-            ctx.strokeText(tagTxt, x0 + nameW + gap, ny);
+            ctx.strokeText(tagTxt, nx + nameW + gap, ny);
             ctx.fillStyle = rc.dead ? "#7f93b0" : (rc.tagColor || "#ffd23c");
-            ctx.fillText(tagTxt, x0 + nameW + gap, ny);
+            ctx.fillText(tagTxt, nx + nameW + gap, ny);
           }
           ctx.textAlign = "start";
           ctx.restore();
@@ -4827,6 +4864,7 @@
     Level,
     Engine,
     drawWorld,
+    drawCrownShape,
     drawTile,
     drawTiledBg,
     drawZones,
