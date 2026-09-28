@@ -6,7 +6,7 @@
   "rows": 20,
   "tileSize": 32,
   "spawn": {
-    "c": 39,
+    "c": 2,
     "r": 17
   },
   "tiles": [
@@ -1812,7 +1812,7 @@
   },
   "meta": {
     "createdAt": "2026-09-28T01:11:14.326Z",
-    "updatedAt": "2026-09-28T01:27:31.639Z",
+    "updatedAt": "2026-09-28T01:31:39.424Z",
     "editor": "DashPoint Level Builder 0.1"
   }
 }
