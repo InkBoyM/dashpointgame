@@ -4386,6 +4386,11 @@
     const meta = entry.meta || null;
     const file = entry.file || "";
     el("introTitle").textContent = (entry.level && entry.level.name) || meta?.title || "LEVEL";
+    try {
+      if (state.engine && state.engine.level && state.engine.level.gameplay && state.engine.level.gameplay.autoMove) {
+        el("introTitle").textContent += " [AUTO]";
+      }
+    } catch (e) {}
     el("introAuthor").textContent = "by " + (meta?.authorName || (entry.level ? "DashPoint" : "?"));
     let tier = 2;
     try {

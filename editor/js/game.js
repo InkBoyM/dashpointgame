@@ -190,6 +190,7 @@
     coyoteMs: 90,
     bufferMs: 120,
     jumpCut: 0.42,
+    autoMove: 0,
   };
 
   const DEFAULT_KEYBINDS = {
@@ -2781,6 +2782,7 @@
       let wish = 0;
       if (this.input.left) wish -= 1;
       if (this.input.right) wish += 1;
+      if (g.autoMove) wish = 1; // auto-move mode: always run right, you only jump
       if (wish !== 0) p.facing = wish;
 
       const accel = p.onGround ? g.accel : g.airAccel;

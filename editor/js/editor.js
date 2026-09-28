@@ -2258,6 +2258,7 @@
     document.getElementById("vSpeed").textContent = state.level.gameplay.moveSpeed;
     document.getElementById("vJump").textContent = state.level.gameplay.jumpForce;
     document.getElementById("vGrav").textContent = state.level.gameplay.gravity;
+    syncModeUI();
     const v = validate();
     document.getElementById("cBrick").textContent = v.counts.brick;
     document.getElementById("cIBrick").textContent = v.counts.ibrick;
@@ -2817,8 +2818,14 @@
     return DP.THEMES.find((t) => t.top === th.top && t.mid === th.mid && t.bottom === th.bottom && (t.bg || "") === (th.bg || "")) || null;
   }
 
-  function syncThemeUI() {
-    const th = state.level.theme;
+  function syncModeUI() {
+    const auto = !!(state.level.gameplay && state.level.gameplay.autoMove);
+    document.querySelectorAll("#modeChips .chip").forEach((b) => {
+      b.classList.toggle("active", (b.dataset.mode === "1") === auto);
+    });
+  }
+
+  function syncThemeUI() {    const th = state.level.theme;
     const preset = themeMatchesPreset(th);
     document.querySelectorAll("#themeChips .theme-chip").forEach((b) => {
       b.classList.toggle("active", !!preset && b.title === preset.name);
@@ -3417,6 +3424,16 @@
         markDirty(true);
       });
     }
+    document.querySelectorAll("#modeChips .chip").forEach((b) => {
+      b.addEventListener("click", () => {
+        if (state.playing) return;
+        pushUndo();
+        state.level.gameplay.autoMove = b.dataset.mode === "1" ? 1 : 0;
+        markDirty(true);
+        syncModeUI();
+        setStatus("Mode: " + (state.level.gameplay.autoMove ? "auto-move" : "platformer"));
+      });
+    });
 
     document.getElementById("btnNew").addEventListener("click", () => newLevel());
     document.getElementById("btnAi").addEventListener("click", () => generateLevel());
