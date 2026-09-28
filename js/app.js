@@ -4516,6 +4516,7 @@
     state.paused = true;
     syncPracticeUI();
     syncHeatUI();
+    syncMapUI();
     el("pauseCard").classList.add("visible");
   }
 
@@ -4728,6 +4729,89 @@
   function syncHeatUI() {
     const b = el("btnPauseHeat");
     if (b) b.textContent = save_.data.showHeat === true ? "HEATMAP: ON" : "HEATMAP: OFF";
+  }
+
+  // ---- Minimap (tower levels only) ----
+  const MINIMAP_FILES = ["The_Tower_of_Torture.dashpoint.json", "The_Tower_of_Agony.dashpoint.json"];
+  function minimapOn() { return save_.data.minimap !== false; }
+  function isTowerLevel() {
+    const f = state.currentFile || "";
+    return MINIMAP_FILES.some(function (n) { return f === n || f.endsWith("/" + n); });
+  }
+  function toggleMinimap() {
+    save_.data.minimap = !minimapOn();
+    save();
+    showNotice("Minimap " + (minimapOn() ? "ON" : "OFF"), false);
+    syncMapUI();
+  }
+  function syncMapUI() {
+    const b = el("btnPauseMap");
+    if (b) b.textContent = minimapOn() ? "MINIMAP: ON" : "MINIMAP: OFF";
+  }
+  function buildMinimapCache() {
+    const lvl = state.engine && state.engine.level;
+    const cv = el("minimap");
+    if (!lvl || !cv) return null;
+    const key = state.currentFile + "|" + lvl.cols + "x" + lvl.rows;
+    if (state.minimapCache && state.minimapCache.key === key) return state.minimapCache;
+    const S = 150;
+    const s = Math.min(S / (lvl.cols * DP.TILE), S / (lvl.rows * DP.TILE));
+    const w = Math.max(2, Math.round(lvl.cols * DP.TILE * s));
+    const h = Math.max(2, Math.round(lvl.rows * DP.TILE * s));
+    const off = document.createElement("canvas");
+    off.width = w;
+    off.height = h;
+    const x = off.getContext("2d");
+    x.fillStyle = "rgba(4,8,12,0.9)";
+    x.fillRect(0, 0, w, h);
+    const cw = Math.max(1, Math.ceil(DP.TILE * s));
+    for (let r = 0; r < lvl.rows; r++) {
+      const row = lvl.grid[r];
+      if (!row) continue;
+      for (let c = 0; c < lvl.cols; c++) {
+        const t = row[c];
+        if (!t || !t.id) continue;
+        if (DP.isGoalId && DP.isGoalId(t.id)) x.fillStyle = "#ffd23c";
+        else if ((DP.isSpikeId && DP.isSpikeId(t.id)) || (DP.isSawId && DP.isSawId(t.id))) x.fillStyle = "#ff4d62";
+        else if (DP.isCoinId && DP.isCoinId(t.id)) x.fillStyle = "#ffe45e";
+        else if ((DP.isBrickId && DP.isBrickId(t.id)) || t.id === "grass" || t.id === "ice" || t.id === "mud" || t.id === "platform" || t.id === "slopeL" || t.id === "slopeR" || t.id === "half" || t.id === "halfT") x.fillStyle = "#3b6a8f";
+        else continue;
+        x.fillRect(Math.floor(c * DP.TILE * s), Math.floor(r * DP.TILE * s), cw, cw);
+      }
+    }
+    state.minimapCache = { key: key, cv: off, s: s, w: w, h: h };
+    return state.minimapCache;
+  }
+  function drawMinimap() {
+    const cv = el("minimap");
+    if (!cv) return;
+    if (!minimapOn() || !state.playing || !state.engine || !isTowerLevel()) {
+      cv.classList.add("hidden");
+      return;
+    }
+    const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+    if (state.minimapAt && now - state.minimapAt < 150) return;
+    state.minimapAt = now;
+    const mc = buildMinimapCache();
+    if (!mc) { cv.classList.add("hidden"); return; }
+    cv.classList.remove("hidden");
+    if (cv.width !== mc.w || cv.height !== mc.h) { cv.width = mc.w; cv.height = mc.h; }
+    const x = cv.getContext("2d");
+    x.imageSmoothingEnabled = false;
+    x.clearRect(0, 0, cv.width, cv.height);
+    x.drawImage(mc.cv, 0, 0);
+    const dot = function (wx, wy, color, size) {
+      x.fillStyle = color;
+      const s2 = size || 3;
+      x.fillRect(Math.round(wx * mc.s) - (s2 >> 1), Math.round(wy * mc.s) - (s2 >> 1), s2, s2);
+    };
+    try {
+      for (const p of MP.peers()) {
+        if (p.cube && p.level === state.currentFile && !p.cube.dead) dot(p.cube.x, p.cube.y, "#2ee6ff", 3);
+      }
+    } catch (e) {}
+    const pl = state.engine.player;
+    dot(pl.x + pl.w / 2, pl.y + pl.h / 2, "#ffffff", 4);
   }
 
   // ---- Playtime tracking ----
@@ -5283,6 +5367,7 @@
     tickShake(dt);
     trackPlaytime(dt);
     setStatusHud();
+    try { drawMinimap(); } catch (e) {}
 
     if (MP.isActive() && state.engine) {
       MP.sendCube({
@@ -7578,6 +7663,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnPauseSlow").addEventListener("click", toggleSlowmo);
     el("btnPauseHns").addEventListener("click", () => { hnsToggle(); syncPracticeUI(); });
     el("btnPauseHeat").addEventListener("click", toggleHeat);
+    el("btnPauseMap").addEventListener("click", toggleMinimap);
     el("hudPractice").addEventListener("click", () => {
       if (state.practice && state.playing && !state.paused) placePracticeCheckpoint();
     });
