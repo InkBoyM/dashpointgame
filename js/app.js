@@ -58,6 +58,14 @@
   //   PATCH (x.y.z) — fixes, tweaks, balance, shop content drops
   // Newest entry first; APP_VER is always RELEASES[0].v.
   const RELEASES = [
+    { v: "1.90", title: "Streaks, hide & seek, suspend runs", items: [
+      "Login streaks: 7-day reward calendar with a home chip",
+      "Hide & seek rooms: first seeker, tags, hider invisibility, prizes",
+      "Save & exit mid-level, resume later with the timer intact",
+      "Tower-only minimap that follows you, pause-menu toggle",
+      "#1 crown by names in rooms and on leaderboards",
+      "Shop weather effects, new trails and frames, auto-move editor mode",
+    ] },
     { v: "1.7.0", title: "Admin main levels", items: [
       "Admins can add a network level to the official PLAY list",
       "Admins can replace one official level with another",
@@ -5906,7 +5914,12 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     row.appendChild(like);
     row.appendChild(play);
     row.appendChild(makeDownloadBtn(function () { downloadNetworkLevel(meta); }));
-    const optItems = [];
+    const optItems = [
+      {
+        label: "COPY LINK",
+        onClick: function () { copyLevelLink(meta); },
+      },
+    ];
     try {
       if (isMyLevel(meta)) {
         optItems.push({
@@ -7356,6 +7369,59 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     beginPlay(entry);
   }
 
+  // ---- Public level links: ?level=ID plays for anyone, even logged out ----
+  function levelShareUrl(id) {
+    return location.origin + location.pathname + "?level=" + encodeURIComponent(id);
+  }
+  function fallbackCopy(text) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    try { document.body.removeChild(ta); } catch (e) {}
+  }
+  function copyLevelLink(meta) {
+    if (!meta || !meta.id) return;
+    const url = levelShareUrl(meta.id);
+    const done = function () { showNotice("Link copied — anyone can play it, no login needed", false); };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(done, function () { fallbackCopy(url); done(); });
+      } else {
+        fallbackCopy(url);
+        done();
+      }
+    } catch (e) {
+      try { fallbackCopy(url); } catch (e2) {}
+      done();
+    }
+  }
+  async function playNetworkLevelById(id) {
+    id = String(id || "").trim();
+    if (!id) return;
+    let meta = null;
+    try {
+      if (!levelIndexCache) levelIndexCache = await NET.loadLevelIndex();
+      meta = (levelIndexCache || []).find(function (l) { return l.id === id; }) || null;
+    } catch (e) {}
+    await playNetworkLevel(meta || { id: id, title: "Shared level" }, false);
+  }
+  async function playSharedLevel(id) {
+    id = String(id || "").trim();
+    if (!id) return;
+    let ok = false;
+    try { await NET.fetchLevel(id); ok = true; } catch (err) {}
+    if (!ok) {
+      // Maybe the list is login-gated: one silent guest login, then retry.
+      try { if (MP.loginGuest) await MP.loginGuest(); } catch (e) {}
+      try { await NET.fetchLevel(id); ok = true; } catch (err2) {}
+    }
+    if (!ok) { showNotice("Couldn't load that level", true); return; }
+    try { await playNetworkLevelById(id); }
+    catch (err3) { showNotice("Couldn't load that level", true); }
+  }
+
   function syncAuthorChip() {
     const chip = el("hudAuthor");
     const m = state.currentMeta;
@@ -8144,6 +8210,10 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     show("home");
     maybeStartTour();
     if (!tourOn) maybeShowStreak();
+    try {
+      const shared = new URLSearchParams(window.location.search).get("level");
+      if (shared) setTimeout(function () { try { playSharedLevel(shared); } catch (e) {} }, 1500);
+    } catch (e) {}
     requestAnimationFrame(frame);
     setTimeout(function () { try { checkBell(); } catch (e) {} }, 12000);
     // Presence heartbeat: refresh what-I'm-playing every minute so friends
