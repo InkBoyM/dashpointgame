@@ -58,6 +58,10 @@
   //   PATCH (x.y.z) — fixes, tweaks, balance, shop content drops
   // Newest entry first; APP_VER is always RELEASES[0].v.
   const RELEASES = [
+    { v: "1.91", title: "Shop skin categories", items: [
+      "Shop skins are grouped: food, faces, animals, nature, memes, luxury, countries, miscellaneous",
+      "New shop skin: isreal in Countries for 100 coins",
+    ] },
     { v: "1.7.0", title: "Admin main levels", items: [
       "Admins can add a network level to the official PLAY list",
       "Admins can replace one official level with another",
@@ -3213,6 +3217,43 @@
       showNotice("Couldn't save that painting", true);
     }
   }
+  function shopSkinCat(s) {
+    return String((s && s.shopCat) || "misc");
+  }
+
+  function makeShopSkinTile(s) {
+    const owned = isUnlocked(s.id);
+    const cost = coinAmount(s.unlock && s.unlock.cost);
+    const can = hasCoins(cost);
+    const b = document.createElement("button");
+    b.className = "skin-tile" + (owned && save_.data.skin === s.id ? " selected" : "") + (!owned && !can ? " cant" : "");
+    const deathNeed = (s.unlock && s.unlock.deaths) | 0;
+    const hint = owned
+      ? (save_.data.skin === s.id ? "EQUIPPED" : "TAP TO EQUIP")
+      : can
+        ? "TAP TO BUY"
+        : deathNeed
+          ? "NEED " + fmtCoins(cost) + " OR DIE " + deathNeed
+          : "NEED " + fmtCoins(cost);
+    b.innerHTML =
+      '<img src="' + s.src + '" alt="" />' +
+      '<span class="skin-name">' + escapeHtml(s.name) + "</span>" +
+      '<span class="shop-cost">' + coinIcon() + fmtCoins(cost) + "</span>" +
+      '<span class="skin-hint">' + escapeHtml(hint) + "</span>";
+    b.addEventListener("click", function () {
+      if (owned) {
+        save_.data.skin = s.id;
+        save();
+        renderShop();
+        renderSkins();
+        syncHomeStats();
+        return;
+      }
+      buyShopSkin(s);
+    });
+    return b;
+  }
+
   function renderShop() {
     const box = el("shopGrid");
     if (!box) return;
@@ -3221,39 +3262,33 @@
     if (!items.length) {
       box.innerHTML = '<p class="loading-note">No skins in the shop.</p>';
     } else {
-    items.forEach(function (s) {
-      const owned = isUnlocked(s.id);
-      const cost = coinAmount(s.unlock && s.unlock.cost);
-      const can = hasCoins(cost);
-      const b = document.createElement("button");
-      b.className = "skin-tile" + (owned && save_.data.skin === s.id ? " selected" : "") + (!owned && !can ? " cant" : "");
-      const deathNeed = (s.unlock && s.unlock.deaths) | 0;
-      const hint = owned
-        ? (save_.data.skin === s.id ? "EQUIPPED" : "TAP TO EQUIP")
-        : can
-          ? "TAP TO BUY"
-          : deathNeed
-            ? "NEED " + fmtCoins(cost) + " OR DIE " + deathNeed
-            : "NEED " + fmtCoins(cost);
-      b.innerHTML =
-        '<img src="' + s.src + '" alt="" />' +
-        '<span class="skin-name">' + escapeHtml(s.name) + "</span>" +
-        '<span class="shop-cost">' + coinIcon() + fmtCoins(cost) + "</span>" +
-        '<span class="skin-hint">' + escapeHtml(hint) + "</span>";
-      b.addEventListener("click", function () {
-        if (owned) {
-          save_.data.skin = s.id;
-          save();
-          renderShop();
-          renderSkins();
-          syncHomeStats();
-          return;
-        }
-        buyShopSkin(s);
+      const cats = window.DashPointShopSkinCats || [{ id: "misc", label: "MISCELLANEOUS" }];
+      const known = {};
+      cats.forEach(function (c) { known[c.id] = true; });
+      cats.forEach(function (cat) {
+        const group = items.filter(function (s) { return shopSkinCat(s) === cat.id; });
+        if (!group.length) return;
+        const sec = document.createElement("div");
+        sec.className = "skin-section";
+        sec.innerHTML = '<div class="skin-section-title">' + escapeHtml(cat.label) + ' <span class="line"></span></div>';
+        const g = document.createElement("div");
+        g.className = "skin-grid";
+        group.forEach(function (s) { g.appendChild(makeShopSkinTile(s)); });
+        sec.appendChild(g);
+        box.appendChild(sec);
       });
-      box.appendChild(b);
-    });
-  }
+      const leftover = items.filter(function (s) { return !known[shopSkinCat(s)]; });
+      if (leftover.length) {
+        const sec = document.createElement("div");
+        sec.className = "skin-section";
+        sec.innerHTML = '<div class="skin-section-title">MISCELLANEOUS <span class="line"></span></div>';
+        const g = document.createElement("div");
+        g.className = "skin-grid";
+        leftover.forEach(function (s) { g.appendChild(makeShopSkinTile(s)); });
+        sec.appendChild(g);
+        box.appendChild(sec);
+      }
+    }
     renderShopTags();
     renderShopColors();
     renderShopFrames();
