@@ -54,6 +54,7 @@
         <button class="tool" data-tool="html" title="HTML blocks (U)"><span>Html</span><b class="k">U</b></button>
         <button class="tool" data-tool="path" title="Platform path (Y)"><span>Path</span><b class="k">Y</b></button>
         <button class="tool" data-tool="zone" title="Effect zone (X)"><span>Zone</span><b class="k">X</b></button>
+        <button class="tool" data-tool="link" title="Link portals (O)"><span>Link</span><b class="k">O</b></button>
       </div>
 
       <div class="section-title">Tiles</div>
@@ -373,6 +374,12 @@
       <label>Song</label>
       <select id="gSong" class="level-name" style="width:100%; margin-bottom:4px"></select>
       <p class="hint">Plays on a loop in playtest and in the game. Pick No song to stay silent.</p>
+      <label style="margin-top:8px">Mode</label>
+      <div class="chips" id="modeChips">
+        <button class="chip" data-mode="0">PLATFORMER</button>
+        <button class="chip" data-mode="1">AUTO-MOVE</button>
+      </div>
+      <p class="hint">Platformer: run with left/right. Auto-move: the cube runs on its own, you only jump.</p>
 
       <div class="section-title" style="margin-top:14px">Theme</div>
       <div class="chips" id="themeChips"></div>

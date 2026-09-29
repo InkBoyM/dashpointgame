@@ -62,6 +62,14 @@
       "Shop skins are grouped: food, faces, animals, nature, memes, luxury, countries, miscellaneous",
       "New shop skin: isreal in Countries for 100 coins",
     ] },
+    { v: "1.90", title: "Streaks, hide & seek, suspend runs", items: [
+      "Login streaks: 7-day reward calendar with a home chip",
+      "Hide & seek rooms: first seeker, tags, hider invisibility, prizes",
+      "Save & exit mid-level, resume later with the timer intact",
+      "Tower-only minimap that follows you, pause-menu toggle",
+      "#1 crown by names in rooms and on leaderboards",
+      "Shop weather effects, new trails and frames, auto-move editor mode",
+    ] },
     { v: "1.7.0", title: "Admin main levels", items: [
       "Admins can add a network level to the official PLAY list",
       "Admins can replace one official level with another",
@@ -2008,7 +2016,7 @@
           '<button type="button" class="px-btn tiny danger lb-del" data-uid="' + escapeHtml(row.uid) + '" data-name="' + escapeHtml(row.name || "player") + '">REMOVE</button>' +
           "</span>";
       }
-      html += '<div class="lb-row' + (isMe ? " lb-me" : "") + (race ? " lb-race" : "") + (edited ? " lb-edited" : "") + '"' + attr + '><span class="lb-rank">#' + (i + 1) + '</span>' + frameAvatarHtml(row.skin, isMe ? equippedFrameId() : (row.frame || frameForUid(row.uid))) + '<span class="lb-name">' + taggedNameHtml(row.name, row.tag || (isMe ? equippedTagId() : tagIdForUid(row.uid)), isMe ? " (you)" : "", row.nameColor || (isMe ? equippedNameColorId() : nameColorForUid(row.uid))) + '</span><span class="lb-time">' + timeHtml + "</span>" + hint + adminBtns + "</div>";
+      html += '<div class="lb-row' + (isMe ? " lb-me" : "") + (race ? " lb-race" : "") + (edited ? " lb-edited" : "") + '"' + attr + '><span class="lb-rank">#' + (i + 1) + '</span>' + frameAvatarHtml(row.skin, isMe ? equippedFrameId() : (row.frame || frameForUid(row.uid))) + (i === 0 && crownIcon() ? '<img class="lb-crown" src="' + crownIcon() + '" alt="crown" />' : "") + '<span class="lb-name">' + taggedNameHtml(row.name, row.tag || (isMe ? equippedTagId() : tagIdForUid(row.uid)), isMe ? " (you)" : "", row.nameColor || (isMe ? equippedNameColorId() : nameColorForUid(row.uid))) + '</span><span class="lb-time">' + timeHtml + "</span>" + hint + adminBtns + "</div>";
     }
     if (opts.extraRow) html += opts.extraRow;
     box.innerHTML = html;
@@ -2031,6 +2039,33 @@
         });
       });
     }
+  }
+
+  // ---- #1 crown: who holds the top time on this level ----
+  let crownIconCache = "";
+  function crownIcon() {
+    if (crownIconCache) return crownIconCache;
+    try {
+      const cv = document.createElement("canvas");
+      cv.width = 32;
+      cv.height = 32;
+      DP.drawCrownShape(cv.getContext("2d"), 0, 0, 32);
+      crownIconCache = cv.toDataURL("image/png");
+    } catch (e) {}
+    return crownIconCache;
+  }
+  function refreshCrown() {
+    try {
+      if (!MP.isActive() || !state.playing || !state.engine) return;
+      const file = state.currentFile || "";
+      if (!file || !DPNet.getLeaderboard) return;
+      const now = Date.now();
+      if (state.crown && state.crown.file === file && now - (state.crown.at || 0) < 60000) return;
+      DPNet.getLeaderboard(file, 1).then(function (list) {
+        if (!state.playing || (state.currentFile || "") !== file) return;
+        state.crown = { file: file, uid: (list && list[0] && list[0].uid) || "", at: Date.now() };
+      }).catch(function () {});
+    } catch (e) {}
   }
 
   async function fetchLevelLeaderboard(box, entry, opts) {
@@ -2186,7 +2221,7 @@
 
   async function showLeaderboardAfterWin(entry, time){
     var box = el("leaderboardBox");
-    if (!box) return;
+    if (!box) return { list: [], rank: 0 };
     var file = entry.file || entry.id || "unknown";
     try {
       var u = (window.DPNet && DPNet.getUser) ? DPNet.getUser() : null;
@@ -2210,11 +2245,58 @@
       if (u && list.length && !list.find(function (x) { return x.uid === u.uid; }) && !(res && res.rank > 10)) {
         box.insertAdjacentHTML("beforeend", '<div class="lb-row lb-me"><span class="lb-rank">—</span><span class="lb-name">You</span><span class="lb-time">' + fmtTime(time) + "</span></div>");
       }
+      return { list: list, rank: res && res.rank ? res.rank : 0 };
     } catch(e){
       box.innerHTML = '<p class="loading-note">Leaderboard failed: ' + escapeHtml(e.message||String(e)) + '</p>';
+      return { list: [], rank: 0 };
     }
   }
 
+
+
+  // ---- Discord record feed (main levels only) ----
+  const RECORD_WEBHOOK = "https://discord.com/api/webhooks/1553954164709658686/SRIubj3GZmYEZB76aZTUqdh3BzGTA8DauWKi9CiKwmrJwicib3PDK461NynZ6qZAsGa4";
+  const RECORD_BOT_AVATAR = "https://dashpointgame.templateslide.com/assets/skins/skin-35.png";
+  const RECORD_CHAT_WEBHOOK = "https://chat.googleapis.com/v1/spaces/AAQAdzndEeE/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=YbYPaGP4XUGwSTU-nqROm7KnRYgMrI9ijVZWnY3sqQA";
+  function sendRecordWebhook(text) {
+    if (!text) return;
+    const msg = String(text).slice(0, 1500);
+    try {
+      fetch(RECORD_WEBHOOK, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "DashPoint bot", avatar_url: RECORD_BOT_AVATAR, content: msg }),
+      }).catch(function () {});
+    } catch (e) {}
+    try {
+      fetch(RECORD_CHAT_WEBHOOK, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: msg }),
+      }).catch(function () {});
+    } catch (e) {}
+  }
+  function sendRecordFeed(entry, t, firstClear, prevBest, rank) {
+    try {
+      const file = entry.file || "";
+      if (!file || file.indexOf("net:") === 0) return;
+      const u = (window.DPNet && DPNet.getUser) ? DPNet.getUser() : null;
+      if (!u) return;
+      const name = (entry.level && entry.level.name) || "a level";
+      const place = rank > 0 ? "#" + rank : "unranked";
+      let msg = "";
+      if (firstClear) {
+        msg = u.name + " just beat " + name + " for the first time! their current time is " + fmtTime(t) + " and they are in " + place;
+      } else if (rank === 1) {
+        msg = u.name + " just got the 1st place record in " + name + " " + fmtTime(t);
+      } else if (prevBest !== undefined && t < prevBest) {
+        msg = u.name + " got a new record in " + name + ": from " + fmtTime(prevBest) + " to " + fmtTime(t) + ". Their current place is " + place;
+      } else {
+        return;
+      }
+      sendRecordWebhook(msg);
+    } catch (e) {}
+  }
 
 
   const els = {};
@@ -4299,6 +4381,7 @@
       save();
     }
     state.engine = new DP.Engine(entry.level.clone(), { skin: save_.data.skin, trail: equippedTrailId(), pet: equippedPetId() });
+    refreshCrown();
     if (DP.Music) DP.Music.play(entry.level.song);
     state.playing = true;
     state.deaths = 0;
@@ -4346,6 +4429,11 @@
     const meta = entry.meta || null;
     const file = entry.file || "";
     el("introTitle").textContent = (entry.level && entry.level.name) || meta?.title || "LEVEL";
+    try {
+      if (state.engine && state.engine.level && state.engine.level.gameplay && state.engine.level.gameplay.autoMove) {
+        el("introTitle").textContent += " [AUTO]";
+      }
+    } catch (e) {}
     el("introAuthor").textContent = "by " + (meta?.authorName || (entry.level ? "DashPoint" : "?"));
     let tier = 2;
     try {
@@ -4485,6 +4573,7 @@
     state.paused = true;
     syncPracticeUI();
     syncHeatUI();
+    syncMapUI();
     el("pauseCard").classList.add("visible");
   }
 
@@ -4544,6 +4633,7 @@
     const firstClear = save_.data.beaten[entry.file] === undefined;
     save_.data.beaten[entry.file] = true;
     if (save_.data.suspend && save_.data.suspend.file === entry.file) save_.data.suspend = null;
+    const prevBest = save_.data.best[entry.file];
     if (save_.data.best[entry.file] === undefined || t < save_.data.best[entry.file]) {
       save_.data.best[entry.file] = t;
     }
@@ -4560,7 +4650,9 @@
       var ghostToSave = { points: ghostTrail.slice(), time: t, skin: save_.data.skin, name: (window.DPNet && DPNet.getUser && DPNet.getUser() ? DPNet.getUser().name : "player") };
       if (ghostTrail.length) { DPNet.saveGhostLocal(lvlFile, ghostToSave); DPNet.saveGhostCloud(lvlFile, ghostToSave); }
     } catch(e){}
-    try { showLeaderboardAfterWin(entry, t); } catch(e){}
+    try { showLeaderboardAfterWin(entry, t).then(function (lb) {
+      try { sendRecordFeed(entry, t, firstClear, prevBest, lb && lb.rank ? lb.rank : 0); } catch (e) {}
+    }).catch(function () {}); } catch(e){}
     if (firstClear && entry.file === CLIMB_FILE) {
       showNotice("Space mode unlocked — turn it on in Settings!", false);
       syncSpaceSettings();
@@ -4694,6 +4786,102 @@
   function syncHeatUI() {
     const b = el("btnPauseHeat");
     if (b) b.textContent = save_.data.showHeat === true ? "HEATMAP: ON" : "HEATMAP: OFF";
+  }
+
+  // ---- Minimap (tower levels only) ----
+  const MINIMAP_FILES = ["The_Tower_of_Torture.dashpoint.json", "The_Tower_of_Agony.dashpoint.json"];
+  function minimapOn() { return save_.data.minimap !== false; }
+  function isTowerLevel() {
+    const f = state.currentFile || "";
+    return MINIMAP_FILES.some(function (n) { return f === n || f.endsWith("/" + n); });
+  }
+  function toggleMinimap() {
+    save_.data.minimap = !minimapOn();
+    save();
+    showNotice("Minimap " + (minimapOn() ? "ON" : "OFF"), false);
+    syncMapUI();
+  }
+  function syncMapUI() {
+    const b = el("btnPauseMap");
+    if (b) b.textContent = minimapOn() ? "MINIMAP: ON" : "MINIMAP: OFF";
+  }
+  // Square viewport that follows the player (map scrolls as you climb).
+  const MINIMAP_VIEW_TILES = 26;
+  function buildMinimapCache() {
+    const lvl = state.engine && state.engine.level;
+    const cv = el("minimap");
+    if (!lvl || !cv) return null;
+    const key = state.currentFile + "|" + lvl.cols + "x" + lvl.rows;
+    if (state.minimapCache && state.minimapCache.key === key) return state.minimapCache;
+    const s = 150 / (MINIMAP_VIEW_TILES * DP.TILE);
+    const w = Math.max(2, Math.round(lvl.cols * DP.TILE * s));
+    const h = Math.max(2, Math.round(lvl.rows * DP.TILE * s));
+    const off = document.createElement("canvas");
+    off.width = w;
+    off.height = h;
+    const x = off.getContext("2d");
+    x.fillStyle = "rgba(4,8,12,0.9)";
+    x.fillRect(0, 0, w, h);
+    const cw = Math.max(1, Math.ceil(DP.TILE * s));
+    for (let r = 0; r < lvl.rows; r++) {
+      const row = lvl.grid[r];
+      if (!row) continue;
+      for (let c = 0; c < lvl.cols; c++) {
+        const t = row[c];
+        if (!t || !t.id) continue;
+        if (DP.isGoalId && DP.isGoalId(t.id)) x.fillStyle = "#ffd23c";
+        else if ((DP.isSpikeId && DP.isSpikeId(t.id)) || (DP.isSawId && DP.isSawId(t.id))) x.fillStyle = "#ff4d62";
+        else if (DP.isCoinId && DP.isCoinId(t.id)) x.fillStyle = "#ffe45e";
+        else if ((DP.isBrickId && DP.isBrickId(t.id)) || t.id === "grass" || t.id === "ice" || t.id === "mud" || t.id === "platform" || t.id === "slopeL" || t.id === "slopeR" || t.id === "half" || t.id === "halfT") x.fillStyle = "#3b6a8f";
+        else continue;
+        x.fillRect(Math.floor(c * DP.TILE * s), Math.floor(r * DP.TILE * s), cw, cw);
+      }
+    }
+    state.minimapCache = { key: key, cv: off, s: s, w: w, h: h };
+    return state.minimapCache;
+  }
+  function drawMinimap() {
+    const cv = el("minimap");
+    if (!cv) return;
+    if (!minimapOn() || !state.playing || !state.engine || !isTowerLevel()) {
+      cv.classList.add("hidden");
+      return;
+    }
+    const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+    if (state.minimapAt && now - state.minimapAt < 150) return;
+    state.minimapAt = now;
+    const mc = buildMinimapCache();
+    if (!mc) { cv.classList.add("hidden"); return; }
+    cv.classList.remove("hidden");
+    const V = 150;
+    if (cv.width !== V || cv.height !== V) { cv.width = V; cv.height = V; }
+    const x = cv.getContext("2d");
+    x.imageSmoothingEnabled = false;
+    x.fillStyle = "rgba(4,8,12,0.9)";
+    x.fillRect(0, 0, V, V);
+    const pl = state.engine.player;
+    const ccx = (pl.x + pl.w / 2) * mc.s, ccy = (pl.y + pl.h / 2) * mc.s;
+    let sx = Math.round(ccx - V / 2), sy = Math.round(ccy - V / 2);
+    let dx = 0, dy = 0, sw = V, sh = V;
+    if (mc.w <= V) { sx = 0; sw = mc.w; dx = Math.round((V - mc.w) / 2); }
+    else sx = Math.max(0, Math.min(mc.w - V, sx));
+    if (mc.h <= V) { sy = 0; sh = mc.h; dy = Math.round((V - mc.h) / 2); }
+    else sy = Math.max(0, Math.min(mc.h - V, sy));
+    x.drawImage(mc.cv, sx, sy, sw, sh, dx, dy, sw, sh);
+    const dot = function (wx, wy, color, size) {
+      const px = Math.round(wx * mc.s) - sx + dx;
+      const py = Math.round(wy * mc.s) - sy + dy;
+      if (px < -4 || py < -4 || px > V + 4 || py > V + 4) return;
+      x.fillStyle = color;
+      const s2 = size || 3;
+      x.fillRect(px - (s2 >> 1), py - (s2 >> 1), s2, s2);
+    };
+    try {
+      for (const p of MP.peers()) {
+        if (p.cube && p.level === state.currentFile && !p.cube.dead) dot(p.cube.x, p.cube.y, "#2ee6ff", 3);
+      }
+    } catch (e) {}
+    dot(pl.x + pl.w / 2, pl.y + pl.h / 2, "#ffffff", 4);
   }
 
   // ---- Playtime tracking ----
@@ -5249,6 +5437,7 @@
     tickShake(dt);
     trackPlaytime(dt);
     setStatusHud();
+    try { drawMinimap(); } catch (e) {}
 
     if (MP.isActive() && state.engine) {
       MP.sendCube({
@@ -5266,6 +5455,7 @@
     }
 
     let remoteCubes = null;
+    refreshCrown();
     if (MP.isActive()) {
       remoteCubes = [];
       for (const p of MP.peers()) {
@@ -5299,6 +5489,8 @@
         remoteCubes.push({ x: gpos.x, y: gpos.y, rot: gpos.rot, skin: gpos.skin, name: "Ghost", level: state.currentFile, ghost: true, alpha: ghostOpacityPct() / 100 });
       }
     }
+    // Sprites may still be loading (e.g. deep-link boot): don't paint until ready.
+    if (state.images) {
 DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       showGrid: false,
       showHover: false,
@@ -5315,7 +5507,9 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       customBg: customBgImg,
       weather: equippedFxId(),
       customBgBlur: bgBlurPx(),
+      crownUid: (state.crown && state.crown.file === state.currentFile) ? state.crown.uid : "",
     });
+    }
     try {
       if (gfxMode() === "simple") DP.syncWidgetDom(el("widgetLayer"), [], null);
       else DP.syncWidgetDom(el("widgetLayer"), state.engine.level.widgets, shakeCam());
@@ -5758,7 +5952,12 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     row.appendChild(like);
     row.appendChild(play);
     row.appendChild(makeDownloadBtn(function () { downloadNetworkLevel(meta); }));
-    const optItems = [];
+    const optItems = [
+      {
+        label: "COPY LINK",
+        onClick: function () { copyLevelLink(meta); },
+      },
+    ];
     try {
       if (isMyLevel(meta)) {
         optItems.push({
@@ -7208,6 +7407,64 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     beginPlay(entry);
   }
 
+  // ---- Public level links: ?level=ID plays for anyone, even logged out ----
+  function levelShareUrl(id) {
+    return location.origin + location.pathname + "?level=" + encodeURIComponent(id);
+  }
+  function fallbackCopy(text) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    try { document.body.removeChild(ta); } catch (e) {}
+  }
+  function copyLevelLink(meta) {
+    if (!meta || !meta.id) return;
+    const url = levelShareUrl(meta.id);
+    const done = function () { showNotice("Link copied — anyone can play it, no login needed", false); };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(done, function () { fallbackCopy(url); done(); });
+      } else {
+        fallbackCopy(url);
+        done();
+      }
+    } catch (e) {
+      try { fallbackCopy(url); } catch (e2) {}
+      done();
+    }
+  }
+  async function playNetworkLevelById(id) {
+    id = String(id || "").trim();
+    if (!id) return;
+    let meta = null;
+    try {
+      if (!levelIndexCache) levelIndexCache = await NET.loadLevelIndex();
+      meta = (levelIndexCache || []).find(function (l) { return l.id === id; }) || null;
+    } catch (e) {}
+    await playNetworkLevel(meta || { id: id, title: "Shared level" }, false);
+  }
+  async function playSharedLevel(id) {
+    id = String(id || "").trim();
+    if (!id) return;
+    // A fresh deep-link visit can beat the sprite loader: wait for it.
+    try {
+      for (let i = 0; i < 100 && !state.images; i++) await new Promise(function (r) { setTimeout(r, 150); });
+    } catch (e) {}
+    if (!state.images) { showNotice("Still loading — try the link again in a moment", true); return; }
+    let ok = false;
+    try { await NET.fetchLevel(id); ok = true; } catch (err) {}
+    if (!ok) {
+      // Maybe the list is login-gated: one silent guest login, then retry.
+      try { if (MP.loginGuest) await MP.loginGuest(); } catch (e) {}
+      try { await NET.fetchLevel(id); ok = true; } catch (err2) {}
+    }
+    if (!ok) { showNotice("Couldn't load that level", true); return; }
+    try { await playNetworkLevelById(id); }
+    catch (err3) { showNotice("Couldn't load that level", true); }
+  }
+
   function syncAuthorChip() {
     const chip = el("hudAuthor");
     const m = state.currentMeta;
@@ -7542,6 +7799,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnPauseSlow").addEventListener("click", toggleSlowmo);
     el("btnPauseHns").addEventListener("click", () => { hnsToggle(); syncPracticeUI(); });
     el("btnPauseHeat").addEventListener("click", toggleHeat);
+    el("btnPauseMap").addEventListener("click", toggleMinimap);
     el("hudPractice").addEventListener("click", () => {
       if (state.practice && state.playing && !state.paused) placePracticeCheckpoint();
     });
@@ -7995,6 +8253,10 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     show("home");
     maybeStartTour();
     if (!tourOn) maybeShowStreak();
+    try {
+      const shared = new URLSearchParams(window.location.search).get("level");
+      if (shared) setTimeout(function () { try { playSharedLevel(shared); } catch (e) {} }, 1500);
+    } catch (e) {}
     requestAnimationFrame(frame);
     setTimeout(function () { try { checkBell(); } catch (e) {} }, 12000);
     // Presence heartbeat: refresh what-I'm-playing every minute so friends

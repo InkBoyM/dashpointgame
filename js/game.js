@@ -207,6 +207,7 @@
     coyoteMs: 90,
     bufferMs: 120,
     jumpCut: 0.42,
+    autoMove: 0,
   };
 
   const DEFAULT_KEYBINDS = {
@@ -921,6 +922,26 @@
       .slice(0, 64);
   }
 
+  // Portal pairs: explicit A<->B links so levels can have many independent
+  // combinations. Endpoints without a pair fall back to nearest-opposite.
+  function sanitizePortals(raw) {
+    if (!Array.isArray(raw)) return [];
+    const pt = (o) => {
+      if (!o || typeof o !== "object") return null;
+      return { c: o.c | 0, r: o.r | 0 };
+    };
+    return raw
+      .map((t) => {
+        if (!t || typeof t !== "object") return null;
+        const a = pt(t.a), b = pt(t.b);
+        if (!a || !b) return null;
+        if (a.c === b.c && a.r === b.r) return null;
+        return { a: a, b: b };
+      })
+      .filter(Boolean)
+      .slice(0, 32);
+  }
+
   const SONGS = [
     { id: "", name: "No song", file: "" },
     { id: "ugh-pico", name: "Ugh Pico Mix", file: "ugh-pico.m4a" },
@@ -1596,6 +1617,7 @@
       this.triggers = sanitizeTriggers(opts.triggers);
       this.platforms = sanitizePlatforms(opts.platforms);
       this.zones = sanitizeZones(opts.zones);
+      this.portals = sanitizePortals(opts.portals);
       this.song = sanitizeSong(opts.song);
       this.meta = Object.assign(
         {
@@ -1744,6 +1766,10 @@
         t.r += shiftR;
       });
       this.zones = (this.zones || []).filter((t) => this.inBounds(t.c, t.r));
+      const movePt = (p) => ({ c: p.c + shiftC, r: p.r + shiftR });
+      this.portals = (this.portals || [])
+        .map((pr) => ({ a: movePt(pr.a), b: movePt(pr.b) }))
+        .filter((pr) => this.inBounds(pr.a.c, pr.a.r) && this.inBounds(pr.b.c, pr.b.r));
       return {
         left: shiftC,
         right: actualRight,
@@ -1800,6 +1826,7 @@
         triggers: JSON.parse(JSON.stringify(this.triggers)),
         platforms: JSON.parse(JSON.stringify(this.platforms || [])),
         zones: JSON.parse(JSON.stringify(this.zones || [])),
+        portals: JSON.parse(JSON.stringify(this.portals || [])),
         song: this.song || "",
         theme: Object.assign({}, this.theme),
         meta: Object.assign({}, this.meta, { updatedAt: new Date().toISOString() }),
@@ -1832,6 +1859,7 @@
         triggers: data.triggers,
         platforms: data.platforms,
         zones: data.zones,
+        portals: data.portals,
         song: data.song,
       });
       const tiles = Array.isArray(data.tiles) ? data.tiles : [];
@@ -2679,8 +2707,27 @@
         }
       }
       if (!touched) return;
-      const want = touched.tile.id === "portalA" ? "portalB" : "portalA";
+      // Explicit pair first (stale endpoints are ignored); otherwise the
+      // legacy behavior: nearest opposite portal wins.
       let best = null;
+      const atCell = (c, r) => {
+        const t = this.level.get(c, r);
+        return t && isPortalId(t.id) ? t : null;
+      };
+      if (!atCell(touched.c, touched.r)) return;
+      for (const pr of this.level.portals || []) {
+        if (!pr) continue;
+        let other = null;
+        if (pr.a && pr.a.c === touched.c && pr.a.r === touched.r) other = pr.b;
+        else if (pr.b && pr.b.c === touched.c && pr.b.r === touched.r) other = pr.a;
+        if (other) {
+          const ot = atCell(other.c, other.r);
+          if (ot) best = { c: other.c, r: other.r, tile: ot };
+          break;
+        }
+      }
+      if (!best) {
+      const want = touched.tile.id === "portalA" ? "portalB" : "portalA";
       let bestD = Infinity;
       this.level.forEachTile((t, c, r) => {
         if (t.id !== want) return;
@@ -2691,6 +2738,7 @@
           best = { c: c, r: r, tile: t };
         }
       });
+      }
       if (!best) return;
       p.x = best.c * TILE + tileOx(best.tile) + (TILE - p.w) / 2;
       p.y = best.r * TILE + tileOy(best.tile) + (TILE - p.h) / 2;
@@ -2813,6 +2861,7 @@
       let wish = 0;
       if (this.input.left) wish -= 1;
       if (this.input.right) wish += 1;
+      if (g.autoMove) wish = 1; // auto-move mode: always run right, you only jump
       if (wish !== 0) p.facing = wish;
 
       const accel = p.onGround ? g.accel : g.airAccel;
@@ -4219,6 +4268,39 @@
     }
   }
 
+  // Vector crown for the current #1 holder: no asset file, same art in
+  // the world (canvas) and on leaderboard rows (via data URL).
+  function drawCrownShape(ctx, x, y, s) {
+    const u = s / 32;
+    const tri = (ax, ay, x0, x1, yb) => {
+      ctx.beginPath();
+      ctx.moveTo(x + ax * u, y + ay * u);
+      ctx.lineTo(x + x0 * u, y + yb * u);
+      ctx.lineTo(x + x1 * u, y + yb * u);
+      ctx.closePath();
+    };
+    // black underlay = outline
+    ctx.fillStyle = "#0a0f1e";
+    ctx.fillRect(x + 6 * u, y + 19 * u, 20 * u, 6 * u);
+    tri(9, 7.5, 5.5, 12.5, 20.5); ctx.fill();
+    tri(16, 3.5, 11.5, 20.5, 20.5); ctx.fill();
+    tri(23, 7.5, 19.5, 26.5, 20.5); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 16 * u, y + 22.5 * u, 2.4 * u, 0, 6.2832); ctx.fill();
+    // gold faces
+    ctx.fillStyle = "#ffd23c";
+    ctx.fillRect(x + 7 * u, y + 20 * u, 18 * u, 4 * u);
+    tri(9, 9, 6.5, 11.5, 20); ctx.fill();
+    tri(16, 5, 12.5, 19.5, 20); ctx.fill();
+    tri(23, 9, 20.5, 25.5, 20); ctx.fill();
+    // shade + gem + shine
+    ctx.fillStyle = "rgba(0,0,0,0.22)";
+    ctx.fillRect(x + 18 * u, y + 20 * u, 7 * u, 4 * u);
+    ctx.fillStyle = "#ff3b3b";
+    ctx.beginPath(); ctx.arc(x + 16 * u, y + 22 * u, 1.7 * u, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(x + 9.5 * u, y + 12 * u, 1.6 * u, 5 * u);
+  }
+
   function drawWorld(ctx, level, images, cam, extras) {
     extras = extras || {};
     const gfx = extras.graphics === "good" || extras.graphics === "simple" || extras.graphics === "dlls5" || extras.graphics === "ultra" || extras.graphics === "drawing" || extras.graphics === "revamped" || extras.graphics === "neon" ? extras.graphics : "normal";
@@ -4598,15 +4680,19 @@
           const nameW = ctx.measureText(rc.name).width;
           const gap = tagTxt ? ctx.measureText(" ").width : 0;
           const tagW = tagTxt ? ctx.measureText(tagTxt).width : 0;
-          const x0 = rdx + TILE / 2 - (nameW + gap + tagW) / 2;
+          const hasCrown = !!(rc.uid && extras.crownUid && rc.uid === extras.crownUid);
+          const crownW = hasCrown ? 18 : 0;
+          const x0 = rdx + TILE / 2 - (nameW + gap + tagW + crownW) / 2;
           const ny = rdy - 6;
-          ctx.strokeText(rc.name, x0, ny);
+          const nx = x0 + crownW;
+          if (hasCrown) drawCrownShape(ctx, x0, ny - 13, 14);
+          ctx.strokeText(rc.name, nx, ny);
           ctx.fillStyle = rc.dead ? "#7f93b0" : (rc.nameColor || "#ffd23c");
-          ctx.fillText(rc.name, x0, ny);
+          ctx.fillText(rc.name, nx, ny);
           if (tagTxt) {
-            ctx.strokeText(tagTxt, x0 + nameW + gap, ny);
+            ctx.strokeText(tagTxt, nx + nameW + gap, ny);
             ctx.fillStyle = rc.dead ? "#7f93b0" : (rc.tagColor || "#ffd23c");
-            ctx.fillText(tagTxt, x0 + nameW + gap, ny);
+            ctx.fillText(tagTxt, nx + nameW + gap, ny);
           }
           ctx.textAlign = "start";
           ctx.restore();
@@ -4792,6 +4878,7 @@
     slopeSurfaceY,
     ZONE_KINDS,
     sanitizeZones,
+    sanitizePortals,
     isFakeId,
     isInvisibleId,
     isCoinId,
@@ -4827,6 +4914,7 @@
     Level,
     Engine,
     drawWorld,
+    drawCrownShape,
     drawTile,
     drawTiledBg,
     drawZones,

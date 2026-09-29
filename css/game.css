@@ -690,6 +690,7 @@ body.joystick #joystick { display: block; }
 .leaderboard-full { max-height: min(50vh, 360px); }
 .leaderboard .lb-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--panel); border: 2px solid var(--ink-dark); margin-bottom: 4px; font-size: 12px; }
 .leaderboard .lb-rank { width: 28px; text-align: center; font-weight: 900; color: var(--gold); }
+.leaderboard .lb-crown, .lb-crown { width: 16px; height: 16px; image-rendering: pixelated; }
 .leaderboard .lb-name { flex: 1; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .leaderboard .lb-time { color: var(--good); font-weight: 900; }
 .leaderboard .lb-changed { margin-left: 6px; font-size: 9px; font-weight: 900; letter-spacing: 1px; color: var(--gold); }
@@ -704,6 +705,17 @@ body.joystick #joystick { display: block; }
 .leaderboard .lb-title { font-size: 10px; letter-spacing: 1px; color: var(--muted); text-align: center; margin-bottom: 6px; }
 .ghost-countdown { position: absolute; inset: 0; display: grid; place-items: center; font-size: 88px; font-weight: 900; color: var(--gold); text-shadow: 5px 5px 0 rgba(0,0,0,0.7); background: rgba(5,8,13,0.55); z-index: 6; }
 .ghost-countdown.hidden { display: none !important; }
+.minimap {
+  position: fixed;
+  top: 64px;
+  right: 10px;
+  z-index: 15;
+  border: 3px solid var(--ink-dark);
+  background: rgba(4, 8, 12, 0.8);
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+.minimap.hidden { display: none !important; }
 
 /* ---------- MODALS ---------- */
 .modal-root {

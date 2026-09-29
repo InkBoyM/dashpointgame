@@ -190,6 +190,7 @@
     coyoteMs: 90,
     bufferMs: 120,
     jumpCut: 0.42,
+    autoMove: 0,
   };
 
   const DEFAULT_KEYBINDS = {
@@ -904,6 +905,26 @@
       .slice(0, 64);
   }
 
+  // Portal pairs: explicit A<->B links so levels can have many independent
+  // combinations. Endpoints without a pair fall back to nearest-opposite.
+  function sanitizePortals(raw) {
+    if (!Array.isArray(raw)) return [];
+    const pt = (o) => {
+      if (!o || typeof o !== "object") return null;
+      return { c: o.c | 0, r: o.r | 0 };
+    };
+    return raw
+      .map((t) => {
+        if (!t || typeof t !== "object") return null;
+        const a = pt(t.a), b = pt(t.b);
+        if (!a || !b) return null;
+        if (a.c === b.c && a.r === b.r) return null;
+        return { a: a, b: b };
+      })
+      .filter(Boolean)
+      .slice(0, 32);
+  }
+
   const SONGS = [
     { id: "", name: "No song", file: "" },
     { id: "ugh-pico", name: "Ugh Pico Mix", file: "ugh-pico.m4a" },
@@ -1579,6 +1600,7 @@
       this.triggers = sanitizeTriggers(opts.triggers);
       this.platforms = sanitizePlatforms(opts.platforms);
       this.zones = sanitizeZones(opts.zones);
+      this.portals = sanitizePortals(opts.portals);
       this.song = sanitizeSong(opts.song);
       this.meta = Object.assign(
         {
@@ -1727,6 +1749,10 @@
         t.r += shiftR;
       });
       this.zones = (this.zones || []).filter((t) => this.inBounds(t.c, t.r));
+      const movePt = (p) => ({ c: p.c + shiftC, r: p.r + shiftR });
+      this.portals = (this.portals || [])
+        .map((pr) => ({ a: movePt(pr.a), b: movePt(pr.b) }))
+        .filter((pr) => this.inBounds(pr.a.c, pr.a.r) && this.inBounds(pr.b.c, pr.b.r));
       return {
         left: shiftC,
         right: actualRight,
@@ -1783,6 +1809,7 @@
         triggers: JSON.parse(JSON.stringify(this.triggers)),
         platforms: JSON.parse(JSON.stringify(this.platforms || [])),
         zones: JSON.parse(JSON.stringify(this.zones || [])),
+        portals: JSON.parse(JSON.stringify(this.portals || [])),
         song: this.song || "",
         theme: Object.assign({}, this.theme),
         meta: Object.assign({}, this.meta, { updatedAt: new Date().toISOString() }),
@@ -1815,6 +1842,7 @@
         triggers: data.triggers,
         platforms: data.platforms,
         zones: data.zones,
+        portals: data.portals,
         song: data.song,
       });
       const tiles = Array.isArray(data.tiles) ? data.tiles : [];
@@ -2649,8 +2677,27 @@
         }
       }
       if (!touched) return;
-      const want = touched.tile.id === "portalA" ? "portalB" : "portalA";
+      // Explicit pair first (stale endpoints are ignored); otherwise the
+      // legacy behavior: nearest opposite portal wins.
       let best = null;
+      const atCell = (c, r) => {
+        const t = this.level.get(c, r);
+        return t && isPortalId(t.id) ? t : null;
+      };
+      if (!atCell(touched.c, touched.r)) return;
+      for (const pr of this.level.portals || []) {
+        if (!pr) continue;
+        let other = null;
+        if (pr.a && pr.a.c === touched.c && pr.a.r === touched.r) other = pr.b;
+        else if (pr.b && pr.b.c === touched.c && pr.b.r === touched.r) other = pr.a;
+        if (other) {
+          const ot = atCell(other.c, other.r);
+          if (ot) best = { c: other.c, r: other.r, tile: ot };
+          break;
+        }
+      }
+      if (!best) {
+      const want = touched.tile.id === "portalA" ? "portalB" : "portalA";
       let bestD = Infinity;
       this.level.forEachTile((t, c, r) => {
         if (t.id !== want) return;
@@ -2661,6 +2708,7 @@
           best = { c: c, r: r, tile: t };
         }
       });
+      }
       if (!best) return;
       p.x = best.c * TILE + tileOx(best.tile) + (TILE - p.w) / 2;
       p.y = best.r * TILE + tileOy(best.tile) + (TILE - p.h) / 2;
@@ -2781,6 +2829,7 @@
       let wish = 0;
       if (this.input.left) wish -= 1;
       if (this.input.right) wish += 1;
+      if (g.autoMove) wish = 1; // auto-move mode: always run right, you only jump
       if (wish !== 0) p.facing = wish;
 
       const accel = p.onGround ? g.accel : g.airAccel;
@@ -4653,6 +4702,7 @@
     slopeSurfaceY,
     ZONE_KINDS,
     sanitizeZones,
+    sanitizePortals,
     isFakeId,
     isInvisibleId,
     isCoinId,
