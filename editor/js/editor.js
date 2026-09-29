@@ -277,6 +277,7 @@
     stroke: null,
     selection: null,
     pathSel: null,
+    linkSel: null,
     zoneKind: "windR",
     zonePower: 2,
     zoneDrag: null,
@@ -1056,6 +1057,7 @@
     html: "Click a block to move it, right-click for layer options",
     path: "Click a platform or saw, then click tiles to add stops (right-click removes)",
     zone: "Drag to paint an effect zone (right-click a zone deletes it)",
+    link: "Click a portal, then its partner to link them (right-click unlinks)",
   };
 
   function syncToolHint() {
@@ -1428,6 +1430,92 @@
         ctx.textBaseline = "middle";
         ctx.fillText(String(i + 1), pts[i][0], pts[i][1]);
       }
+    }
+    ctx.restore();
+  }
+
+  // ---- Portal links (Link tool) ----
+  function portalAt(c, r) {
+    const t = state.level.get(c, r);
+    return t && (t.id === "portalA" || t.id === "portalB") ? t : null;
+  }
+  function pairAt(c, r) {
+    const list = state.level.portals || [];
+    for (let i = 0; i < list.length; i++) {
+      const pr = list[i];
+      if (!pr) continue;
+      if ((pr.a && pr.a.c === c && pr.a.r === r) || (pr.b && pr.b.c === c && pr.b.r === r)) return i;
+    }
+    return -1;
+  }
+  function linkClick(cell, ev) {
+    if (ev.button === 2 || ev.button === "right") {
+      const i = cell.inside ? pairAt(cell.c, cell.r) : -1;
+      if (i < 0) { setStatus("Link: no portal pair here"); return true; }
+      pushUndo();
+      state.level.portals.splice(i, 1);
+      state.linkSel = null;
+      markDirty(true);
+      setStatus("Portal pair unlinked");
+      return true;
+    }
+    if (!cell.inside) { setStatus("Link: click a portal tile"); return true; }
+    if (!portalAt(cell.c, cell.r)) { setStatus("Link: click a portalA or portalB tile"); return true; }
+    if (!state.linkSel) {
+      if (pairAt(cell.c, cell.r) >= 0) setStatus("That portal is linked — right-click to unlink, or click another portal to re-link");
+      state.linkSel = { c: cell.c, r: cell.r };
+      setStatus("Link start set — click the partner portal");
+      return true;
+    }
+    if (state.linkSel.c === cell.c && state.linkSel.r === cell.r) {
+      state.linkSel = null;
+      setStatus("Link cancelled");
+      return true;
+    }
+    pushUndo();
+    state.level.portals = state.level.portals || [];
+    const s = state.linkSel;
+    state.level.portals = state.level.portals.filter((pr) => {
+      const hit = (p) => p && ((p.c === s.c && p.r === s.r) || (p.c === cell.c && p.r === cell.r));
+      return !(hit(pr.a) || hit(pr.b));
+    });
+    state.level.portals.push({ a: { c: s.c, r: s.r }, b: { c: cell.c, r: cell.r } });
+    state.linkSel = null;
+    markDirty(true);
+    setStatus("Portals linked (" + state.level.portals.length + " pairs)");
+    return true;
+  }
+  function drawPortalOverlay() {
+    const list = state.level.portals || [];
+    if (!list.length && !state.linkSel) return;
+    const S = TILE;
+    ctx.save();
+    ctx.scale(state.cam.zoom, state.cam.zoom);
+    ctx.translate(-state.cam.x, -state.cam.y);
+    ctx.lineWidth = 2 / state.cam.zoom;
+    let n = 0;
+    for (const pr of list) {
+      if (!pr || !pr.a || !pr.b) continue;
+      if (!portalAt(pr.a.c, pr.a.r) || !portalAt(pr.b.c, pr.b.r)) continue;
+      n++;
+      const ax = pr.a.c * S + S / 2, ay = pr.a.r * S + S / 2;
+      const bx = pr.b.c * S + S / 2, by = pr.b.r * S + S / 2;
+      ctx.strokeStyle = "rgba(180,92,255,0.85)";
+      try { ctx.setLineDash([6 / state.cam.zoom, 4 / state.cam.zoom]); } catch (e) {}
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+      try { ctx.setLineDash([]); } catch (e) {}
+      ctx.fillStyle = "#b45cff";
+      ctx.font = "bold " + Math.max(10, 12 / state.cam.zoom) + "px Consolas, monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(String(n), (ax + bx) / 2, (ay + by) / 2 - 8);
+    }
+    if (state.linkSel) {
+      ctx.strokeStyle = "#ffd23c";
+      ctx.strokeRect(state.linkSel.c * S + 1, state.linkSel.r * S + 1, S - 2, S - 2);
     }
     ctx.restore();
   }
@@ -2003,6 +2091,10 @@
     }
     if (state.tool === "path") {
       pathClick(cell, ev);
+      return;
+    }
+    if (state.tool === "link") {
+      linkClick(cell, ev);
       return;
     }
     if (state.tool === "zone") {
@@ -2731,6 +2823,7 @@
     drawWidgetChrome(ctx);
     if (!state.playing) drawPathOverlay();
     if (!state.playing) drawZoneOverlay();
+    if (!state.playing) drawPortalOverlay();
     if (!state.playing && window.DashPointCoop) {
       try { window.DashPointCoop.draw(ctx); } catch (e) {}
     }
@@ -3127,6 +3220,7 @@
     if (ev.code === "KeyU") setTool("html");
     if (ev.code === "KeyY") setTool("path");
     if (ev.code === "KeyX") setTool("zone");
+    if (ev.code === "KeyO") setTool("link");
     if (ev.code === "Slash" && !ev.shiftKey) {
       ev.preventDefault();
       const s = document.getElementById("tileSearch");
