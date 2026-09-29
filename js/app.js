@@ -5454,6 +5454,8 @@
         remoteCubes.push({ x: gpos.x, y: gpos.y, rot: gpos.rot, skin: gpos.skin, name: "Ghost", level: state.currentFile, ghost: true, alpha: ghostOpacityPct() / 100 });
       }
     }
+    // Sprites may still be loading (e.g. deep-link boot): don't paint until ready.
+    if (state.images) {
 DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       showGrid: false,
       showHover: false,
@@ -5472,6 +5474,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       customBgBlur: bgBlurPx(),
       crownUid: (state.crown && state.crown.file === state.currentFile) ? state.crown.uid : "",
     });
+    }
     try {
       if (gfxMode() === "simple") DP.syncWidgetDom(el("widgetLayer"), [], null);
       else DP.syncWidgetDom(el("widgetLayer"), state.engine.level.widgets, shakeCam());
@@ -7410,6 +7413,11 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
   async function playSharedLevel(id) {
     id = String(id || "").trim();
     if (!id) return;
+    // A fresh deep-link visit can beat the sprite loader: wait for it.
+    try {
+      for (let i = 0; i < 100 && !state.images; i++) await new Promise(function (r) { setTimeout(r, 150); });
+    } catch (e) {}
+    if (!state.images) { showNotice("Still loading — try the link again in a moment", true); return; }
     let ok = false;
     try { await NET.fetchLevel(id); ok = true; } catch (err) {}
     if (!ok) {
