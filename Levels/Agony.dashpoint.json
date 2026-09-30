@@ -4067,7 +4067,7 @@
       "scale": 2
     }
   ],
-  "gameplay": {
+  "song": "agony", "gameplay": {
     "moveSpeed": 320,
     "accel": 2800,
     "friction": 2400,

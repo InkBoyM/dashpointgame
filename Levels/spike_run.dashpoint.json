@@ -2330,7 +2330,7 @@
     }
   ],
   "texts": [],
-  "gameplay": {
+  "song": "spike", "gameplay": {
     "moveSpeed": 320,
     "accel": 2800,
     "friction": 2400,

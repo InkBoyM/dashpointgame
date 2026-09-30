@@ -946,10 +946,165 @@
       .slice(0, 32);
   }
 
+  function midiHz(m) {
+    return 440 * Math.pow(2, (m - 69) / 12);
+  }
+  // Chiptune sequencer: square lead + triangle bass + noise hats, all
+  // synthesized, loops seamlessly. Songs are tiny note tables, [midi, beats].
+  const ChipTune = {
+    ctx: null,
+    master: null,
+    noiseBuf: null,
+    timer: null,
+    song: null,
+    li: 0,
+    bi: 0,
+    lLeft: 0,
+    bLeft: 0,
+    half: 0,
+    nextT: 0,
+    ensure() {
+      if (!this.ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return false;
+        this.ctx = new AC();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = 0.5;
+        this.master.connect(this.ctx.destination);
+        const len = Math.max(1, Math.floor(this.ctx.sampleRate * 0.08));
+        this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+        const d = this.noiseBuf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      }
+      if (this.ctx.state === "suspended") {
+        try {
+          const pr = this.ctx.resume();
+          if (pr && pr.catch) pr.catch(function () {});
+        } catch (e) {}
+      }
+      return true;
+    },
+    play(song) {
+      this.stop();
+      if (!song) return;
+      let ok = false;
+      try { ok = this.ensure(); } catch (e) { ok = false; }
+      if (!ok) return;
+      this.song = song;
+      this.li = 0;
+      this.bi = 0;
+      this.lLeft = 0;
+      this.bLeft = 0;
+      this.half = 0;
+      this.nextT = this.ctx.currentTime + 0.08;
+      const self = this;
+      this.timer = setInterval(function () {
+        try { self.schedule(); } catch (e) {}
+      }, 40);
+    },
+    stop() {
+      if (this.timer) {
+        try { clearInterval(this.timer); } catch (e) {}
+        this.timer = null;
+      }
+      this.song = null;
+    },
+    note(midi, t, dur, type, vol) {
+      const o = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      o.type = type;
+      o.frequency.value = midiHz(midi);
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g);
+      g.connect(this.master);
+      o.start(t);
+      o.stop(t + dur + 0.03);
+    },
+    hat(t) {
+      const s = this.ctx.createBufferSource();
+      s.buffer = this.noiseBuf;
+      const hp = this.ctx.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 6000;
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0.045, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+      s.connect(hp);
+      hp.connect(g);
+      g.connect(this.master);
+      s.start(t);
+      s.stop(t + 0.07);
+    },
+    schedule() {
+      if (!this.song || !this.ctx) return;
+      const spb = 60 / this.song.bpm;
+      let guard = 0;
+      while (this.nextT < this.ctx.currentTime + 0.18 && guard++ < 32) {
+        const t = this.nextT;
+        if (this.lLeft <= 0) {
+          const n = this.song.lead[this.li % this.song.lead.length];
+          if (n && n[0] > 0) this.note(n[0], t, Math.min(n[1], 1.5) * spb * 0.9, "square", 0.11);
+          this.lLeft = n ? n[1] : 1;
+          this.li++;
+        }
+        if (this.bLeft <= 0) {
+          const n = this.song.bass[this.bi % this.song.bass.length];
+          if (n && n[0] > 0) this.note(n[0], t, Math.min(n[1], 1.5) * spb * 0.9, "triangle", 0.14);
+          this.bLeft = n ? n[1] : 1;
+          this.bi++;
+        }
+        if (this.song.hats && this.half % 2 === 1) {
+          try { this.hat(t); } catch (e) {}
+        }
+        this.half++;
+        this.lLeft -= 0.5;
+        this.bLeft -= 0.5;
+        this.nextT += spb / 2;
+      }
+    },
+  };
+
   const SONGS = [
     { id: "", name: "No song", file: "" },
     { id: "ugh-pico", name: "Ugh Pico Mix", file: "ugh-pico.m4a" },
     { id: "bro", name: "Bro", file: "bro.m4a" },
+    { id: "welcome", name: "Welcome Bounce", chip: { bpm: 132, hats: true,
+      lead: [[72,1],[76,1],[79,1],[76,1],[81,1],[79,1],[76,1],[72,1]],
+      bass: [[48,1],[48,1],[43,1],[43,1],[45,1],[45,1],[43,1],[43,1]] } },
+    { id: "hill", name: "Hill Roll", chip: { bpm: 120, hats: false,
+      lead: [[67,1],[69,1],[71,1],[74,1],[71,1],[69,1],[67,1],[64,1]],
+      bass: [[43,1],[43,1],[50,1],[50,1],[48,1],[48,1],[43,1],[43,1]] } },
+    { id: "orb", name: "Orb Drive", chip: { bpm: 150, hats: true,
+      lead: [[76,1],[76,1],[79,1],[76,1],[81,1],[81,1],[79,1],[78,1]],
+      bass: [[40,1],[40,1],[40,1],[40,1],[43,1],[43,1],[45,1],[45,1]] } },
+    { id: "spike", name: "Spike Wire", chip: { bpm: 140, hats: true,
+      lead: [[76,1],[77,1],[78,1],[79,1],[80,1],[81,1],[80,1],[79,1]],
+      bass: [[40,1],[40,1],[40,1],[40,1],[41,1],[41,1],[42,1],[42,1]] } },
+    { id: "cool", name: "Cool Pockets", chip: { bpm: 100, hats: false,
+      lead: [[69,1],[72,1],[76,1],[74,1],[72,1],[71,1],[69,1],[67,1]],
+      bass: [[45,1],[45,1],[41,1],[41,1],[48,1],[48,1],[43,1],[43,1]] } },
+    { id: "rush", name: "Rush Hour", chip: { bpm: 160, hats: true,
+      lead: [[76,1],[79,1],[81,1],[83,1],[81,1],[79,1],[81,1],[79,1]],
+      bass: [[40,1],[40,1],[40,1],[40,1],[45,1],[45,1],[47,1],[47,1]] } },
+    { id: "tunnel", name: "Tunnel Echo", chip: { bpm: 90, hats: false,
+      lead: [[74,1],[0,1],[69,1],[0,1],[65,1],[0,1],[64,1],[0,1]],
+      bass: [[50,1],[50,1],[45,1],[45,1],[43,1],[43,1],[45,1],[45,1]] } },
+    { id: "climb", name: "Climb High", chip: { bpm: 126, hats: true,
+      lead: [[72,1],[74,1],[76,1],[79,1],[81,1],[79,1],[76,1],[74,1]],
+      bass: [[48,1],[48,1],[53,1],[53,1],[43,1],[43,1],[48,1],[48,1]] } },
+    { id: "agony", name: "Agony Grind", chip: { bpm: 84, hats: false,
+      lead: [[76,2],[74,1],[72,1],[81,2],[79,1],[76,1]],
+      bass: [[40,2],[40,2],[48,1],[48,1],[50,1],[50,1]] } },
+    { id: "torture", name: "Torture Tempo", chip: { bpm: 168, hats: true,
+      lead: [[78,1],[78,1],[76,1],[78,1],[81,1],[80,1],[78,1],[76,1]],
+      bass: [[42,1],[42,1],[42,1],[42,1],[40,1],[40,1],[38,1],[38,1]] } },
+    { id: "tagony", name: "Agony Ascending", chip: { bpm: 112, hats: true,
+      lead: [[74,1],[77,1],[81,1],[79,1],[77,1],[76,1],[74,1],[72,1]],
+      bass: [[50,1],[50,1],[46,1],[46,1],[48,1],[48,1],[45,1],[45,1]] } },
+    { id: "blow", name: "Blow Out", chip: { bpm: 124, hats: true,
+      lead: [[72,1],[75,1],[79,1],[82,1],[81,1],[79,1],[75,1],[72,1]],
+      bass: [[48,1],[48,1],[46,1],[46,1],[53,1],[53,1],[48,1],[48,1]] } },
   ];
 
   function sanitizeSong(raw) {
@@ -977,10 +1132,16 @@
         return;
       }
       this.stop();
-      let file = "";
+      let def = null;
       for (let i = 0; i < SONGS.length; i++) {
-        if (SONGS[i].id === id) file = SONGS[i].file;
+        if (SONGS[i].id === id) def = SONGS[i];
       }
+      if (def && def.chip) {
+        this.id = id;
+        try { ChipTune.play(def.chip); } catch (e) {}
+        return;
+      }
+      const file = def ? def.file : "";
       if (!file) return;
       const a = new Audio("assets/music/" + file);
       a.loop = true;
@@ -990,6 +1151,7 @@
       a.play().catch(function () {});
     },
     stop() {
+      try { ChipTune.stop(); } catch (e) {}
       if (this.audio) {
         try {
           this.audio.pause();
