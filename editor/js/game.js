@@ -1151,8 +1151,17 @@
   const Music = {
     audio: null,
     id: "",
+    enabled: true,
+    setEnabled(v) {
+      this.enabled = !!v;
+      if (!this.enabled) this.stop();
+    },
     play(id) {
       id = sanitizeSong(id);
+      if (!this.enabled) {
+        this.stop();
+        return;
+      }
       if (!id) {
         this.stop();
         return;

@@ -4116,6 +4116,7 @@
       el("setAuto").checked = save_.data.autoRespawn !== false;
       el("setHaptics").checked = save_.data.haptics !== false;
       el("setSfx").checked = save_.data.sfx !== false;
+      el("setMusic").checked = save_.data.music !== false;
       renderReleases();
       save_.data.seenVer = APP_VER;
       save();
@@ -7973,6 +7974,14 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       save();
       if (ev.target.checked) { try { sfxPlay("coin"); } catch (e) {} }
     });
+    el("setMusic").addEventListener("change", (ev) => {
+      save_.data.music = ev.target.checked;
+      save();
+      try { DP.Music.setEnabled(ev.target.checked); } catch (e) {}
+      if (ev.target.checked && state.playing && state.engine) {
+        try { DP.Music.play(state.engine.level.song); } catch (e) {}
+      }
+    });
     el("setGhostOp").addEventListener("input", (ev) => {
       save_.data.ghostOpacity = clampGhostOpacity(ev.target.value);
       save();
@@ -8322,6 +8331,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     migrateCoins();
     checkUnlocks();
     applySpaceTheme();
+    try { DP.Music.setEnabled(save_.data.music !== false); } catch (e) {}
     applyGraphics();
     applyTouchUI();
     syncNewVerDot();
