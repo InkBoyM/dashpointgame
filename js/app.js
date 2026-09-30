@@ -4294,6 +4294,8 @@
           : null,
         collected: Array.from(e.collected || []),
         touched: Array.from(e.touched || []),
+        keys: e.keys | 0,
+        openDoors: Array.from(e.openDoors || []),
         ts: Date.now(),
       };
       save();
@@ -4321,6 +4323,8 @@
       state.deaths = Math.max(0, snap.deaths | 0);
       e.collected = new Set(Array.isArray(snap.collected) ? snap.collected : []);
       e.touched = new Set(Array.isArray(snap.touched) ? snap.touched : []);
+      e.keys = Math.max(0, snap.keys | 0);
+      e.openDoors = new Set(Array.isArray(snap.openDoors) ? snap.openDoors : []);
       e.checkpoint = (snap.checkpoint && isFinite(snap.checkpoint.c)) ? {
         c: snap.checkpoint.c | 0,
         r: snap.checkpoint.r | 0,
@@ -4456,9 +4460,29 @@
     beginPlay(entry);
   }
 
+  function levelHasKeys() {
+    try {
+      const lvl = state.engine && state.engine.level;
+      if (!lvl) return false;
+      if (lvl._keysScan === undefined) {
+        let found = false;
+        lvl.forEachTile(function (tile) {
+          if (tile.id === "key" || tile.id === "door") found = true;
+        });
+        lvl._keysScan = found;
+      }
+      return lvl._keysScan;
+    } catch (e) { return false; }
+  }
   function setStatusHud() {
     el("hudTime").textContent = (state.engine ? state.engine.time : 0).toFixed(2);
     el("hudDeaths").textContent = "deaths " + state.deaths;
+    const hk = el("hudKeys");
+    if (hk) {
+      const n = state.engine ? (state.engine.keys | 0) : 0;
+      hk.textContent = "🔑 " + n;
+      hk.classList.toggle("hidden", !(state.engine && (n > 0 || levelHasKeys())));
+    }
     el("hudPractice").classList.toggle("hidden", !state.practice && !state.slowmo);
     if (state.slowmo) el("hudPractice").textContent = "SLOW-MO";
     else el("hudPractice").textContent = "PRACTICE";
@@ -4532,6 +4556,8 @@
     if (!state.engine) return;
     adminTpHold = null;
     state.engine.collected = new Set();
+    state.engine.keys = 0;
+    state.engine.openDoors = new Set();
     state.engine.pendingCoinGrant = 0;
     if (state.engine.clearCheckpoint) state.engine.clearCheckpoint();
     state.engine.reset();

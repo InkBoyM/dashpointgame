@@ -51,6 +51,8 @@
     coin50: { id: "coin50", solid: false, hazard: false, rotatable: false, label: "Coin +50" },
     coin100: { id: "coin100", solid: false, hazard: false, rotatable: false, label: "Coin +100" },
     coin500: { id: "coin500", solid: false, hazard: false, rotatable: false, label: "Coin +500" },
+    key: { id: "key", solid: false, hazard: false, rotatable: false, label: "Key" },
+    door: { id: "door", solid: true, hazard: false, rotatable: false, label: "Locked door" },
   };
 
   const COIN_VALUES = { coin10: 10, coin50: 50, coin100: 100, coin500: 500 };
@@ -241,6 +243,8 @@
     coin50: "assets/tiles/coin50.png",
     coin100: "assets/tiles/coin100.png",
     coin500: "assets/tiles/coin500.png",
+    key: "assets/tiles/key.png",
+    door: "assets/tiles/door.png",
     title: "assets/ui/title.png",
     play: "assets/ui/play.png",
     settings: "assets/ui/settings.png",
@@ -1960,6 +1964,8 @@
       this.trailHue = 0;
       this.touched = new Set();
       this.collected = new Set();
+      this.keys = 0;
+      this.openDoors = new Set();
       this.checkpoint = null;
       this.pendingJumps = 0;
       this.pendingCoinGrant = 0;
@@ -2147,6 +2153,7 @@
       for (const { tile, c, r } of hits) {
         const type = TILE_TYPES[tile.id];
         if (!type || !type.solid) continue;
+        if (tile.id === "door" && this.openDoors && this.openDoors.has(c + "," + r)) continue;
         if (isSlopeId(tile.id)) continue; // slopes use resolveSlopes, not AABB
         solids.push(isHalfId(tile.id) ? halfBox(c, r, tile) : solidBox(c, r, tile));
       }
@@ -2589,6 +2596,33 @@
       }
     }
 
+    checkKeysAndDoors() {
+      // Keys are pickups (kept for the run); touching a locked door with a
+      // key spends one and opens it for the rest of the run.
+      if (this.dead || this.won) return;
+      const box = this.playerBox();
+      const hits = this.nearbyTiles(box.x, box.y, box.w, box.h, 2);
+      for (const { tile, c, r } of hits) {
+        if (tile.id === "key") {
+          const key = c + "," + r;
+          if (this.collected.has(key)) continue;
+          if (!aabbOverlap(box, coinBox(c, r, tile))) continue;
+          this.collected.add(key);
+          this.keys = (this.keys | 0) + 1;
+        } else if (tile.id === "door") {
+          const key = c + "," + r;
+          if (this.openDoors.has(key)) continue;
+          // Padded hitbox: a cube pressed flush against the door counts.
+          const s = solidBox(c, r, tile);
+          if (!aabbOverlap(box, { x: s.x - 4, y: s.y - 4, w: s.w + 8, h: s.h + 8 })) continue;
+          if ((this.keys | 0) > 0) {
+            this.keys -= 1;
+            this.openDoors.add(key);
+          }
+        }
+      }
+    }
+
     checkOrbs() {
       const p = this.player;
       const box = this.playerBox();
@@ -3002,6 +3036,7 @@
       this.checkPortals();
       this.checkCheckpoints();
       this.checkCoins();
+      this.checkKeysAndDoors();
       this.updateMovers(dt);
       this.updatePlats(dt);
       this.updateCrushers(dt);
@@ -3075,6 +3110,8 @@
     if (isDjOrbId(tile.id)) return "#2ee6ff";
     if (tile.id === "pad") return "#2ee6ff";
     if (tile.id === "dash") return "#ff9a1f";
+    if (tile.id === "key") return "#ffd23c";
+    if (tile.id === "door") return "#8a5a2b";
     if (isSawId(tile.id)) return "#ff5a6e";
     if (tile.id === "crusher") return "#8a93a8";
     if (tile.id === "ice") return "#9fd8ff";
@@ -3949,6 +3986,7 @@
   function drawTile(ctx, images, tile, x, y, size, opts) {
     size = size || TILE;    opts = opts || {};
     if (isInvisibleId(tile.id) && opts.hideInvisible) return;
+    if (tile.id === "door" && opts.openDoors && opts.c != null && opts.openDoors.has(opts.c + "," + opts.r)) return;
     if (isCoinId(tile.id)) {
       if (opts.collected) {
         const key = opts.collectedKey || (opts.c != null ? opts.c + "," + opts.r : "");
@@ -3964,6 +4002,24 @@
         return;
       }
       drawCoinGraphic(ctx, images, tile, x, y, size, bob);
+      return;
+    }
+    if (tile.id === "key") {
+      if (opts.collected) {
+        const key = opts.collectedKey || (opts.c != null ? opts.c + "," + opts.r : "");
+        if (key && opts.collected.has(key)) return;
+      }
+      const bob = opts.graphics !== "simple" && opts.bob ? Math.sin(Date.now() / 220 + (opts.c || 0) * 1.7 + (opts.r || 0) * 2.1) * 2.5 : 0;
+      if (opts.graphics === "simple") {
+        drawSimpleTile(ctx, tile, x, y + bob, size, opts);
+        return;
+      }
+      const ki = images.key;
+      if (ki) {
+        ctx.drawImage(ki, x, y + bob, size, size);
+        return;
+      }
+      drawSimpleTile(ctx, tile, x, y + bob, size, opts);
       return;
     }
     if (opts.graphics === "simple") {
@@ -4036,6 +4092,8 @@
         img = images.dash;
       } else if (isGoalId(tile.id)) {
         img = images.goal;
+      } else if (tile.id === "door") {
+        img = images.door;
       }
     } else {
       img = realImg;
@@ -4212,6 +4270,7 @@
             r: r,
             touched: extras.engine ? extras.engine.touched : null,
             collected: extras.engine ? extras.engine.collected : null,
+            openDoors: extras.engine ? extras.engine.openDoors : null,
             bob: !!extras.engine,
             graphics: gfx,
             real: real,
