@@ -72,6 +72,10 @@ canvas { image-rendering: pixelated; }
 .px-btn.small { padding: 8px 14px; font-size: 13px; }
 .px-btn.tiny { padding: 5px 9px; font-size: 11px; letter-spacing: 1px; }
 .px-btn:disabled { opacity: 0.45; pointer-events: none; filter: grayscale(0.2); }
+.px-btn:focus-visible, .skin-tile:focus-visible, .level-card:focus-visible {
+  outline: 3px solid var(--cyan);
+  outline-offset: 2px;
+}
 
 /* ---------- HOME ---------- */
 #screen-home {
@@ -157,7 +161,7 @@ canvas { image-rendering: pixelated; }
   position: relative;
   width: 92px;
   height: 92px;
-  border-radius: 18px;
+  border-radius: 0;
   background: rgba(17, 27, 46, 0.9);
   border: 3px solid #22334f;
   display: flex;
@@ -171,6 +175,7 @@ canvas { image-rendering: pixelated; }
 }
 .home-bell-btn:hover { border-color: #2c4269; filter: brightness(1.08); }
 .home-bell-btn .bell-count { top: -6px; right: -6px; }
+.home-bell-btn img { width: 46px; height: 46px; image-rendering: pixelated; }
 
 .home-center {
   position: relative;
@@ -342,7 +347,7 @@ body.has-newver #btnSettingsHome::after {
 .avatar-frame {
   display: inline-flex;
   padding: 2px;
-  border-radius: 6px;
+  border-radius: 0;
   line-height: 0;
 }
 .avatar-frame img { display: block; }
@@ -1154,7 +1159,7 @@ body.gfx-ultra canvas { image-rendering: auto; }
   position: relative;
   margin-top: 4px;
   width: 78px; height: 78px;
-  border-radius: 16px;
+  border-radius: 0;
   background: rgba(17,27,46,.85);
   border: 3px solid #22334f;
   display: flex; align-items: center; justify-content: center;
@@ -1220,7 +1225,7 @@ body.gfx-ultra canvas { image-rendering: auto; }
   right: -8px;
   min-width: 20px;
   height: 20px;
-  border-radius: 10px;
+  border-radius: 0;
   background: var(--red);
   color: #fff;
   font-size: 11px;
@@ -1454,7 +1459,7 @@ body.custom-bg .hud-chip {
   #btnUiTourHome { font-size: 28px; }
   .home-corner { top: calc(8px + env(safe-area-inset-top, 0px)); right: calc(8px + env(safe-area-inset-right, 0px)); gap: 8px; }
   .home-admin-badge { font-size: 12px; padding: 4px 8px; letter-spacing: 1.5px; }
-  .home-bell-btn { width: 76px; height: 76px; font-size: 34px; border-radius: 16px; }
+  .home-bell-btn { width: 76px; height: 76px; font-size: 34px; border-radius: 0; }
 
   .topbar { padding: 8px 10px; gap: 10px; }
   .bar-title { font-size: 16px; letter-spacing: 2px; }
@@ -1799,7 +1804,7 @@ body.gfx-good .wheel-clip img {
 .ui-tour-spot {
   position: absolute;
   border: 3px solid var(--gold);
-  border-radius: 12px;
+  border-radius: 0;
   box-shadow: 0 0 0 9999px rgba(5, 8, 16, 0.74), 0 0 18px rgba(255, 210, 60, 0.4);
   pointer-events: none;
 }
