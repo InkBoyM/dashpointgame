@@ -4580,7 +4580,6 @@
       return;
     }
     state.engine.reset({ keepTime: true });
-    if (DP.Music) DP.Music.play(state.engine.level.song);
     el("winCard").classList.remove("visible");
     el("pauseCard").classList.remove("visible");
     state.paused = false;
@@ -4591,7 +4590,6 @@
     const hold = adminTpHold && performance.now() < adminTpHold.until;
     state.engine.reset(hold ? { keepTime: true } : undefined); // checkpoint spawn keeps the run time
     if (hold) state.engine.time = Math.max(state.engine.time || 0, adminTpHold.time);
-    if (DP.Music) DP.Music.play(state.engine.level.song);
     el("winCard").classList.remove("visible");
     state.paused = false;
    }
