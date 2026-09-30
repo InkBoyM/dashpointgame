@@ -1034,10 +1034,19 @@
     },
     schedule() {
       if (!this.song || !this.ctx) return;
+      if (this.ctx.state === "suspended") {
+        try {
+          const pr = this.ctx.resume();
+          if (pr && pr.catch) pr.catch(function () {});
+        } catch (e) {}
+        return;
+      }
+      // Fell behind (tab was hidden, gesture just unlocked us): skip the gap.
+      if (this.nextT < this.ctx.currentTime - 0.3) this.nextT = this.ctx.currentTime + 0.05;
       const spb = 60 / this.song.bpm;
       const st = spb / 4;
       let guard = 0;
-      while (this.nextT < this.ctx.currentTime + 0.18 && guard++ < 64) {
+      while (this.nextT < this.ctx.currentTime + 0.3 && guard++ < 96) {
         const t = this.nextT;
         const s16 = this.step16;
         if (this.lLeft <= 0) {
@@ -1155,6 +1164,13 @@
     setEnabled(v) {
       this.enabled = !!v;
       if (!this.enabled) this.stop();
+    },
+    playing() {
+      try {
+        if (this.audio) return !this.audio.paused;
+        if (ChipTune.song) return !!ChipTune.ctx && ChipTune.ctx.state === "running";
+        return false;
+      } catch (e) { return false; }
     },
     play(id) {
       id = sanitizeSong(id);

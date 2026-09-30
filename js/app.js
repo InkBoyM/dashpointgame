@@ -8340,6 +8340,16 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     syncFpsVis();
     show("home");
     maybeStartTour();
+    // First gesture unlocks audio (autoplay policy): restart the song if silent.
+    const unlockAudio = function () {
+      try {
+        if (DP.Music && !DP.Music.playing() && state.playing && state.engine && state.engine.level) {
+          DP.Music.play(state.engine.level.song);
+        }
+      } catch (e) {}
+    };
+    window.addEventListener("pointerdown", unlockAudio);
+    window.addEventListener("keydown", unlockAudio);
     if (!tourOn) maybeShowStreak();
     try {
       const shared = new URLSearchParams(window.location.search).get("level");
