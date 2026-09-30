@@ -4081,6 +4081,7 @@
 
   function openModal(id) {
     el(id).classList.add("visible");
+    try { sfxPlay("tick"); } catch (e) {}
     if (id === "modalSkins") renderSkins();
     if (id === "modalStats") renderStats();
     if (id === "modalShop") renderShop();
@@ -4114,6 +4115,7 @@
       el("setFps").checked = !!save_.data.debugFps;
       el("setAuto").checked = save_.data.autoRespawn !== false;
       el("setHaptics").checked = save_.data.haptics !== false;
+      el("setSfx").checked = save_.data.sfx !== false;
       renderReleases();
       save_.data.seenVer = APP_VER;
       save();
@@ -4132,6 +4134,7 @@
 
   function closeModal(id) {
     el(id).classList.remove("visible");
+    try { sfxPlay("tick"); } catch (e) {}
   }
 
   function resizeCanvas() {
@@ -5349,7 +5352,49 @@
   }
 
   // ---- Haptics (Android bridge, else navigator.vibrate) ----
+  // ---- Sound effects: tiny WebAudio synth, no assets ----
+  let sfxCtx = null;
+  function sfxTone(freq, dur, type, vol, slideTo) {
+    try {
+      if (!sfxCtx) sfxCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (!sfxCtx) return;
+      if (sfxCtx.state === "suspended") sfxCtx.resume().catch(function () {});
+      const t = sfxCtx.currentTime;
+      const o = sfxCtx.createOscillator();
+      const g = sfxCtx.createGain();
+      o.type = type || "square";
+      o.frequency.setValueAtTime(freq, t);
+      if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(1, slideTo), t + dur);
+      g.gain.setValueAtTime(vol || 0.06, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g);
+      g.connect(sfxCtx.destination);
+      o.start(t);
+      o.stop(t + dur + 0.03);
+    } catch (e) {}
+  }
+  function sfxPlay(kind) {
+    if (save_.data.sfx === false) return;
+    try {
+      if (kind === "jump") sfxTone(300, 0.12, "square", 0.04, 620);
+      else if (kind === "death") sfxTone(220, 0.35, "sawtooth", 0.07, 55);
+      else if (kind === "win") {
+        const seq = [523, 659, 784];
+        for (let i = 0; i < seq.length; i++) {
+          (function (f, d) { setTimeout(function () { sfxTone(f, 0.15, "square", 0.06); }, d); })(seq[i], i * 110);
+        }
+      }
+      else if (kind === "coin") sfxTone(950, 0.09, "square", 0.04, 1500);
+      else if (kind === "checkpoint") sfxTone(520, 0.14, "triangle", 0.07, 820);
+      else if (kind === "orb") sfxTone(200, 0.15, "sine", 0.08, 820);
+      else if (kind === "pad") sfxTone(150, 0.18, "sine", 0.08, 520);
+      else if (kind === "dash") sfxTone(420, 0.12, "sawtooth", 0.05, 1250);
+      else sfxTone(700, 0.045, "square", 0.025);
+    } catch (e) {}
+  }
+
   function haptic(kind) {
+    try { sfxPlay(kind); } catch (e) {}
     if (save_.data.haptics === false) return;
     try {
       const b = window.DashPointAndroidBridge || window.DashPointBridge;
@@ -5423,6 +5468,7 @@
         save_.data.jumps = (save_.data.jumps | 0) + n;
         save();
         checkUnlocks();
+        try { sfxPlay("jump"); } catch (e) {}
       }
     }
     if (state.engine.pendingCoinGrant) {
@@ -5435,6 +5481,7 @@
           syncCoinUI();
           showNotice("+" + got + " coins", false);
           haptic("tick");
+          try { sfxPlay("coin"); } catch (e) {}
         }
       }
     }
@@ -7920,6 +7967,11 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       save_.data.haptics = ev.target.checked;
       save();
       if (ev.target.checked) haptic("tick");
+    });
+    el("setSfx").addEventListener("change", (ev) => {
+      save_.data.sfx = ev.target.checked;
+      save();
+      if (ev.target.checked) { try { sfxPlay("coin"); } catch (e) {} }
     });
     el("setGhostOp").addEventListener("input", (ev) => {
       save_.data.ghostOpacity = clampGhostOpacity(ev.target.value);
