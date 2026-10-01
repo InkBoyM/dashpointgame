@@ -61,4 +61,5 @@ window.DashPointSkins = [
   { id: 49, name: "Wink", src: "assets/skins/skin-49.gif", hint: "Buy in the shop", shopCat: "faces", unlock: { type: "shop", cost: 100000000000 } },
   { id: 50, name: "cursed", src: "assets/skins/skin-50.png", hint: "Buy in the shop", shopCat: "luxury", unlock: { type: "shop", cost: "1000000000000000" } },
   { id: 51, name: "isreal", src: "assets/skins/skin-51.png", hint: "Buy in the shop", shopCat: "countries", unlock: { type: "shop", cost: 100 } },
+  { id: 52, name: "Belerus", src: "assets/skins/skin-52.png", hint: "Buy in the shop", shopCat: "countries", unlock: { type: "shop", cost: 100 } },
 ];

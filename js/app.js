@@ -58,6 +58,9 @@
   //   PATCH (x.y.z) — fixes, tweaks, balance, shop content drops
   // Newest entry first; APP_VER is always RELEASES[0].v.
   const RELEASES = [
+    { v: "1.92", title: "Belerus shop skin", items: [
+      "New shop skin: Belerus in Countries for 100 coins",
+    ] },
     { v: "1.91", title: "Shop skin categories", items: [
       "Shop skins are grouped: food, faces, animals, nature, memes, luxury, countries, miscellaneous",
       "New shop skin: isreal in Countries for 100 coins",
