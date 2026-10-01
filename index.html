@@ -24,6 +24,9 @@
 
   <div class="screen visible" id="screen-home">
     <div id="homeBg"></div>
+    <a class="discord-fab" href="https://discord.gg/vbJTeJNCc3" target="_blank" rel="noopener" title="Join our Discord">
+      <img src="assets/social/social-discord.png" alt="Discord" />
+    </a>
     <div class="home-fx" aria-hidden="true">
       <div class="home-glow"></div>
       <div class="home-stars"></div>
@@ -33,7 +36,7 @@
     </div>
     <div class="home-corner">
       <div class="home-admin-badge hidden" id="homeAdminBadge">ADMIN</div>
-      <button type="button" class="home-bell-btn" id="btnBellHome" title="Activity">&#128276;<span id="bellCountHome" class="bell-count hidden"></span></button>
+      <button type="button" class="home-bell-btn" id="btnBellHome" title="Activity"><img src="assets/ui/bell.png" alt="" /><span id="bellCountHome" class="bell-count hidden"></span></button>
     </div>
     <div class="home-center">
       <img class="home-logo" src="assets/ui/title.png" alt="DashPoint" />
@@ -100,6 +103,7 @@
       <div class="hud-chip">
         <span id="hudTime">0.00</span>
         <span id="hudDeaths">deaths 0</span>
+        <span id="hudKeys" class="hud-practice hidden">🔑 0</span>
         <span id="hudPractice" class="hud-practice hidden">PRACTICE</span>
         <span id="hudSpectate" class="hud-author-chip hidden" style="color:var(--gold)"></span>
         <span id="hudHns" class="hud-author-chip hidden" style="color:var(--gold)"></span>
@@ -427,6 +431,8 @@
       <label class="check-row"><input type="checkbox" id="setFps" /> FPS (debug)</label>
       <label class="check-row"><input type="checkbox" id="setAuto" checked /> Auto-respawn</label>
       <label class="check-row"><input type="checkbox" id="setHaptics" checked /> Haptics</label>
+      <label class="check-row"><input type="checkbox" id="setSfx" checked /> Sound FX</label>
+      <label class="check-row"><input type="checkbox" id="setMusic" checked /> Music</label>
       <div class="section-title">GHOST RACE</div>
       <div class="slider-row"><span>Opacity</span><b id="setGhostOpVal">100%</b></div>
       <input type="range" id="setGhostOp" min="0" max="100" step="5" value="100" />
@@ -601,7 +607,7 @@
       <button class="px-btn small" id="btnNetBack">&#9664; BACK</button>
       <h1 class="bar-title">DASHPOINT NETWORK</h1>
       <span class="bar-spacer"></span>
-      <button class="px-btn small" id="btnBell" title="Activity">&#128276;<span id="bellCount" class="bell-count hidden"></span></button>
+      <button class="px-btn small" id="btnBell" title="Activity"><img src="assets/ui/bell.png" alt="" /><span id="bellCount" class="bell-count hidden"></span></button>
       <span class="net-acct" id="netAcct"></span>
     </header>
     <div class="net-body">

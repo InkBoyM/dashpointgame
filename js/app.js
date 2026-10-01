@@ -17,6 +17,7 @@
     "The_Tunnel.dashpoint.json": 4,
     "Agony.dashpoint.json": 5,
     "The_Tower_of_Torture.dashpoint.json": 5,
+    "The_Dropper.dashpoint.json": 5,
     "The_Tower_of_Agony.dashpoint.json": 5,
   };
 
@@ -529,6 +530,7 @@
     "Cool_Run.dashpoint.json",
     "Agony.dashpoint.json",
     "The_Tower_of_Torture.dashpoint.json",
+    "The_Dropper.dashpoint.json",
     "The_Tower_of_Agony.dashpoint.json",
     "The_Tunnel.dashpoint.json",
   ];
@@ -4084,6 +4086,7 @@
 
   function openModal(id) {
     el(id).classList.add("visible");
+    try { sfxPlay("tick"); } catch (e) {}
     if (id === "modalSkins") renderSkins();
     if (id === "modalStats") renderStats();
     if (id === "modalShop") renderShop();
@@ -4117,6 +4120,8 @@
       el("setFps").checked = !!save_.data.debugFps;
       el("setAuto").checked = save_.data.autoRespawn !== false;
       el("setHaptics").checked = save_.data.haptics !== false;
+      el("setSfx").checked = save_.data.sfx !== false;
+      el("setMusic").checked = save_.data.music !== false;
       renderReleases();
       save_.data.seenVer = APP_VER;
       save();
@@ -4135,6 +4140,7 @@
 
   function closeModal(id) {
     el(id).classList.remove("visible");
+    try { sfxPlay("tick"); } catch (e) {}
   }
 
   function resizeCanvas() {
@@ -4297,6 +4303,8 @@
           : null,
         collected: Array.from(e.collected || []),
         touched: Array.from(e.touched || []),
+        keys: e.keys | 0,
+        openDoors: Array.from(e.openDoors || []),
         ts: Date.now(),
       };
       save();
@@ -4324,6 +4332,8 @@
       state.deaths = Math.max(0, snap.deaths | 0);
       e.collected = new Set(Array.isArray(snap.collected) ? snap.collected : []);
       e.touched = new Set(Array.isArray(snap.touched) ? snap.touched : []);
+      e.keys = Math.max(0, snap.keys | 0);
+      e.openDoors = new Set(Array.isArray(snap.openDoors) ? snap.openDoors : []);
       e.checkpoint = (snap.checkpoint && isFinite(snap.checkpoint.c)) ? {
         c: snap.checkpoint.c | 0,
         r: snap.checkpoint.r | 0,
@@ -4459,9 +4469,29 @@
     beginPlay(entry);
   }
 
+  function levelHasKeys() {
+    try {
+      const lvl = state.engine && state.engine.level;
+      if (!lvl) return false;
+      if (lvl._keysScan === undefined) {
+        let found = false;
+        lvl.forEachTile(function (tile) {
+          if (tile.id === "key" || tile.id === "door") found = true;
+        });
+        lvl._keysScan = found;
+      }
+      return lvl._keysScan;
+    } catch (e) { return false; }
+  }
   function setStatusHud() {
     el("hudTime").textContent = (state.engine ? state.engine.time : 0).toFixed(2);
     el("hudDeaths").textContent = "deaths " + state.deaths;
+    const hk = el("hudKeys");
+    if (hk) {
+      const n = state.engine ? (state.engine.keys | 0) : 0;
+      hk.textContent = "🔑 " + n;
+      hk.classList.toggle("hidden", !(state.engine && (n > 0 || levelHasKeys())));
+    }
     el("hudPractice").classList.toggle("hidden", !state.practice && !state.slowmo);
     if (state.slowmo) el("hudPractice").textContent = "SLOW-MO";
     else el("hudPractice").textContent = "PRACTICE";
@@ -4535,6 +4565,8 @@
     if (!state.engine) return;
     adminTpHold = null;
     state.engine.collected = new Set();
+    state.engine.keys = 0;
+    state.engine.openDoors = new Set();
     state.engine.pendingCoinGrant = 0;
     if (state.engine.clearCheckpoint) state.engine.clearCheckpoint();
     state.engine.reset();
@@ -4553,7 +4585,6 @@
       return;
     }
     state.engine.reset({ keepTime: true });
-    if (DP.Music) DP.Music.play(state.engine.level.song);
     el("winCard").classList.remove("visible");
     el("pauseCard").classList.remove("visible");
     state.paused = false;
@@ -4564,7 +4595,6 @@
     const hold = adminTpHold && performance.now() < adminTpHold.until;
     state.engine.reset(hold ? { keepTime: true } : undefined); // checkpoint spawn keeps the run time
     if (hold) state.engine.time = Math.max(state.engine.time || 0, adminTpHold.time);
-    if (DP.Music) DP.Music.play(state.engine.level.song);
     el("winCard").classList.remove("visible");
     state.paused = false;
    }
@@ -5326,7 +5356,49 @@
   }
 
   // ---- Haptics (Android bridge, else navigator.vibrate) ----
+  // ---- Sound effects: tiny WebAudio synth, no assets ----
+  let sfxCtx = null;
+  function sfxTone(freq, dur, type, vol, slideTo) {
+    try {
+      if (!sfxCtx) sfxCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (!sfxCtx) return;
+      if (sfxCtx.state === "suspended") sfxCtx.resume().catch(function () {});
+      const t = sfxCtx.currentTime;
+      const o = sfxCtx.createOscillator();
+      const g = sfxCtx.createGain();
+      o.type = type || "square";
+      o.frequency.setValueAtTime(freq, t);
+      if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(1, slideTo), t + dur);
+      g.gain.setValueAtTime(vol || 0.06, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g);
+      g.connect(sfxCtx.destination);
+      o.start(t);
+      o.stop(t + dur + 0.03);
+    } catch (e) {}
+  }
+  function sfxPlay(kind) {
+    if (save_.data.sfx === false) return;
+    try {
+      if (kind === "jump") sfxTone(300, 0.12, "square", 0.04, 620);
+      else if (kind === "death") sfxTone(220, 0.35, "sawtooth", 0.07, 55);
+      else if (kind === "win") {
+        const seq = [523, 659, 784];
+        for (let i = 0; i < seq.length; i++) {
+          (function (f, d) { setTimeout(function () { sfxTone(f, 0.15, "square", 0.06); }, d); })(seq[i], i * 110);
+        }
+      }
+      else if (kind === "coin") sfxTone(950, 0.09, "square", 0.04, 1500);
+      else if (kind === "checkpoint") sfxTone(520, 0.14, "triangle", 0.07, 820);
+      else if (kind === "orb") sfxTone(200, 0.15, "sine", 0.08, 820);
+      else if (kind === "pad") sfxTone(150, 0.18, "sine", 0.08, 520);
+      else if (kind === "dash") sfxTone(420, 0.12, "sawtooth", 0.05, 1250);
+      else sfxTone(700, 0.045, "square", 0.025);
+    } catch (e) {}
+  }
+
   function haptic(kind) {
+    try { sfxPlay(kind); } catch (e) {}
     if (save_.data.haptics === false) return;
     try {
       const b = window.DashPointAndroidBridge || window.DashPointBridge;
@@ -5400,6 +5472,7 @@
         save_.data.jumps = (save_.data.jumps | 0) + n;
         save();
         checkUnlocks();
+        try { sfxPlay("jump"); } catch (e) {}
       }
     }
     if (state.engine.pendingCoinGrant) {
@@ -5412,6 +5485,7 @@
           syncCoinUI();
           showNotice("+" + got + " coins", false);
           haptic("tick");
+          try { sfxPlay("coin"); } catch (e) {}
         }
       }
     }
@@ -7898,6 +7972,19 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       save();
       if (ev.target.checked) haptic("tick");
     });
+    el("setSfx").addEventListener("change", (ev) => {
+      save_.data.sfx = ev.target.checked;
+      save();
+      if (ev.target.checked) { try { sfxPlay("coin"); } catch (e) {} }
+    });
+    el("setMusic").addEventListener("change", (ev) => {
+      save_.data.music = ev.target.checked;
+      save();
+      try { DP.Music.setEnabled(ev.target.checked); } catch (e) {}
+      if (ev.target.checked && state.playing && state.engine) {
+        try { DP.Music.play(state.engine.level.song); } catch (e) {}
+      }
+    });
     el("setGhostOp").addEventListener("input", (ev) => {
       save_.data.ghostOpacity = clampGhostOpacity(ev.target.value);
       save();
@@ -8247,6 +8334,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     migrateCoins();
     checkUnlocks();
     applySpaceTheme();
+    try { DP.Music.setEnabled(save_.data.music !== false); } catch (e) {}
     applyGraphics();
     applyTouchUI();
     syncNewVerDot();
@@ -8255,6 +8343,16 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     syncFpsVis();
     show("home");
     maybeStartTour();
+    // First gesture unlocks audio (autoplay policy): restart the song if silent.
+    const unlockAudio = function () {
+      try {
+        if (DP.Music && !DP.Music.playing() && state.playing && state.engine && state.engine.level) {
+          DP.Music.play(state.engine.level.song);
+        }
+      } catch (e) {}
+    };
+    window.addEventListener("pointerdown", unlockAudio);
+    window.addEventListener("keydown", unlockAudio);
     if (!tourOn) maybeShowStreak();
     try {
       const shared = new URLSearchParams(window.location.search).get("level");
@@ -8285,99 +8383,100 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       }
     } catch (e) {}
 
-    // ---- PWA install: home DOWNLOAD + Settings INSTALL APP (phone and PC) ----
-    var deferredInstallPrompt = null;
-    function isMobileDevice() {
-      try {
-        if (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) return true;
-      } catch (e) {}
-      return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
-    }
-    function isIosDevice() {
-      return /iPhone|iPad|iPod/i.test(navigator.userAgent || "") ||
-        (/Macintosh/i.test(navigator.userAgent || "") && navigator.maxTouchPoints > 1);
-    }
-    function isAppInstalled() {
-      try {
-        if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true;
-      } catch (e) {}
-      return !!window.navigator.standalone;
-    }
-    function installHelpText() {
-      if (isAppInstalled()) return "Installed — launch DashPoint from your home screen or apps list.";
-      if (isIosDevice()) return "On iPhone/iPad: tap Share, then Add to Home Screen.";
-      if (deferredInstallPrompt) return "Tap INSTALL APP to add DashPoint to your phone or PC.";
-      if (isMobileDevice()) return "Open this page in Chrome, then tap INSTALL APP or Chrome menu → Install app.";
-      return "Open this page in Chrome or Edge, then tap INSTALL APP or the install icon in the address bar.";
-    }
-    function syncInstallUI() {
-      var installed = isAppInstalled();
-      var showIos = !installed && isIosDevice();
-      var hint = installHelpText();
-      var sec = el("appSection");
-      if (sec) sec.style.display = "";
-      var btn = el("btnInstallApp");
-      if (btn) btn.style.display = installed ? "none" : "";
-      var ios = el("installIosHint");
-      if (ios) ios.style.display = showIos ? "" : "none";
-      var installHint = el("installHint");
-      if (installHint) installHint.textContent = hint;
-      var downBtn = el("btnDownloadInstall");
-      if (downBtn) downBtn.style.display = installed ? "none" : "";
-      var downIos = el("downloadIosHint");
-      if (downIos) downIos.style.display = showIos ? "" : "none";
-      var downHint = el("downloadHint");
-      if (downHint) downHint.textContent = hint;
-      var homeBtn = el("btnDownloadHome");
-      if (homeBtn) homeBtn.style.display = installed ? "none" : "";
-    }
-    function promptInstall() {
-      var p = deferredInstallPrompt;
-      if (!p) {
-        syncInstallUI();
-        try { showNotice(installHelpText()); } catch (e) {}
-        return;
-      }
-      deferredInstallPrompt = null;
-      syncInstallUI();
-      try {
-        var pr = p.prompt();
-        var done = function () { deferredInstallPrompt = null; syncInstallUI(); };
-        if (pr && typeof pr.then === "function") {
-          pr.then(function () {
-            if (p.userChoice && typeof p.userChoice.then === "function") {
-              p.userChoice.then(function () { done(); }, function () { done(); });
-            } else done();
-          }, function () { done(); });
-        } else done();
-      } catch (e) {
-        deferredInstallPrompt = p;
-        syncInstallUI();
-      }
-    }
-    window.addEventListener("beforeinstallprompt", function (ev) {
-      ev.preventDefault();
-      deferredInstallPrompt = ev;
-      syncInstallUI();
-    });
-    window.addEventListener("appinstalled", function () {
-      deferredInstallPrompt = null;
-      try { showNotice("DashPoint installed — find it on your home screen or apps list"); } catch (e) {}
-      syncInstallUI();
-    });
-    try {
-      var dmm = window.matchMedia && window.matchMedia("(display-mode: standalone)");
-      if (dmm && dmm.addEventListener) dmm.addEventListener("change", syncInstallUI);
-      else if (dmm && dmm.addListener) dmm.addListener(syncInstallUI);
-    } catch (e) {}
-    ["btnInstallApp", "btnDownloadInstall"].forEach(function (id) {
-      var b = el(id);
-      if (b) b.addEventListener("click", promptInstall);
-    });
-    syncInstallUI();
   }
 
 boot();
+
+  // ---- PWA install: home DOWNLOAD + Settings INSTALL APP (phone and PC) ----
+  var deferredInstallPrompt = null;
+  function isMobileDevice() {
+    try {
+      if (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) return true;
+    } catch (e) {}
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+  }
+  function isIosDevice() {
+    return /iPhone|iPad|iPod/i.test(navigator.userAgent || "") ||
+      (/Macintosh/i.test(navigator.userAgent || "") && navigator.maxTouchPoints > 1);
+  }
+  function isAppInstalled() {
+    try {
+      if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true;
+    } catch (e) {}
+    return !!window.navigator.standalone;
+  }
+  function installHelpText() {
+    if (isAppInstalled()) return "Installed — launch DashPoint from your home screen or apps list.";
+    if (isIosDevice()) return "On iPhone/iPad: tap Share, then Add to Home Screen.";
+    if (deferredInstallPrompt) return "Tap INSTALL APP to add DashPoint to your phone or PC.";
+    if (isMobileDevice()) return "Open this page in Chrome, then tap INSTALL APP or Chrome menu → Install app.";
+    return "Open this page in Chrome or Edge, then tap INSTALL APP or the install icon in the address bar.";
+  }
+  function syncInstallUI() {
+    var installed = isAppInstalled();
+    var showIos = !installed && isIosDevice();
+    var hint = installHelpText();
+    var sec = el("appSection");
+    if (sec) sec.style.display = "";
+    var btn = el("btnInstallApp");
+    if (btn) btn.style.display = installed ? "none" : "";
+    var ios = el("installIosHint");
+    if (ios) ios.style.display = showIos ? "" : "none";
+    var installHint = el("installHint");
+    if (installHint) installHint.textContent = hint;
+    var downBtn = el("btnDownloadInstall");
+    if (downBtn) downBtn.style.display = installed ? "none" : "";
+    var downIos = el("downloadIosHint");
+    if (downIos) downIos.style.display = showIos ? "" : "none";
+    var downHint = el("downloadHint");
+    if (downHint) downHint.textContent = hint;
+    var homeBtn = el("btnDownloadHome");
+    if (homeBtn) homeBtn.style.display = installed ? "none" : "";
+  }
+  function promptInstall() {
+    var p = deferredInstallPrompt;
+    if (!p) {
+      syncInstallUI();
+      try { showNotice(installHelpText()); } catch (e) {}
+      return;
+    }
+    deferredInstallPrompt = null;
+    syncInstallUI();
+    try {
+      var pr = p.prompt();
+      var done = function () { deferredInstallPrompt = null; syncInstallUI(); };
+      if (pr && typeof pr.then === "function") {
+        pr.then(function () {
+          if (p.userChoice && typeof p.userChoice.then === "function") {
+            p.userChoice.then(function () { done(); }, function () { done(); });
+          } else done();
+        }, function () { done(); });
+      } else done();
+    } catch (e) {
+      deferredInstallPrompt = p;
+      syncInstallUI();
+    }
+  }
+  window.addEventListener("beforeinstallprompt", function (ev) {
+    ev.preventDefault();
+    deferredInstallPrompt = ev;
+    syncInstallUI();
+  });
+  window.addEventListener("appinstalled", function () {
+    deferredInstallPrompt = null;
+    try { showNotice("DashPoint installed — find it on your home screen or apps list"); } catch (e) {}
+    syncInstallUI();
+  });
+  try {
+    var dmm = window.matchMedia && window.matchMedia("(display-mode: standalone)");
+    if (dmm && dmm.addEventListener) dmm.addEventListener("change", syncInstallUI);
+    else if (dmm && dmm.addListener) dmm.addListener(syncInstallUI);
+  } catch (e) {}
+  ["btnInstallApp", "btnDownloadInstall"].forEach(function (id) {
+    var b = el(id);
+    if (b) b.addEventListener("click", promptInstall);
+  });
+  syncInstallUI();
 
   // Splash screen hide after animation (1.6s total)
   setTimeout(() => {

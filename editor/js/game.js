@@ -51,6 +51,8 @@
     coin50: { id: "coin50", solid: false, hazard: false, rotatable: false, label: "Coin +50" },
     coin100: { id: "coin100", solid: false, hazard: false, rotatable: false, label: "Coin +100" },
     coin500: { id: "coin500", solid: false, hazard: false, rotatable: false, label: "Coin +500" },
+    key: { id: "key", solid: false, hazard: false, rotatable: false, label: "Key" },
+    door: { id: "door", solid: true, hazard: false, rotatable: false, label: "Locked door" },
   };
 
   const COIN_VALUES = { coin10: 10, coin50: 50, coin100: 100, coin500: 500 };
@@ -241,6 +243,8 @@
     coin50: "assets/tiles/coin50.png",
     coin100: "assets/tiles/coin100.png",
     coin500: "assets/tiles/coin500.png",
+    key: "assets/tiles/key.png",
+    door: "assets/tiles/door.png",
     title: "assets/ui/title.png",
     play: "assets/ui/play.png",
     settings: "assets/ui/settings.png",
@@ -925,10 +929,229 @@
       .slice(0, 32);
   }
 
+  function midiHz(m) {
+    return 440 * Math.pow(2, (m - 69) / 12);
+  }
+  // Chiptune sequencer: square lead + triangle bass + noise hats, all
+  // synthesized, loops seamlessly. Songs are tiny note tables, [midi, beats].
+  const ChipTune = {
+    ctx: null,
+    master: null,
+    noiseBuf: null,
+    timer: null,
+    song: null,
+    li: 0,
+    bi: 0,
+    lLeft: 0,
+    bLeft: 0,
+    step16: 0,
+    nextT: 0,
+    ensure() {
+      if (!this.ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return false;
+        this.ctx = new AC();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = 0.5;
+        this.master.connect(this.ctx.destination);
+        const len = Math.max(1, Math.floor(this.ctx.sampleRate * 0.08));
+        this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+        const d = this.noiseBuf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      }
+      if (this.ctx.state === "suspended") {
+        try {
+          const pr = this.ctx.resume();
+          if (pr && pr.catch) pr.catch(function () {});
+        } catch (e) {}
+      }
+      return true;
+    },
+    play(song) {
+      this.stop();
+      if (!song) return;
+      let ok = false;
+      try { ok = this.ensure(); } catch (e) { ok = false; }
+      if (!ok) return;
+      this.song = song;
+      this.li = 0;
+      this.bi = 0;
+      this.lLeft = 0;
+      this.bLeft = 0;
+      this.step16 = 0;
+      this.nextT = this.ctx.currentTime + 0.08;
+      const self = this;
+      this.timer = setInterval(function () {
+        try { self.schedule(); } catch (e) {}
+      }, 40);
+    },
+    stop() {
+      if (this.timer) {
+        try { clearInterval(this.timer); } catch (e) {}
+        this.timer = null;
+      }
+      this.song = null;
+    },
+    note(midi, t, dur, type, vol) {
+      const o = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      o.type = type;
+      o.frequency.value = midiHz(midi);
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g);
+      g.connect(this.master);
+      o.start(t);
+      o.stop(t + dur + 0.03);
+    },
+    hat(t) {
+      const s = this.ctx.createBufferSource();
+      s.buffer = this.noiseBuf;
+      const hp = this.ctx.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 6000;
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0.045, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+      s.connect(hp);
+      hp.connect(g);
+      g.connect(this.master);
+      s.start(t);
+      s.stop(t + 0.07);
+    },
+    thump(t) {
+      const o = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      o.type = "sine";
+      o.frequency.setValueAtTime(130, t);
+      o.frequency.exponentialRampToValueAtTime(38, t + 0.12);
+      g.gain.setValueAtTime(0.17, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
+      o.connect(g);
+      g.connect(this.master);
+      o.start(t);
+      o.stop(t + 0.16);
+    },
+    schedule() {
+      if (!this.song || !this.ctx) return;
+      if (this.ctx.state === "suspended") {
+        try {
+          const pr = this.ctx.resume();
+          if (pr && pr.catch) pr.catch(function () {});
+        } catch (e) {}
+        return;
+      }
+      // Fell behind (tab was hidden, gesture just unlocked us): skip the gap.
+      if (this.nextT < this.ctx.currentTime - 0.3) this.nextT = this.ctx.currentTime + 0.05;
+      const spb = 60 / this.song.bpm;
+      const st = spb / 4;
+      let guard = 0;
+      while (this.nextT < this.ctx.currentTime + 0.3 && guard++ < 96) {
+        const t = this.nextT;
+        const s16 = this.step16;
+        if (this.lLeft <= 0) {
+          const n = this.song.lead[this.li % this.song.lead.length];
+          if (n && n[0] > 0) this.note(n[0], t, Math.min(n[1], 1.5) * spb * 0.9, "square", 0.09);
+          this.lLeft = n ? n[1] : 1;
+          this.li++;
+        }
+        if (this.bLeft <= 0) {
+          const n = this.song.bass[this.bi % this.song.bass.length];
+          if (n && n[0] > 0) this.note(n[0], t, Math.min(n[1], 1.5) * spb * 0.9, "triangle", 0.12);
+          this.bLeft = n ? n[1] : 1;
+          this.bi++;
+        }
+        const arp = this.song.arp;
+        if (arp && arp.length) {
+          const m = arp[s16 % arp.length];
+          if (m > 0) {
+            try { this.note(m, t, st * 0.95, "square", 0.045); } catch (e) {}
+          }
+        }
+        const kick = this.song.kick;
+        if (kick && kick.length && s16 % 4 === 0 && kick[(s16 >> 2) % kick.length]) {
+          try { this.thump(t); } catch (e) {}
+        }
+        if (this.song.hats && s16 % 4 === 2) {
+          try { this.hat(t); } catch (e) {}
+        }
+        this.step16++;
+        this.lLeft -= 0.25;
+        this.bLeft -= 0.25;
+        this.nextT += st;
+      }
+    },
+  };
+
   const SONGS = [
     { id: "", name: "No song", file: "" },
     { id: "ugh-pico", name: "Ugh Pico Mix", file: "ugh-pico.m4a" },
     { id: "bro", name: "Bro", file: "bro.m4a" },
+    { id: "welcome", name: "Welcome Bounce", chip: { bpm: 132, hats: true,
+      lead: [[72,1],[76,1],[79,1],[76,1],[81,1],[79,1],[76,1],[72,1],[74,1],[76,1],[79,1],[81,1],[79,1],[76,1],[74,1],[72,1]],
+      bass: [[48,1],[48,1],[43,1],[43,1],[45,1],[45,1],[43,1],[43,1],[48,1],[48,1],[53,1],[53,1],[43,1],[43,1],[48,1],[48,1]],
+      arp: [72,76,79,84,79,76,81,79],
+      kick: [1,0,0,0] } },
+    { id: "hill", name: "Hill Roll", chip: { bpm: 120, hats: false,
+      lead: [[67,1],[69,1],[71,1],[74,1],[71,1],[69,1],[67,1],[64,1],[67,1],[69,1],[71,1],[74,1],[76,1],[74,1],[71,1],[69,1]],
+      bass: [[43,1],[43,1],[50,1],[50,1],[48,1],[48,1],[43,1],[43,1],[43,1],[43,1],[50,1],[50,1],[52,1],[52,1],[43,1],[43,1]],
+      arp: [67,71,74,79,74,71,69,71],
+      kick: [1,0,0,0] } },
+    { id: "orb", name: "Orb Drive", chip: { bpm: 150, hats: true,
+      lead: [[76,1],[76,1],[79,1],[76,1],[81,1],[81,1],[79,1],[78,1],[81,1],[81,1],[83,1],[81,1],[79,1],[78,1],[76,1],[74,1]],
+      bass: [[40,1],[40,1],[40,1],[40,1],[43,1],[43,1],[45,1],[45,1],[40,1],[40,1],[40,1],[40,1],[47,1],[47,1],[45,1],[45,1]],
+      arp: [64,67,71,76,74,71,69,67],
+      kick: [1,0,0,0] } },
+    { id: "spike", name: "Spike Wire", chip: { bpm: 140, hats: true,
+      lead: [[76,1],[77,1],[78,1],[79,1],[80,1],[81,1],[80,1],[79,1],[81,1],[80,1],[79,1],[78,1],[77,1],[76,1],[75,1],[74,1]],
+      bass: [[40,1],[40,1],[40,1],[40,1],[41,1],[41,1],[42,1],[42,1],[43,1],[43,1],[42,1],[42,1],[41,1],[41,1],[40,1],[40,1]],
+      arp: [76,77,78,79,80,81,80,79],
+      kick: [1,0,0,1] } },
+    { id: "cool", name: "Cool Pockets", chip: { bpm: 100, hats: false,
+      lead: [[69,1],[72,1],[76,1],[74,1],[72,1],[71,1],[69,1],[67,1],[72,1],[74,1],[76,1],[79,1],[81,1],[79,1],[76,1],[74,1]],
+      bass: [[45,1],[45,1],[41,1],[41,1],[48,1],[48,1],[43,1],[43,1],[45,1],[45,1],[43,1],[43,1],[41,1],[41,1],[43,1],[43,1]],
+      arp: [69,72,76,79,76,72,74,72],
+      kick: [1,0,0,0] } },
+    { id: "rush", name: "Rush Hour", chip: { bpm: 160, hats: true,
+      lead: [[76,1],[79,1],[81,1],[83,1],[81,1],[79,1],[81,1],[79,1],[83,1],[81,1],[79,1],[78,1],[76,1],[78,1],[79,1],[81,1]],
+      bass: [[40,1],[40,1],[40,1],[40,1],[45,1],[45,1],[47,1],[47,1],[40,1],[40,1],[40,1],[40,1],[43,1],[43,1],[45,1],[45,1]],
+      arp: [64,67,71,76,79,76,71,67],
+      kick: [1,0,1,0] } },
+    { id: "tunnel", name: "Tunnel Echo", chip: { bpm: 90, hats: false,
+      lead: [[74,1],[0,1],[69,1],[0,1],[65,1],[0,1],[64,1],[0,1],[65,1],[0,1],[64,1],[0,1],[62,1],[0,1],[60,1],[0,1]],
+      bass: [[50,1],[50,1],[45,1],[45,1],[43,1],[43,1],[45,1],[45,1],[48,1],[48,1],[45,1],[45,1],[43,1],[43,1],[43,1],[43,1]],
+      arp: [62,65,69,74,69,65,64,62],
+      kick: [1,0,0,0] } },
+    { id: "climb", name: "Climb High", chip: { bpm: 126, hats: true,
+      lead: [[72,1],[74,1],[76,1],[79,1],[81,1],[79,1],[76,1],[74,1],[81,1],[83,1],[84,1],[83,1],[81,1],[79,1],[76,1],[74,1]],
+      bass: [[48,1],[48,1],[53,1],[53,1],[43,1],[43,1],[48,1],[48,1],[45,1],[45,1],[45,1],[45,1],[43,1],[43,1],[43,1],[43,1]],
+      arp: [72,76,79,84,81,79,76,74],
+      kick: [1,0,0,0] } },
+    { id: "agony", name: "Agony Grind", chip: { bpm: 84, hats: false,
+      lead: [[76,2],[74,1],[72,1],[81,2],[79,1],[76,1],[79,2],[76,1],[74,1],[72,2],[71,1],[69,1]],
+      bass: [[40,2],[40,2],[48,1],[48,1],[50,1],[50,1],[45,2],[45,2],[43,1],[43,1],[41,1],[41,1]],
+      arp: [52,55,60,64,60,55,52,50],
+      kick: [1,0,0,0] } },
+    { id: "torture", name: "Torture Tempo", chip: { bpm: 168, hats: true,
+      lead: [[78,1],[78,1],[76,1],[78,1],[81,1],[80,1],[78,1],[76,1],[81,1],[83,1],[84,1],[83,1],[81,1],[80,1],[78,1],[76,1]],
+      bass: [[42,1],[42,1],[42,1],[42,1],[40,1],[40,1],[38,1],[38,1],[42,1],[42,1],[42,1],[42,1],[43,1],[43,1],[45,1],[45,1]],
+      arp: [66,69,73,78,81,78,73,69],
+      kick: [1,1,1,1] } },
+    { id: "tagony", name: "Agony Ascending", chip: { bpm: 112, hats: true,
+      lead: [[74,1],[77,1],[81,1],[79,1],[77,1],[76,1],[74,1],[72,1],[74,1],[77,1],[81,1],[84,1],[83,1],[81,1],[79,1],[77,1]],
+      bass: [[50,1],[50,1],[46,1],[46,1],[48,1],[48,1],[45,1],[45,1],[50,1],[50,1],[48,1],[48,1],[46,1],[46,1],[45,1],[45,1]],
+      arp: [62,65,69,74,77,74,69,65],
+      kick: [1,0,0,0] } },
+    { id: "blow", name: "Blow Out", chip: { bpm: 124, hats: true,
+      lead: [[72,1],[75,1],[79,1],[82,1],[81,1],[79,1],[75,1],[72,1],[72,1],[75,1],[79,1],[82,1],[84,1],[82,1],[81,1],[79,1]],
+      bass: [[48,1],[48,1],[46,1],[46,1],[53,1],[53,1],[48,1],[48,1],[48,1],[48,1],[53,1],[53,1],[46,1],[46,1],[48,1],[48,1]],
+      arp: [60,64,67,72,67,64,65,67],
+      kick: [1,0,1,0] } },
+    { id: "dropper", name: "Freefall", chip: { bpm: 152, hats: true,
+      lead: [[74,1],[72,1],[71,1],[69,1],[67,1],[69,1],[71,1],[72,1],[74,1],[76,1],[77,1],[76,1],[74,1],[72,1],[71,1],[69,1]],
+      bass: [[50,1],[50,1],[48,1],[48,1],[45,1],[45,1],[43,1],[43,1],[50,1],[50,1],[45,1],[45,1],[43,1],[43,1],[41,1],[41,1]],
+      arp: [62,65,69,74,69,65,67,65],
+      kick: [1,0,1,0] } },
   ];
 
   function sanitizeSong(raw) {
@@ -942,8 +1165,24 @@
   const Music = {
     audio: null,
     id: "",
+    enabled: true,
+    setEnabled(v) {
+      this.enabled = !!v;
+      if (!this.enabled) this.stop();
+    },
+    playing() {
+      try {
+        if (this.audio) return !this.audio.paused;
+        if (ChipTune.song) return !!ChipTune.ctx && ChipTune.ctx.state === "running";
+        return false;
+      } catch (e) { return false; }
+    },
     play(id) {
       id = sanitizeSong(id);
+      if (!this.enabled) {
+        this.stop();
+        return;
+      }
       if (!id) {
         this.stop();
         return;
@@ -956,10 +1195,16 @@
         return;
       }
       this.stop();
-      let file = "";
+      let def = null;
       for (let i = 0; i < SONGS.length; i++) {
-        if (SONGS[i].id === id) file = SONGS[i].file;
+        if (SONGS[i].id === id) def = SONGS[i];
       }
+      if (def && def.chip) {
+        this.id = id;
+        try { ChipTune.play(def.chip); } catch (e) {}
+        return;
+      }
+      const file = def ? def.file : "";
       if (!file) return;
       const a = new Audio("assets/music/" + file);
       a.loop = true;
@@ -969,6 +1214,7 @@
       a.play().catch(function () {});
     },
     stop() {
+      try { ChipTune.stop(); } catch (e) {}
       if (this.audio) {
         try {
           this.audio.pause();
@@ -1960,6 +2206,8 @@
       this.trailHue = 0;
       this.touched = new Set();
       this.collected = new Set();
+      this.keys = 0;
+      this.openDoors = new Set();
       this.checkpoint = null;
       this.pendingJumps = 0;
       this.pendingCoinGrant = 0;
@@ -2147,6 +2395,7 @@
       for (const { tile, c, r } of hits) {
         const type = TILE_TYPES[tile.id];
         if (!type || !type.solid) continue;
+        if (tile.id === "door" && this.openDoors && this.openDoors.has(c + "," + r)) continue;
         if (isSlopeId(tile.id)) continue; // slopes use resolveSlopes, not AABB
         solids.push(isHalfId(tile.id) ? halfBox(c, r, tile) : solidBox(c, r, tile));
       }
@@ -2589,6 +2838,33 @@
       }
     }
 
+    checkKeysAndDoors() {
+      // Keys are pickups (kept for the run); touching a locked door with a
+      // key spends one and opens it for the rest of the run.
+      if (this.dead || this.won) return;
+      const box = this.playerBox();
+      const hits = this.nearbyTiles(box.x, box.y, box.w, box.h, 2);
+      for (const { tile, c, r } of hits) {
+        if (tile.id === "key") {
+          const key = c + "," + r;
+          if (this.collected.has(key)) continue;
+          if (!aabbOverlap(box, coinBox(c, r, tile))) continue;
+          this.collected.add(key);
+          this.keys = (this.keys | 0) + 1;
+        } else if (tile.id === "door") {
+          const key = c + "," + r;
+          if (this.openDoors.has(key)) continue;
+          // Padded hitbox: a cube pressed flush against the door counts.
+          const s = solidBox(c, r, tile);
+          if (!aabbOverlap(box, { x: s.x - 4, y: s.y - 4, w: s.w + 8, h: s.h + 8 })) continue;
+          if ((this.keys | 0) > 0) {
+            this.keys -= 1;
+            this.openDoors.add(key);
+          }
+        }
+      }
+    }
+
     checkOrbs() {
       const p = this.player;
       const box = this.playerBox();
@@ -3002,6 +3278,7 @@
       this.checkPortals();
       this.checkCheckpoints();
       this.checkCoins();
+      this.checkKeysAndDoors();
       this.updateMovers(dt);
       this.updatePlats(dt);
       this.updateCrushers(dt);
@@ -3075,6 +3352,8 @@
     if (isDjOrbId(tile.id)) return "#2ee6ff";
     if (tile.id === "pad") return "#2ee6ff";
     if (tile.id === "dash") return "#ff9a1f";
+    if (tile.id === "key") return "#ffd23c";
+    if (tile.id === "door") return "#8a5a2b";
     if (isSawId(tile.id)) return "#ff5a6e";
     if (tile.id === "crusher") return "#8a93a8";
     if (tile.id === "ice") return "#9fd8ff";
@@ -3949,6 +4228,7 @@
   function drawTile(ctx, images, tile, x, y, size, opts) {
     size = size || TILE;    opts = opts || {};
     if (isInvisibleId(tile.id) && opts.hideInvisible) return;
+    if (tile.id === "door" && opts.openDoors && opts.c != null && opts.openDoors.has(opts.c + "," + opts.r)) return;
     if (isCoinId(tile.id)) {
       if (opts.collected) {
         const key = opts.collectedKey || (opts.c != null ? opts.c + "," + opts.r : "");
@@ -3964,6 +4244,24 @@
         return;
       }
       drawCoinGraphic(ctx, images, tile, x, y, size, bob);
+      return;
+    }
+    if (tile.id === "key") {
+      if (opts.collected) {
+        const key = opts.collectedKey || (opts.c != null ? opts.c + "," + opts.r : "");
+        if (key && opts.collected.has(key)) return;
+      }
+      const bob = opts.graphics !== "simple" && opts.bob ? Math.sin(Date.now() / 220 + (opts.c || 0) * 1.7 + (opts.r || 0) * 2.1) * 2.5 : 0;
+      if (opts.graphics === "simple") {
+        drawSimpleTile(ctx, tile, x, y + bob, size, opts);
+        return;
+      }
+      const ki = images.key;
+      if (ki) {
+        ctx.drawImage(ki, x, y + bob, size, size);
+        return;
+      }
+      drawSimpleTile(ctx, tile, x, y + bob, size, opts);
       return;
     }
     if (opts.graphics === "simple") {
@@ -4036,6 +4334,8 @@
         img = images.dash;
       } else if (isGoalId(tile.id)) {
         img = images.goal;
+      } else if (tile.id === "door") {
+        img = images.door;
       }
     } else {
       img = realImg;
@@ -4212,6 +4512,7 @@
             r: r,
             touched: extras.engine ? extras.engine.touched : null,
             collected: extras.engine ? extras.engine.collected : null,
+            openDoors: extras.engine ? extras.engine.openDoors : null,
             bob: !!extras.engine,
             graphics: gfx,
             real: real,

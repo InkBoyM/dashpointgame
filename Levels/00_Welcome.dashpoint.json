@@ -1871,7 +1871,7 @@
       "scale": 3
     }
   ],
-  "gameplay": {
+  "song": "welcome", "gameplay": {
     "moveSpeed": 320,
     "accel": 2800,
     "friction": 2400,

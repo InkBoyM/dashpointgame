@@ -7522,7 +7522,7 @@
     }
   ],
   "texts": [],
-  "gameplay": {
+  "song": "tunnel", "gameplay": {
     "moveSpeed": 320,
     "accel": 2800,
     "friction": 2400,
