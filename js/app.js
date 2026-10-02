@@ -2525,6 +2525,16 @@
     syncSpaceSettings();
   }
 
+  function applyNewUI() {
+    document.body.classList.toggle("ui-new", !!save_.data.newUi);
+    syncNewUi();
+  }
+
+  function syncNewUi() {
+    const b = el("btnNewUi");
+    if (b) b.textContent = save_.data.newUi ? "NEW UI: ON" : "NEW UI: OFF";
+  }
+
   // ---- Login streaks: daily reward calendar ----
   const STREAK_REWARDS = [
     { coins: 500, label: "+500 coins" },
@@ -4243,6 +4253,7 @@
       el("advFx").style.display = "none";
       el("btnAdvFx").innerHTML = "ADVANCED &#9656;";
       syncSpaceSettings();
+      syncNewUi();
     }
   }
 
@@ -7841,6 +7852,12 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     const btnDownloadHome = el("btnDownloadHome");
     if (btnDownloadHome) btnDownloadHome.addEventListener("click", () => openModal("modalDownload"));
     el("btnOpenShop").addEventListener("click", () => openModal("modalShop"));
+    el("btnNewUi").addEventListener("click", () => {
+      save_.data.newUi = !save_.data.newUi;
+      save();
+      applyNewUI();
+      showNotice(save_.data.newUi ? "New UI on" : "Classic UI back on", false);
+    });
     el("btnStreakClaim").addEventListener("click", () => claimStreak());
     el("homeStats").addEventListener("click", (ev) => {
       if (ev.target && ev.target.closest && ev.target.closest(".hs-streak")) openStreakModal();
@@ -8459,6 +8476,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     migrateCoins();
     checkUnlocks();
     applySpaceTheme();
+    applyNewUI();
     try { DP.Music.setEnabled(save_.data.music !== false); } catch (e) {}
     applyGraphics();
     applyTouchUI();
