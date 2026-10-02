@@ -881,7 +881,7 @@
   }
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, effects: [], effect: "", suspend: null, streak: { n: 0, day: "" }, achv: [], chestsOpened: 0, hnsWins: 0, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", seenTutorial: false, bellSeen: {}, follows: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, effects: [], effect: "", suspend: null, streak: { n: 0, day: "" }, achv: {}, chestsOpened: 0, hnsWins: 0, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", seenTutorial: false, bellSeen: {}, follows: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
   }
 
   function touchUIDefaults() {
@@ -927,6 +927,96 @@
     }
   }
 
+  // ---- Achievements: one-time feats with coin payouts ----
+  const ACHIEVEMENTS = [
+    { id: "ouch", name: "Ouch", desc: "Die for the first time", coins: 50, when: (d) => (d.deaths | 0) >= 1, prog: (d) => Math.min(d.deaths | 0, 1) + "/1" },
+    { id: "pain100", name: "Century of Pain", desc: "Die 100 times", coins: 200, when: (d) => (d.deaths | 0) >= 100, prog: (d) => Math.min(d.deaths | 0, 100) + "/100" },
+    { id: "pain1000", name: "Professional Ragdoll", desc: "Die 1,000 times", coins: 500, when: (d) => (d.deaths | 0) >= 1000, prog: (d) => Math.min(d.deaths | 0, 1000) + "/1000" },
+    { id: "hop100", name: "Hopscotch", desc: "Jump 100 times", coins: 100, when: (d) => (d.jumps | 0) >= 100, prog: (d) => Math.min(d.jumps | 0, 100) + "/100" },
+    { id: "hop5000", name: "Moonhopper", desc: "Jump 5,000 times", coins: 400, when: (d) => (d.jumps | 0) >= 5000, prog: (d) => Math.min(d.jumps | 0, 5000) + "/5000" },
+    { id: "welcome", name: "Welcome Home", desc: "Beat Welcome", coins: 100, when: (d) => d.beaten && d.beaten["00_Welcome.dashpoint.json"] !== undefined },
+    { id: "tourist", name: "Sightseer", desc: "Beat 5 different levels", coins: 250, when: (d) => Object.keys(d.beaten || {}).length >= 5, prog: (d) => Math.min(Object.keys(d.beaten || {}).length, 5) + "/5" },
+    { id: "conqueror", name: "Conqueror", desc: "Beat every campaign level", coins: 1000, when: (d) => LEVEL_FILES.every((f) => (d.beaten || {})[f] !== undefined), prog: (d) => LEVEL_FILES.filter((f) => (d.beaten || {})[f] !== undefined).length + "/" + LEVEL_FILES.length },
+    { id: "explorer", name: "Explorer", desc: "Beat a network level", coins: 150, when: (d) => Object.keys(d.beaten || {}).some((k) => k.indexOf("net:") === 0) },
+    { id: "drip", name: "New Drip", desc: "Unlock a shop skin", coins: 100, when: (d) => (d.unlocked || []).some((id) => { const s = SKINS.find((x) => x.id === id); return s && isShopSkin(s); }) },
+    { id: "petowner", name: "Companion", desc: "Own any pet", coins: 150, when: (d) => (d.pets || []).length > 0 },
+    { id: "streak3", name: "Warming Up", desc: "Reach a 3-day login streak", coins: 150, when: (d) => ((d.streak && d.streak.n) | 0) >= 3, prog: (d) => Math.min(((d.streak && d.streak.n) | 0), 3) + "/3" },
+    { id: "streak7", name: "Unstoppable", desc: "Reach a 7-day login streak", coins: 400, when: (d) => ((d.streak && d.streak.n) | 0) >= 7, prog: (d) => Math.min(((d.streak && d.streak.n) | 0), 7) + "/7" },
+    { id: "chest1", name: "Treasure Hunter", desc: "Open any chest", coins: 150, when: (d) => (d.chestsOpened | 0) >= 1, prog: (d) => Math.min(d.chestsOpened | 0, 1) + "/1" },
+    { id: "hns1", name: "Party Animal", desc: "Win a hide & seek round", coins: 200, when: (d) => (d.hnsWins | 0) >= 1, prog: (d) => Math.min(d.hnsWins | 0, 1) + "/1" },
+    { id: "tycoon", name: "Tycoon", desc: "Hold 1,000,000 coins at once", coins: 250, when: (d) => { try { return coinAmount(d.coins) >= 1000000n; } catch (e) { return false; } }, prog: (d) => fmtCoins(d.coins) + " / 1M" },
+    { id: "veteran", name: "No-lifer", desc: "Play for 10 hours total", coins: 500, when: (d) => (Number(d.playtime) || 0) >= 36000, prog: (d) => ((Number(d.playtime) || 0) / 3600).toFixed(1) + "/10h" },
+    { id: "speedy", name: "Speed Demon", desc: "Clear any level in under 30 seconds", coins: 200, when: (d) => Object.keys(d.best || {}).some((k) => (d.best[k] || 1e9) < 30) },
+    { id: "flawless", name: "Flawless", desc: "Clear a level without dying", coins: 300, when: null },
+  ];
+
+  function achvOwned() {
+    const a = save_.data.achv;
+    if (a && typeof a === "object" && !Array.isArray(a)) return a;
+    return {};
+  }
+
+  function unlockAchv(id) {
+    const a = ACHIEVEMENTS.find((x) => x.id === id);
+    if (!a) return;
+    const owned = achvOwned();
+    if (owned[id]) return;
+    owned[id] = Date.now();
+    save_.data.achv = owned;
+    if (a.coins) grantCoins(a.coins);
+    save();
+    syncCoinUI();
+    syncHomeStats();
+    achvQueue.push({ src: "assets/ui/chest-gold.png", name: a.name, title: "ACHIEVEMENT!" });
+    pumpAchievements();
+    if (el("modalStats") && el("modalStats").classList.contains("visible")) renderStats();
+    if (el("modalAchv") && el("modalAchv").classList.contains("visible")) renderAchvModal();
+  }
+
+  function achvDate(ts) {
+    if (!ts) return "—";
+    try { return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
+    catch (e) { return "—"; }
+  }
+
+  function renderAchvGrid(box) {
+    if (!box) return;
+    box.innerHTML = "";
+    const owned = achvOwned();
+    ACHIEVEMENTS.forEach(function (a) {
+      const ts = owned[a.id] || 0;
+      let sub = "";
+      try { sub = !ts && a.prog ? String(a.prog(save_.data) || "") : ""; } catch (e) {}
+      const t = document.createElement("div");
+      t.className = "skin-tile" + (ts ? " selected" : " cant");
+      t.innerHTML =
+        '<span class="skin-name">' + escapeHtml(a.name) + "</span>" +
+        '<span class="skin-hint">' + escapeHtml(a.desc) + "</span>" +
+        (sub ? '<span class="skin-hint">' + escapeHtml(sub) + "</span>" : "") +
+        '<span class="shop-cost">' + coinIcon() + fmtCoins(a.coins) + "</span>" +
+        '<span class="skin-hint">' + (ts ? escapeHtml(achvDate(ts)) : "LOCKED") + "</span>";
+      box.appendChild(t);
+    });
+  }
+
+  function renderAchvModal() {
+    const done = Object.keys(achvOwned()).length;
+    const head = el("achvHead");
+    if (head) head.textContent = done + "/" + ACHIEVEMENTS.length + " unlocked";
+    renderAchvGrid(el("achvGrid"));
+  }
+
+  function checkAchievements() {
+    const d = save_.data;
+    for (const a of ACHIEVEMENTS) {
+      if (!a.when) continue;
+      let ok = false;
+      try { ok = !!a.when(d); } catch (e) {}
+      if (ok) unlockAchv(a.id);
+    }
+  }
+
+
   function load() {
     try {
       const raw = localStorage.getItem(STORAGE);
@@ -937,7 +1027,15 @@
       s.best = s.best || {};
       s.attempts = s.attempts || {};
       s.suspend = (s.suspend && typeof s.suspend === "object") ? s.suspend : null;
-      s.achv = Array.isArray(s.achv) ? s.achv.filter(function (id) { return ACHIEVEMENTS.some(function (a) { return a.id === id; }); }) : [];
+      if (Array.isArray(s.achv)) {
+        const m = {};
+        s.achv.forEach(function (id) { if (ACHIEVEMENTS.some(function (a) { return a.id === id; })) m[id] = 0; });
+        s.achv = m;
+      } else if (s.achv && typeof s.achv === "object") {
+        const m = {};
+        Object.keys(s.achv).forEach(function (id) { if (ACHIEVEMENTS.some(function (a) { return a.id === id; })) m[id] = Number(s.achv[id]) || 0; });
+        s.achv = m;
+      } else s.achv = {};
       s.chestsOpened = s.chestsOpened | 0;
       s.hnsWins = s.hnsWins | 0;
       s.streak = (s.streak && typeof s.streak === "object") ? { n: s.streak.n | 0, day: String(s.streak.day || "") } : { n: 0, day: "" };
@@ -2119,6 +2217,7 @@
     { id: "crowns", label: "Crowns" },
     { id: "playtime", label: "Playtime" },
     { id: "made", label: "Made" },
+    { id: "achv", label: "Achievements" },
   ];
   let boardCat = "deaths";
   let boardsCache = { at: 0, users: null };
@@ -2133,6 +2232,7 @@
     if (cat === "made") return u.made | 0;
     if (cat === "crowns") return (crownsCache.map && crownsCache.map[u.uid]) || 0;
     if (cat === "jumps") return u.jumps | 0;
+    if (cat === "achv") return Object.keys((u.achv && typeof u.achv === "object" && !Array.isArray(u.achv)) ? u.achv : {}).length || (Array.isArray(u.achv) ? u.achv.length : 0);
     return u.deaths | 0;
   }
 
@@ -2140,6 +2240,7 @@
     if (cat === "coins") return fmtCoins(u.coins || "0");
     if (cat === "playtime") return fmtPlaytime(u.playtime || 0);
     if (cat === "skins") return (u.skins | 0) + "/" + SKINS.length;
+    if (cat === "achv") return boardVal(u, cat) + "/" + ACHIEVEMENTS.length;
     return String(boardVal(u, cat));
   }
 
@@ -2183,6 +2284,7 @@
             beatenCount: Object.keys(save_.data.beaten || {}).length,
             skins: (save_.data.unlocked || []).length,
             playtime: Number(save_.data.playtime) || 0,
+            achv: Object.keys(achvOwned()).length,
           });
           boardsCache.at = 0;
         }
@@ -2377,54 +2479,6 @@
     if (el("modalSkins").classList.contains("visible")) renderSkins();
     if (el("modalShop") && el("modalShop").classList.contains("visible")) renderShop();
     checkAchievements();
-  }
-
-  // ---- Achievements: one-time feats with coin payouts ----
-  const ACHIEVEMENTS = [
-    { id: "ouch", name: "Ouch", desc: "Die for the first time", coins: 50, when: (d) => (d.deaths | 0) >= 1 },
-    { id: "pain100", name: "Century of Pain", desc: "Die 100 times", coins: 200, when: (d) => (d.deaths | 0) >= 100 },
-    { id: "pain1000", name: "Professional Ragdoll", desc: "Die 1,000 times", coins: 500, when: (d) => (d.deaths | 0) >= 1000 },
-    { id: "hop100", name: "Hopscotch", desc: "Jump 100 times", coins: 100, when: (d) => (d.jumps | 0) >= 100 },
-    { id: "hop5000", name: "Moonhopper", desc: "Jump 5,000 times", coins: 400, when: (d) => (d.jumps | 0) >= 5000 },
-    { id: "welcome", name: "Welcome Home", desc: "Beat Welcome", coins: 100, when: (d) => d.beaten && d.beaten["00_Welcome.dashpoint.json"] !== undefined },
-    { id: "tourist", name: "Sightseer", desc: "Beat 5 different levels", coins: 250, when: (d) => Object.keys(d.beaten || {}).length >= 5 },
-    { id: "conqueror", name: "Conqueror", desc: "Beat every campaign level", coins: 1000, when: (d) => LEVEL_FILES.every((f) => (d.beaten || {})[f] !== undefined) },
-    { id: "explorer", name: "Explorer", desc: "Beat a network level", coins: 150, when: (d) => Object.keys(d.beaten || {}).some((k) => k.indexOf("net:") === 0) },
-    { id: "drip", name: "New Drip", desc: "Unlock a shop skin", coins: 100, when: (d) => (d.unlocked || []).some((id) => { const s = SKINS.find((x) => x.id === id); return s && isShopSkin(s); }) },
-    { id: "petowner", name: "Companion", desc: "Own any pet", coins: 150, when: (d) => (d.pets || []).length > 0 },
-    { id: "streak3", name: "Warming Up", desc: "Reach a 3-day login streak", coins: 150, when: (d) => ((d.streak && d.streak.n) | 0) >= 3 },
-    { id: "streak7", name: "Unstoppable", desc: "Reach a 7-day login streak", coins: 400, when: (d) => ((d.streak && d.streak.n) | 0) >= 7 },
-    { id: "chest1", name: "Treasure Hunter", desc: "Open any chest", coins: 150, when: (d) => (d.chestsOpened | 0) >= 1 },
-    { id: "hns1", name: "Party Animal", desc: "Win a hide & seek round", coins: 200, when: (d) => (d.hnsWins | 0) >= 1 },
-    { id: "tycoon", name: "Tycoon", desc: "Hold 1,000,000 coins at once", coins: 250, when: (d) => { try { return coinAmount(d.coins) >= 1000000n; } catch (e) { return false; } } },
-    { id: "veteran", name: "No-lifer", desc: "Play for 10 hours total", coins: 500, when: (d) => (Number(d.playtime) || 0) >= 36000 },
-    { id: "speedy", name: "Speed Demon", desc: "Clear any level in under 30 seconds", coins: 200, when: (d) => Object.keys(d.best || {}).some((k) => (d.best[k] || 1e9) < 30) },
-    { id: "flawless", name: "Flawless", desc: "Clear a level without dying", coins: 300, when: null },
-  ];
-
-  function unlockAchv(id) {
-    const a = ACHIEVEMENTS.find((x) => x.id === id);
-    if (!a) return;
-    save_.data.achv = save_.data.achv || [];
-    if (save_.data.achv.indexOf(id) !== -1) return;
-    save_.data.achv.push(id);
-    if (a.coins) grantCoins(a.coins);
-    save();
-    syncCoinUI();
-    syncHomeStats();
-    achvQueue.push({ src: "assets/ui/chest-gold.png", name: a.name, title: "ACHIEVEMENT!" });
-    pumpAchievements();
-    if (el("modalStats") && el("modalStats").classList.contains("visible")) renderStats();
-  }
-
-  function checkAchievements() {
-    const d = save_.data;
-    for (const a of ACHIEVEMENTS) {
-      if (!a.when) continue;
-      let ok = false;
-      try { ok = !!a.when(d); } catch (e) {}
-      if (ok) unlockAchv(a.id);
-    }
   }
 
   function unlockSecretA() {
@@ -5029,21 +5083,7 @@
       });
     }
     const ag = el("statAchv");
-    if (ag) {
-      ag.innerHTML = "";
-      const owned = d.achv || [];
-      ACHIEVEMENTS.forEach(function (a) {
-        const has = owned.indexOf(a.id) !== -1;
-        const t = document.createElement("div");
-        t.className = "skin-tile" + (has ? " selected" : "");
-        if (!has) t.classList.add("cant");
-        t.innerHTML =
-          '<span class="skin-name">' + escapeHtml(a.name) + "</span>" +
-          '<span class="skin-hint">' + escapeHtml(a.desc) + "</span>" +
-          '<span class="shop-cost">' + coinIcon() + fmtCoins(a.coins) + "</span>";
-        ag.appendChild(t);
-      });
-    }
+    renderAchvGrid(ag);
   }
 
   // ---- Spectate / follow cam ----
@@ -8271,6 +8311,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       presenceTick();
     });
     el("btnProfStats").addEventListener("click", () => openModal("modalStats"));
+    el("btnProfAchv").addEventListener("click", () => { renderAchvModal(); openModal("modalAchv"); });
 
     el("btnProfSync").addEventListener("click", async () => {
       const cu = (typeof firebase !== 'undefined' && firebase.auth().currentUser) ? firebase.auth().currentUser : null;
@@ -8349,13 +8390,15 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
             save_.data.streak = { n: cloud.streak.n | 0, day: cd };
           }
         }
-        if (Array.isArray(cloud.achv)) {
-          const got = {};
-          (save_.data.achv || []).forEach(function (id) { got[id] = true; });
-          cloud.achv.forEach(function (id) {
-            if (ACHIEVEMENTS.some(function (a) { return a.id === id; })) got[id] = true;
+        if (cloud.achv && typeof cloud.achv === "object") {
+          const src = Array.isArray(cloud.achv) ? cloud.achv : Object.keys(cloud.achv);
+          const m = achvOwned();
+          src.forEach(function (id) {
+            if (!ACHIEVEMENTS.some(function (a) { return a.id === id; })) return;
+            const ct = !Array.isArray(cloud.achv) ? (Number(cloud.achv[id]) || 0) : 0;
+            if (!m[id] || (ct && ct < m[id])) m[id] = ct;
           });
-          save_.data.achv = Object.keys(got);
+          save_.data.achv = m;
         }
         if (cloud.chestsOpened != null) save_.data.chestsOpened = Math.max(save_.data.chestsOpened | 0, cloud.chestsOpened | 0);
         if (cloud.hnsWins != null) save_.data.hnsWins = Math.max(save_.data.hnsWins | 0, cloud.hnsWins | 0);

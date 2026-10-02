@@ -551,7 +551,7 @@
 
       <hr class="sep" />
       <div class="section-title">Stats</div>
-      <div class="row-gap"><button class="px-btn small gold" id="btnProfStats">VIEW STATS</button></div>
+      <div class="row-gap"><button class="px-btn small gold" id="btnProfStats">VIEW STATS</button><button class="px-btn small gold" id="btnProfAchv">ACHIEVEMENTS</button></div>
       <hr class="sep" />
       <div class="row-end"><button class="px-btn small" data-close="modalProfile">CLOSE</button></div>
     </div>
@@ -566,6 +566,17 @@
         <button class="px-btn good" id="btnStreakClaim">CLAIM</button>
         <button class="px-btn small" data-close="modalStreak">CLOSE</button>
       </div>
+    </div>
+  </div>
+
+  <div class="modal-root" id="modalAchv">
+    <div class="modal">
+      <div class="modal-head">
+        <h2>ACHIEVEMENTS</h2>
+      </div>
+      <p class="hint" id="achvHead"></p>
+      <div class="skin-grid" id="achvGrid"></div>
+      <div class="row-end"><button class="px-btn small" data-close="modalAchv">CLOSE</button></div>
     </div>
   </div>
 
@@ -713,6 +724,7 @@
         <button class="chip" data-board="crowns">CROWNS</button>
         <button class="chip" data-board="playtime">PLAYTIME</button>
         <button class="chip" data-board="made">MADE</button>
+        <button class="chip" data-board="achv">ACHV</button>
       </div>
     </div>
     <div class="leaderboard leaderboard-full" id="netBoardsList"><p class="loading-note">Pick a category.</p></div>

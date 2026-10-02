@@ -417,6 +417,7 @@ window.DPNet = (function () {
       patch.coins = coinsMaxStr(cloud.coins, stats && stats.coins);
       patch.skins = Math.max(cloud.skins || 0, (stats && stats.skins) || 0);
       patch.playtime = Math.max(cloud.playtime || 0, (stats && stats.playtime) || 0);
+      patch.achv = Math.max(cloud.achv || 0, (stats && stats.achv) || 0);
       try {
         const mine = await getJSON("/dashpoint/userLevels/" + u.uid);
         patch.made = mine ? Object.keys(mine).length : (cloud.made || 0);
@@ -429,6 +430,7 @@ window.DPNet = (function () {
       patch.coins = coinsMaxStr("0", stats && stats.coins);
       patch.skins = (stats && stats.skins) || 0;
       patch.playtime = (stats && stats.playtime) || 0;
+      patch.achv = (stats && stats.achv) || 0;
       patch.made = 0;
     }
     await patchJSON(refPath, patch);
