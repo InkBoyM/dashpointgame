@@ -271,6 +271,8 @@
     playing: false,
     engine: null,
     deaths: 0,
+    verify: null,
+    verifyRun: null,
     playFrom: null,
     keys: new Set(),
     pan: { on: false, lastX: 0, lastY: 0, space: false },
@@ -354,6 +356,10 @@
   function markDirty(yes) {
     state.dirty = yes !== false;
     els.dirty.classList.toggle("saved", !state.dirty);
+    if (state.dirty && state.verify) {
+      state.verify = null;
+      try { syncVerifyUI(); } catch (e) {}
+    }
   }
 
   function snapshot() {
@@ -2338,6 +2344,81 @@
     return { counts, issues, ok: issues.length === 0 && goals > 0 };
   }
 
+  var VERIFY_DIFF_NAMES = ["Easy", "Normal", "Hard", "Harder", "Torture"];
+
+  function verifyHashFor(level) {
+    try {
+      const data = level.toJSON();
+      const slim = {
+        cols: data.cols, rows: data.rows, spawn: data.spawn, tiles: data.tiles,
+        gameplay: data.gameplay, triggers: data.triggers,
+        platforms: data.platforms, zones: data.zones, portals: data.portals,
+      };
+      const s = JSON.stringify(slim);
+      let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+      for (let i = 0; i < s.length; i++) {
+        const ch = s.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 2654435761);
+        h2 = Math.imul(h2 ^ ch, 1597334677);
+      }
+      h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+      h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+      return (h2 >>> 0).toString(16) + (h1 >>> 0).toString(16);
+    } catch (e) { return ""; }
+  }
+
+  function suggestDifficulty(info) {
+    const deaths = Math.max(0, info.deaths | 0);
+    const time = Math.max(0, +info.time || 0);
+    const cols = Math.max(16, info.cols | 0 || 16);
+    const hazards = Math.max(0, info.hazards | 0);
+    const density = hazards / Math.max(1, cols);
+    const lenMin = (time / 60) * (60 / Math.max(20, cols));
+    let score = deaths + time / 40 + density * 14 + lenMin * 1.5;
+    if (deaths === 0 && time < 45 && density < 0.25) score -= 3;
+    if (score < 4) return 1;
+    if (score < 9) return 2;
+    if (score < 16) return 3;
+    if (score < 26) return 4;
+    return 5;
+  }
+
+  function currentVerifyInfo() {
+    if (!state.verify) return null;
+    const cur = verifyHashFor(state.level);
+    if (!cur || cur !== state.verify.hash) {
+      state.verify = null;
+      try { syncVerifyUI(); } catch (e) {}
+      return null;
+    }
+    return state.verify;
+  }
+
+  function syncVerifyUI() {
+    const vEl = document.getElementById("cVerified");
+    const sEl = document.getElementById("cSuggest");
+    let info = state.verify;
+    if (info && verifyHashFor(state.level) !== info.hash) { state.verify = null; info = null; }
+    if (vEl) {
+      if (info) {
+        vEl.textContent = "CLEARED ✓ " + Number(info.time).toFixed(1) + "s · " + info.deaths + " deaths";
+        vEl.style.color = "var(--good)";
+      } else {
+        vEl.textContent = "not yet — playtest from spawn (Enter) and beat it";
+        vEl.style.color = "var(--gold)";
+      }
+    }
+    if (sEl) {
+      if (info) {
+        sEl.textContent = VERIFY_DIFF_NAMES[(info.suggest | 0) - 1] || "Normal";
+        sEl.style.color = "var(--good)";
+      } else {
+        sEl.textContent = "—";
+        sEl.style.color = "";
+      }
+    }
+  }
+
   function syncInspector() {
     els.name.value = state.level.name;
     els.cols.value = state.level.cols;
@@ -2390,6 +2471,7 @@
     const tagEl = document.getElementById("cTags");
     if (tagEl) tagEl.textContent = tags.length ? tags.join(", ") : "—";
     syncPathUI();
+    try { syncVerifyUI(); } catch (e) {}
   }
 
   function exportLevel() {
@@ -2644,6 +2726,7 @@
     focusOn(live.spawn.c, live.spawn.r, playZoom());
     state.playing = true;
     state.deaths = 0;
+    state.verifyRun = fromHover ? null : { done: false };
     els.app.classList.add("playing");
     els.playHud.classList.add("visible");
     els.winCard.classList.remove("visible");
@@ -2779,8 +2862,29 @@
       }
       if (state.engine.won) {
         els.hudState.textContent = "GOAL";
+        let extra = "";
+        if (state.verifyRun && !state.verifyRun.done) {
+          state.verifyRun.done = true;
+          try {
+            const counts = state.level.counts();
+            const hazards = (counts.spike || 0) + (counts.ispike || 0) + (counts.gspike || 0) +
+              (counts.igspike || 0) + (counts.saw || 0) + (counts.crusher || 0) + (counts.lava || 0);
+            const info = {
+              hash: verifyHashFor(state.level),
+              deaths: state.deaths,
+              time: state.engine.time,
+              at: Date.now(),
+              suggest: suggestDifficulty({ deaths: state.deaths, time: state.engine.time, cols: state.level.cols, hazards: hazards }),
+            };
+            if (info.hash) {
+              state.verify = info;
+              extra = "  ·  Verified ✓ suggested " + (VERIFY_DIFF_NAMES[info.suggest - 1] || "");
+            }
+          } catch (e) {}
+          try { syncVerifyUI(); } catch (e) {}
+        }
         document.getElementById("winText").textContent =
-          "Time " + state.engine.time.toFixed(2) + "s  ·  deaths " + state.deaths;
+          "Time " + state.engine.time.toFixed(2) + "s  ·  deaths " + state.deaths + extra;
         els.winCard.classList.add("visible");
       }
       followPlayer();
@@ -3772,6 +3876,10 @@
       markDirty: () => markDirty(true),
       getNetworkEdit: () => networkEdit,
       clearNetworkEdit: clearNetworkEdit,
+      getVerification: () => currentVerifyInfo(),
+      verifyHashFor: (lv) => verifyHashFor(lv || state.level),
+      suggestFor: (info) => suggestDifficulty(info),
+      diffNames: VERIFY_DIFF_NAMES,
       TILE: TILE,
       DP: DP,
       snapshot: snapshot,

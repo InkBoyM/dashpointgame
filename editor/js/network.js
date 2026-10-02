@@ -95,6 +95,11 @@ window.DPNet = (function () {
       plays: 0,
       downloads: 0,
       tags: Array.isArray(meta.tags) ? meta.tags.map(function (t) { return String(t).slice(0, 32); }).filter(Boolean).slice(0, 8) : [],
+      verified: meta.verified === true,
+      verifyDeaths: Math.max(0, meta.verifyDeaths | 0 || 0),
+      verifyTime: Math.max(0, +meta.verifyTime || 0),
+      verifyAt: meta.verifyAt | 0 || Date.now(),
+      suggestDiff: Math.max(1, Math.min(5, meta.suggestDiff | 0 || meta.difficulty | 0 || 2)),
     });
     await db.ref("dashpoint/userLevels/" + u.uid + "/" + id).set(true);
     return id;
@@ -139,6 +144,11 @@ window.DPNet = (function () {
       authorName: u.name || entry.authorName || "player",
       updatedAt: Date.now(),
       tags: Array.isArray(meta.tags) ? meta.tags.map(function (t) { return String(t).slice(0, 32); }).filter(Boolean).slice(0, 8) : (entry.tags || []),
+      verified: meta.verified === true,
+      verifyDeaths: Math.max(0, meta.verifyDeaths | 0 || 0),
+      verifyTime: Math.max(0, +meta.verifyTime || 0),
+      verifyAt: meta.verifyAt | 0 || Date.now(),
+      suggestDiff: Math.max(1, Math.min(5, meta.suggestDiff | 0 || meta.difficulty | 0 || 2)),
     });
     return id;
   }

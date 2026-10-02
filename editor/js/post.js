@@ -17,6 +17,10 @@
     "#postMsg{min-height:18px;font-size:12px;color:var(--muted);margin:8px 0 0}",
     "#postAuthBox input{margin-bottom:6px}",
     ".post-note{font-size:11px;color:var(--muted);margin:6px 0 0}",
+    "#verifyBox{margin-top:10px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px}",
+    "#verifyBox.ok{border-color:var(--good)}",
+    "#verifyBox.bad{border-color:var(--gold)}",
+    "#verifyBox .row{margin-top:8px}",
   ].join("\n");
   document.head.appendChild(STYLE);
 
@@ -34,6 +38,7 @@
     "<label>Description</label><textarea id=\"postDesc\" maxlength=\"300\" placeholder=\"What makes this level special?\"></textarea>",
     "<label>Difficulty (how hard you think it is)</label>",
     '<div class="face-row" id="postFaces"></div>',
+    '<div id="verifyBox"></div>',
     '<p class="post-note" id="postWho"></p>',
     '<div class="row" style="margin-top:12px;justify-content:flex-end;gap:8px"><button class="text-btn" id="postAsNew" style="display:none">POST AS NEW</button><button class="text-btn good" id="postSend">POST LEVEL</button></div>',
     "</div>",
@@ -74,6 +79,52 @@
     return (ed && ed.getNetworkEdit && ed.getNetworkEdit()) || null;
   }
 
+  function getVerify() {
+    try {
+      const ed = window.DashPointEditor;
+      if (ed && ed.getVerification) return ed.getVerification();
+    } catch (e) {}
+    return null;
+  }
+
+  function renderVerify() {
+    const box = el("verifyBox");
+    if (!box) return;
+    const v = getVerify();
+    box.classList.remove("ok", "bad");
+    if (v) {
+      box.classList.add("ok");
+      const names = ["EASY", "NORMAL", "HARD", "HARDER", "TORTURE"];
+      box.innerHTML = "";
+      const line = document.createElement("div");
+      line.textContent = "Verified ✓ cleared in " + Number(v.time).toFixed(1) + "s with " + v.deaths +
+        " deaths · suggested " + (names[(v.suggest | 0) - 1] || "NORMAL");
+      box.appendChild(line);
+      const note = document.createElement("p");
+      note.className = "post-note";
+      note.textContent = "Any edit clears this — beat it again before posting.";
+      box.appendChild(note);
+    } else {
+      box.classList.add("bad");
+      box.innerHTML = "";
+      const line = document.createElement("div");
+      line.textContent = "Not verified — beat the level in a full playtest from spawn (Enter, no Alt-start) before posting.";
+      box.appendChild(line);
+      const row = document.createElement("div");
+      row.className = "row";
+      const btn = document.createElement("button");
+      btn.className = "text-btn play grow";
+      btn.textContent = "PLAYTEST NOW";
+      btn.addEventListener("click", () => {
+        close();
+        const play = document.getElementById("btnPlay");
+        if (play) play.click();
+      });
+      row.appendChild(btn);
+      box.appendChild(row);
+    }
+  }
+
   function syncAuth() {
     const logged = !!currentUser;
     el("postAuthBox").style.display = logged ? "none" : "";
@@ -98,8 +149,12 @@
     const net = editing();
     el("postTitle").value = st ? String(st.level.name || "") : "";
     el("postDesc").value = net && net.meta ? String(net.meta.desc || "") : "";
-    difficulty = net && net.meta ? Math.max(1, Math.min(5, net.meta.difficulty | 0 || 2)) : 2;
+    const v0 = getVerify();
+    difficulty = v0 && v0.suggest
+      ? Math.max(1, Math.min(5, v0.suggest | 0))
+      : (net && net.meta ? Math.max(1, Math.min(5, net.meta.difficulty | 0 || 2)) : 2);
     renderFaces();
+    renderVerify();
     syncAuth();
     msg("");
   }
@@ -142,12 +197,17 @@
       const title = el("postTitle").value.trim();
       if (!title) { throw new Error("Give your level a title."); }
       const ed = window.DashPointEditor;
+      const vfy = ed.getVerification ? ed.getVerification() : null;
+      if (!vfy) throw new Error("Beat the level in a full playtest from spawn first (Enter, no Alt-start).");
+      const curHash = ed.verifyHashFor ? ed.verifyHashFor() : "";
+      if (!curHash || curHash !== vfy.hash) throw new Error("You edited after clearing — beat it again before posting.");
       const json = ed.exportJSON();
       const v = ed.getLevel().counts();
         if ((v.goals || v.goal || 0) < 1) throw new Error("Your level needs a goal before posting.");
       const net = editing();
       const tags = (json.meta && Array.isArray(json.meta.tags) ? json.meta.tags : (net && net.meta && net.meta.tags) || []).slice(0, 8);
-      const meta = { title: title, desc: el("postDesc").value.trim(), difficulty: difficulty, tags: tags };
+      const meta = { title: title, desc: el("postDesc").value.trim(), difficulty: difficulty, tags: tags,
+        verified: true, verifyDeaths: vfy.deaths | 0, verifyTime: +vfy.time || 0, verifyAt: vfy.at || Date.now(), suggestDiff: vfy.suggest | 0 || difficulty };
       let id;
       if (!asNew && net && net.id && DPNet.updateLevel) {
         id = await DPNet.updateLevel(net.id, meta, json);
