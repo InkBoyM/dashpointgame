@@ -1851,6 +1851,49 @@ body.gfx-good .wheel-clip img {
   .locker-wrap { flex-direction: column; }
   .locker-preview { width: auto; position: static; }
 }
+/* ===== Locker theme: rarity colors + glow ===== */
+#modalSkins .modal { background: linear-gradient(160deg, #101b31 0%, #0a1420 75%); border-color: #2ee6ff; box-shadow: 0 0 24px rgba(46,230,255,.15), 6px 6px 0 rgba(0,0,0,.45); }
+#modalSkins h2 { letter-spacing: 3px; text-shadow: 0 0 12px rgba(46,230,255,.5); }
+#modalSkins .skin-tile { --rar: #9db4d8; border-bottom: 5px solid var(--rar); transition: transform .08s, border-color .08s, box-shadow .08s; }
+#modalSkins .skin-tile img { filter: drop-shadow(0 3px 0 rgba(0,0,0,.45)); }
+#modalSkins .skin-tile:hover { border-color: var(--rar); filter: brightness(1.12); }
+#modalSkins .skin-tile.selected { border-color: var(--rar); box-shadow: 0 0 0 2px var(--rar), 0 0 18px var(--rar), 4px 4px 0 rgba(0,0,0,.4); }
+.skin-tile.rar-STARTER { --rar: #3ee07a; }
+.skin-tile.rar-SHOP { --rar: #ffd23c; }
+.skin-tile.rar-DEATHS { --rar: #ff4d62; }
+.skin-tile.rar-JUMPS { --rar: #ff9d2e; }
+.skin-tile.rar-VICTORY { --rar: #b45cff; }
+.skin-tile.rar-SECRET { --rar: #8b5cf6; }
+.skin-tile.rar-CODES { --rar: #2ee6ff; }
+.skin-tile.rar-IRL { --rar: #ffffff; }
+.skin-tile.rar-CUSTOM { --rar: #ff6bff; }
+.locker-bar .chip { border-width: 2px; }
+.locker-bar .chip[data-cat="STARTER"].active { background: #3ee07a; color: #062a14; }
+.locker-bar .chip[data-cat="SHOP"].active { background: #ffd23c; color: #3a2a00; }
+.locker-bar .chip[data-cat="DEATHS"].active { background: #ff4d62; color: #2a060b; }
+.locker-bar .chip[data-cat="JUMPS"].active { background: #ff9d2e; color: #2a1500; }
+.locker-bar .chip[data-cat="VICTORY"].active { background: #b45cff; color: #1c0633; }
+.locker-bar .chip[data-cat="SECRET"].active { background: #8b5cf6; color: #12042e; }
+.locker-bar .chip[data-cat="CODES"].active { background: #2ee6ff; color: #062a14; }
+.locker-bar .chip[data-cat="IRL"].active { background: #ffffff; color: #12203a; }
+.locker-bar .chip[data-cat="CUSTOM"].active { background: #ff6bff; color: #2e042e; }
+.locker-preview { --rar: #ffd23c; background: radial-gradient(circle at 50% 18%, rgba(255,255,255,.09), rgba(255,255,255,0) 55%), linear-gradient(180deg, #16233d 0%, #0a1420 100%); border: 2px solid var(--rar); box-shadow: 0 0 18px rgba(0,0,0,.5); }
+.locker-preview.rar-STARTER { --rar: #3ee07a; }
+.locker-preview.rar-SHOP { --rar: #ffd23c; }
+.locker-preview.rar-DEATHS { --rar: #ff4d62; }
+.locker-preview.rar-JUMPS { --rar: #ff9d2e; }
+.locker-preview.rar-VICTORY { --rar: #b45cff; }
+.locker-preview.rar-SECRET { --rar: #8b5cf6; }
+.locker-preview.rar-CODES { --rar: #2ee6ff; }
+.locker-preview.rar-IRL { --rar: #ffffff; }
+.locker-preview.rar-CUSTOM { --rar: #ff6bff; }
+.locker-preview img { width: 140px; height: 140px; filter: drop-shadow(0 0 14px var(--rar)); }
+.locker-banner { background: var(--rar); margin: 10px -12px 0; padding: 8px 10px; }
+.locker-banner .locker-name { color: #0a1420; font-size: 18px; margin-top: 0; }
+.locker-banner .locker-cat { color: #0a1420; font-size: 11px; font-weight: 900; letter-spacing: 2px; }
+.locker-preview .hint { color: #c8d8f0; }
+.locker-preview .px-btn.good { font-size: 15px; padding: 10px; }
+.locker-chip { border-color: var(--rar, #2ee6ff); }
 .locker-acc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .locker-chip { font-size: 12px; background: #0a1420; border: 1px solid #2ee6ff; padding: 2px 8px; white-space: nowrap; }
 .search-empty { text-align: center; }

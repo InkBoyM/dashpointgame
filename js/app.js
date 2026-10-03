@@ -3104,7 +3104,7 @@
     function makeTile(s){
       const unlocked = isUnlocked(s.id);
       const b = document.createElement("button");
-      b.className = "skin-tile" + (unlocked ? "" : " locked") + (lockerSel === s.id ? " selected" : "");
+      b.className = "skin-tile" + (unlocked ? "" : " locked") + (lockerSel === s.id ? " selected" : "") + " rar-" + skinCategory(s);
       let hint = skinHintText(s);
       b.innerHTML = '<img src="' + s.src + '" alt="" />' + '<span class="skin-name">' + escapeHtml(s.name) + "</span>" + '<span class="skin-hint">' + escapeHtml(hint) + "</span>";
       if (!unlocked && s.unlock && (s.unlock.type === "deaths" || s.unlock.type === "jumps" || s.unlock.type === "either" || (s.unlock.type === "shop" && (s.unlock.deaths | 0) > 0))) {
@@ -3145,6 +3145,7 @@
     LOCKER_CATS.forEach(function (c) {
       const chip = document.createElement("button");
       chip.className = "chip" + (lockerCat === c ? " active" : "");
+      chip.dataset.cat = c;
       chip.textContent = c;
       chip.addEventListener("click", function () { lockerCat = c; renderSkins(); });
       bar.appendChild(chip);
@@ -3201,6 +3202,8 @@
       s = { id: CUSTOM_SKIN_ID, name: "Custom", src: save_.data.customSkin, unlock: { type: "code" } };
     }
     if (!s) s = SKINS.find(function (x) { return x.id === save_.data.skin; }) || SKINS[0];
+    const cat = skinCategory(s);
+    box.className = "locker-preview rar-" + cat;
     const unlocked = isUnlocked(s.id);
     const equipped = save_.data.skin === s.id;
     const chips = [];
@@ -3218,8 +3221,8 @@
     if (nc) chips.push("NAME " + nc.label);
     let html = "";
     if (s.src) html += '<img src="' + s.src + '" alt="" />';
-    html += '<div class="locker-name">' + escapeHtml(s.name) + "</div>";
-    html += '<div class="hint">' + escapeHtml(skinCategory(s)) + (equipped ? " · EQUIPPED" : "") + "</div>";
+    html += '<div class="locker-banner"><div class="locker-name">' + escapeHtml(s.name) + "</div>";
+    html += '<div class="locker-cat">' + escapeHtml(cat) + (equipped ? " · EQUIPPED" : "") + "</div></div>";
     html += '<div class="hint">' + escapeHtml(skinHintText(s)) + "</div>";
     if (equipped) {
       html += '<button class="px-btn small good" disabled>EQUIPPED</button>';
