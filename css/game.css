@@ -1840,9 +1840,17 @@ body.gfx-good .wheel-clip img {
 .px-search { width: 100%; box-sizing: border-box; margin: 8px 0; padding: 8px 10px; background: #0a1420; border: 2px solid #2ee6ff; color: #ffffff; font: inherit; border-radius: 0; outline: none; }
 .px-search:focus { box-shadow: 0 0 0 2px #2ee6ff; }
 .px-search::placeholder { color: #5a6b8c; }
-.locker-preview { display: flex; gap: 12px; align-items: center; background: #16233d; border: 2px solid #ffd23c; padding: 10px; margin-bottom: 10px; }
-.locker-preview img { width: 64px; height: 64px; image-rendering: pixelated; flex: none; }
-.locker-preview .locker-name { font-weight: bold; font-size: 16px; }
+.locker-wrap { display: flex; gap: 12px; align-items: flex-start; }
+.locker-list { flex: 1; min-width: 0; }
+.locker-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.locker-preview { width: 250px; flex: none; position: sticky; top: 0; background: #16233d; border: 2px solid #ffd23c; padding: 12px; text-align: center; }
+.locker-preview img { width: 128px; height: 128px; image-rendering: pixelated; }
+.locker-preview .locker-name { font-weight: bold; font-size: 16px; margin-top: 6px; }
+.locker-preview .px-btn { margin-top: 8px; width: 100%; }
+@media (max-width: 720px) {
+  .locker-wrap { flex-direction: column; }
+  .locker-preview { width: auto; position: static; }
+}
 .locker-acc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .locker-chip { font-size: 12px; background: #0a1420; border: 1px solid #2ee6ff; padding: 2px 8px; white-space: nowrap; }
 .search-empty { text-align: center; }

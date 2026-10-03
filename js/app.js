@@ -3027,11 +3027,52 @@
   let bobTaps = 0;
   var lockerQuery = "";
   var shopQuery = "";
+  var lockerSel = null;
+  var lockerCat = "ALL";
+  var lockerOwn = "ALL";
+  var lockerSort = "DEF";
+  function skinHintText(s) {
+    const unlocked = isUnlocked(s.id);
+    if (unlocked) return save_.data.skin === s.id ? "EQUIPPED" : "TAP TO PREVIEW";
+    if (s.unlock && s.unlock.type === "secreta") return "Tap the SKINS title 7 times";
+    if (s.unlock && s.unlock.type === "deaths") {
+      let need = s.unlock.n; let have = save_.data.deaths; let pct = Math.min(100, Math.floor(have/need*100));
+      return have + "/" + need + " deaths" + (pct < 100 ? " (" + pct + "%)" : "");
+    }
+    if (s.unlock && s.unlock.type === "jumps") {
+      let need = s.unlock.n; let have = save_.data.jumps | 0; let pct = Math.min(100, Math.floor(have/need*100));
+      return have + "/" + need + " jumps" + (pct < 100 ? " (" + pct + "%)" : "");
+    }
+    if (s.unlock && s.unlock.type === "either") {
+      let jNeed = s.unlock.jumps | 0; let jHave = save_.data.jumps | 0;
+      let dNeed = s.unlock.deaths | 0; let dHave = save_.data.deaths | 0;
+      return jHave + "/" + jNeed + " jumps or " + dHave + "/" + dNeed + " deaths";
+    }
+    if (s.unlock && s.unlock.type === "shop" && (s.unlock.deaths | 0) > 0) {
+      let need = s.unlock.deaths | 0; let have = save_.data.deaths | 0;
+      return have + "/" + need + " deaths or " + ((s.unlock.cost | 0)) + " coins";
+    }
+    return s.hint || "LOCKED";
+  }
+  function skinCategory(s) {
+    if (s.id === CUSTOM_SKIN_ID) return "CUSTOM";
+    const u = s.unlock || {};
+    if (!u.type) return "STARTER";
+    if (u.type === "secreta") return "SECRET";
+    if (s.irl) return "IRL";
+    if (u.type === "beat" || u.type === "diff") return "VICTORY";
+    if (u.type === "jumps" || (u.type === "either" && u.jumps)) return "JUMPS";
+    if (u.type === "shop") return "SHOP";
+    if (u.type === "deaths" || u.type === "either") return "DEATHS";
+    if (u.type === "code") return "CODES";
+    return "MISC";
+  }
   function renderSkins() {
     const grid = el("skinGrid");
     grid.innerHTML = "";
     grid.className = "skin-tree";
-    renderLockerPreview();
+    if (lockerSel !== CUSTOM_SKIN_ID && !SKINS.some(function (x) { return x.id === lockerSel; })) lockerSel = save_.data.skin;
+    const lockerPrev = el("lockerPreview");
     try {
       var customSec = document.createElement("div"); customSec.className = "skin-section";
       customSec.innerHTML = '<div class="skin-section-title">CUSTOM <span class="line"></span></div>';
@@ -3063,26 +3104,8 @@
     function makeTile(s){
       const unlocked = isUnlocked(s.id);
       const b = document.createElement("button");
-      b.className = "skin-tile" + (unlocked ? "" : " locked") + (save_.data.skin === s.id ? " selected" : "");
-      let hint = "";
-      if (unlocked) hint = save_.data.skin === s.id ? "EQUIPPED" : "TAP TO EQUIP";
-      else {
-        if (s.unlock && s.unlock.type === "secreta") hint = "Tap the SKINS title 7 times";
-        else if (s.unlock && s.unlock.type === "deaths") {
-          let need = s.unlock.n; let have = save_.data.deaths; let pct = Math.min(100, Math.floor(have/need*100));
-          hint = have + "/" + need + " deaths" + (pct < 100 ? " (" + pct + "%)" : "");
-        } else if (s.unlock && s.unlock.type === "jumps") {
-          let need = s.unlock.n; let have = save_.data.jumps | 0; let pct = Math.min(100, Math.floor(have/need*100));
-          hint = have + "/" + need + " jumps" + (pct < 100 ? " (" + pct + "%)" : "");
-        } else if (s.unlock && s.unlock.type === "either") {
-          let jNeed = s.unlock.jumps | 0; let jHave = save_.data.jumps | 0;
-          let dNeed = s.unlock.deaths | 0; let dHave = save_.data.deaths | 0;
-          hint = jHave + "/" + jNeed + " jumps or " + dHave + "/" + dNeed + " deaths";
-        } else if (s.unlock && s.unlock.type === "shop" && (s.unlock.deaths | 0) > 0) {
-          let need = s.unlock.deaths | 0; let have = save_.data.deaths | 0;
-          hint = have + "/" + need + " deaths or " + ((s.unlock.cost | 0)) + " coins";
-        } else hint = s.hint || "LOCKED";
-      }
+      b.className = "skin-tile" + (unlocked ? "" : " locked") + (lockerSel === s.id ? " selected" : "");
+      let hint = skinHintText(s);
       b.innerHTML = '<img src="' + s.src + '" alt="" />' + '<span class="skin-name">' + escapeHtml(s.name) + "</span>" + '<span class="skin-hint">' + escapeHtml(hint) + "</span>";
       if (!unlocked && s.unlock && (s.unlock.type === "deaths" || s.unlock.type === "jumps" || s.unlock.type === "either" || (s.unlock.type === "shop" && (s.unlock.deaths | 0) > 0))) {
         let pct = 0;
@@ -3102,58 +3125,84 @@
       }
       if (unlocked) {
         b.addEventListener("click", function(){
-          save_.data.skin = s.id; save(); renderSkins(); syncHomeStats();
+          if (lockerSel === s.id) {
+            save_.data.skin = s.id; save(); renderSkins(); syncHomeStats();
+          } else {
+            lockerSel = s.id; renderSkins();
+          }
+        });
+      } else {
+        b.addEventListener("click", function(){
+          lockerSel = s.id; renderSkins();
         });
       }
       return b;
     }
-    function addSection(titleText, skins, extra){
-      const sec = document.createElement("div"); sec.className = "skin-section";
-      const h = document.createElement("div"); h.className = "skin-section-title"; h.innerHTML = escapeHtml(titleText) + '<span class="line"></span>'; sec.appendChild(h);
-      if (extra) { const p=document.createElement("div"); p.className="hint"; p.textContent=extra; sec.appendChild(p); }
-      if (titleText.indexOf("DEATHS") !== -1) {
-        let have = save_.data.deaths; let maxNeed=100;
-        skins.forEach(function(s){ const u=s.unlock||{}; const n=u.n||u.deaths||0; if(n>maxNeed)maxNeed=n; }); let pct=Math.min(100, Math.floor(have/maxNeed*100));
-        let prog=document.createElement("div"); prog.className="skin-progress";
-        let fill=document.createElement("div"); fill.className="skin-progress-fill"; fill.style.width=pct+"%"; prog.appendChild(fill); sec.appendChild(prog);
-        let txt=document.createElement("div"); txt.className="skin-progress-text"; txt.textContent=have + " / " + maxNeed + " deaths (" + pct + "%)"; sec.appendChild(txt);
-      }
-      if (titleText.indexOf("JUMPS") !== -1) {
-        let have = save_.data.jumps | 0; let maxNeed=100;
-        skins.forEach(function(s){ const u=s.unlock||{}; const n=u.n||u.jumps||0; if(n>maxNeed)maxNeed=n; }); let pct=Math.min(100, Math.floor(have/maxNeed*100));
-        let prog=document.createElement("div"); prog.className="skin-progress";
-        let fill=document.createElement("div"); fill.className="skin-progress-fill"; fill.style.width=pct+"%"; prog.appendChild(fill); sec.appendChild(prog);
-        let txt=document.createElement("div"); txt.className="skin-progress-text"; txt.textContent=have + " / " + maxNeed + " jumps (" + pct + "%)"; sec.appendChild(txt);
-      }
-      const g=document.createElement("div"); g.className="skin-grid";
-      skins.forEach(function(s){ g.appendChild(makeTile(s)); });
-      sec.appendChild(g); grid.appendChild(sec);
-    }
-    const starter = SKINS.filter(function(s){ return [1,2,3,4,5].indexOf(s.id)!==-1; });
-    const deaths = SKINS.filter(function(s){ return s.unlock && (s.unlock.type==="deaths" || (s.unlock.type==="either" && s.unlock.deaths) || (s.unlock.type==="shop" && s.unlock.deaths)); }).sort(function(a,b){ return (a.unlock.n || a.unlock.deaths || 0) - (b.unlock.n || b.unlock.deaths || 0); });
-    const jumps = SKINS.filter(function(s){ return s.unlock && (s.unlock.type==="jumps" || (s.unlock.type==="either" && s.unlock.jumps)); }).sort(function(a,b){ return (a.unlock.n || a.unlock.jumps || 0) - (b.unlock.n || b.unlock.jumps || 0); });
-    const victory = SKINS.filter(function(s){ return s.unlock && (s.unlock.type==="beat" || s.unlock.type==="diff"); });
-    const secret = SKINS.filter(function(s){ return s.unlock && s.unlock.type==="secreta"; });
-    addSection("STARTER", starter, "Always unlocked");
-    addSection("DEATHS — die to unlock", deaths, "Progress shown per skin");
-    addSection("JUMPS", jumps, "Jump to unlock");
-    addSection("VICTORY — beat levels", victory, "");
-    addSection("SECRET", secret, "Hidden — tap the SKINS title 7 times or press Alt+A");
-    const irl = SKINS.filter(function(s){ return !!s.irl; });
-    if (irl.length) addSection("IRL — real people", irl, 'Codes: "bibi" / "putin" / "trump"');
-    const shopOwned = SKINS.filter(function(s){ return isShopSkin(s) && isUnlocked(s.id) && !(s.unlock && s.unlock.deaths); });
-    if (shopOwned.length) addSection("SHOP", shopOwned, "Bought with coins");
-    const codeOwned = SKINS.filter(function(s){ return isCodeSkin(s) && isUnlocked(s.id) && !s.irl; });
-    if (codeOwned.length) addSection("CODES", codeOwned, "Unlocked with a code");
+    // ---- Unified locker grid (Fortnite style): every skin, filter chips ----
+    const LOCKER_CATS = ["ALL", "STARTER", "SHOP", "DEATHS", "JUMPS", "VICTORY", "SECRET", "CODES", "IRL", "CUSTOM"];
+    const bar = document.createElement("div");
+    bar.className = "chips locker-bar";
+    LOCKER_CATS.forEach(function (c) {
+      const chip = document.createElement("button");
+      chip.className = "chip" + (lockerCat === c ? " active" : "");
+      chip.textContent = c;
+      chip.addEventListener("click", function () { lockerCat = c; renderSkins(); });
+      bar.appendChild(chip);
+    });
+    const ownBar = document.createElement("div");
+    ownBar.className = "chips locker-bar";
+    [["ALL", "SHOW: ALL"], ["OWNED", "OWNED"], ["LOCKED", "LOCKED"]].forEach(function (pair) {
+      const chip = document.createElement("button");
+      chip.className = "chip" + (lockerOwn === pair[0] ? " active" : "");
+      chip.textContent = pair[1];
+      chip.addEventListener("click", function () { lockerOwn = pair[0]; renderSkins(); });
+      ownBar.appendChild(chip);
+    });
+    [["DEF", "SORT: DEFAULT"], ["AZ", "SORT: A-Z"]].forEach(function (pair) {
+      const chip = document.createElement("button");
+      chip.className = "chip" + (lockerSort === pair[0] ? " active" : "");
+      chip.textContent = pair[1];
+      chip.addEventListener("click", function () { lockerSort = pair[0]; renderSkins(); });
+      ownBar.appendChild(chip);
+    });
+    let list = SKINS.filter(function (s) { return s.id !== CUSTOM_SKIN_ID; });
+    list = list.filter(function (s) {
+      if (lockerCat !== "ALL" && skinCategory(s) !== lockerCat) return false;
+      const un = isUnlocked(s.id);
+      if (lockerOwn === "OWNED" && !un) return false;
+      if (lockerOwn === "LOCKED" && un) return false;
+      return true;
+    });
+    if (lockerSort === "AZ") list = list.slice().sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); });
+    const g = document.createElement("div");
+    g.className = "skin-grid";
+    list.forEach(function (s) { g.appendChild(makeTile(s)); });
+    const wrap = document.createElement("div");
+    wrap.className = "locker-wrap";
+    const left = document.createElement("div");
+    left.className = "locker-list";
+    left.appendChild(bar);
+    left.appendChild(ownBar);
+    left.appendChild(g);
+    wrap.appendChild(left);
+    if (lockerPrev) wrap.appendChild(lockerPrev);
+    grid.appendChild(wrap);
+    renderLockerPreview();
     applyLockerSearch();
     syncCoinUI();
   }
 
-  // ---- Locker preview: equipped skin + accessory chips ----
+  // ---- Locker side preview: selected skin + EQUIP + accessory chips ----
   function renderLockerPreview() {
     const box = el("lockerPreview");
     if (!box) return;
-    const s = SKINS.find(function (x) { return x.id === save_.data.skin; }) || SKINS[0];
+    let s = SKINS.find(function (x) { return x.id === lockerSel; }) || null;
+    if (!s && lockerSel === CUSTOM_SKIN_ID && save_.data.customSkin) {
+      s = { id: CUSTOM_SKIN_ID, name: "Custom", src: save_.data.customSkin, unlock: { type: "code" } };
+    }
+    if (!s) s = SKINS.find(function (x) { return x.id === save_.data.skin; }) || SKINS[0];
+    const unlocked = isUnlocked(s.id);
+    const equipped = save_.data.skin === s.id;
     const chips = [];
     const fr = equippedFrame();
     if (fr) chips.push("FRAME " + fr.label);
@@ -3167,16 +3216,33 @@
     if (tag) chips.push("TAG {" + tag.label + "}");
     const nc = equippedNameColor();
     if (nc) chips.push("NAME " + nc.label);
-    let html = '<img src="' + s.src + '" alt="" />' + '<div><div class="locker-name">' + escapeHtml(s.name) + "</div>";
+    let html = "";
+    if (s.src) html += '<img src="' + s.src + '" alt="" />';
+    html += '<div class="locker-name">' + escapeHtml(s.name) + "</div>";
+    html += '<div class="hint">' + escapeHtml(skinCategory(s)) + (equipped ? " · EQUIPPED" : "") + "</div>";
+    html += '<div class="hint">' + escapeHtml(skinHintText(s)) + "</div>";
+    if (equipped) {
+      html += '<button class="px-btn small good" disabled>EQUIPPED</button>';
+    } else if (unlocked) {
+      html += '<button class="px-btn small good" id="lockerEquip">EQUIP</button>';
+    } else {
+      html += '<button class="px-btn small" disabled>LOCKED</button>';
+    }
+    if (s.id === CUSTOM_SKIN_ID && unlocked) {
+      html += '<button class="px-btn small gold" id="lockerPaint">PAINT YOUR SKIN</button>';
+    }
     if (chips.length) {
       html += '<div class="locker-acc">';
       chips.forEach(function (c) { html += '<span class="locker-chip">' + escapeHtml(c) + "</span>"; });
       html += "</div>";
-    } else {
-      html += '<div class="hint">No accessories equipped — find them in the shop.</div>';
     }
-    html += "</div>";
     box.innerHTML = html;
+    const eq = el("lockerEquip");
+    if (eq) eq.addEventListener("click", function () {
+      save_.data.skin = s.id; save(); lockerSel = s.id; renderSkins(); syncHomeStats();
+    });
+    const pt = el("lockerPaint");
+    if (pt) pt.addEventListener("click", function () { openPaint(); });
   }
 
   // ---- Tile search filter shared by locker + shop ----
