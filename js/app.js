@@ -3025,10 +3025,13 @@
   }
 
   let bobTaps = 0;
+  var lockerQuery = "";
+  var shopQuery = "";
   function renderSkins() {
     const grid = el("skinGrid");
     grid.innerHTML = "";
     grid.className = "skin-tree";
+    renderLockerPreview();
     try {
       var customSec = document.createElement("div"); customSec.className = "skin-section";
       customSec.innerHTML = '<div class="skin-section-title">CUSTOM <span class="line"></span></div>';
@@ -3142,7 +3145,84 @@
     if (shopOwned.length) addSection("SHOP", shopOwned, "Bought with coins");
     const codeOwned = SKINS.filter(function(s){ return isCodeSkin(s) && isUnlocked(s.id) && !s.irl; });
     if (codeOwned.length) addSection("CODES", codeOwned, "Unlocked with a code");
+    applyLockerSearch();
     syncCoinUI();
+  }
+
+  // ---- Locker preview: equipped skin + accessory chips ----
+  function renderLockerPreview() {
+    const box = el("lockerPreview");
+    if (!box) return;
+    const s = SKINS.find(function (x) { return x.id === save_.data.skin; }) || SKINS[0];
+    const chips = [];
+    const fr = equippedFrame();
+    if (fr) chips.push("FRAME " + fr.label);
+    const tr = findShopTrail(save_.data.trail);
+    if (tr) chips.push("TRAIL " + tr.label);
+    const fx = findShopFx(save_.data.effect);
+    if (fx && ownsFx(fx.id)) chips.push("EFFECT " + fx.label);
+    const pet = findShopPet(save_.data.pet);
+    if (pet) chips.push("PET " + pet.label);
+    const tag = findShopTag(save_.data.tag);
+    if (tag) chips.push("TAG {" + tag.label + "}");
+    const nc = equippedNameColor();
+    if (nc) chips.push("NAME " + nc.label);
+    let html = '<img src="' + s.src + '" alt="" />' + '<div><div class="locker-name">' + escapeHtml(s.name) + "</div>";
+    if (chips.length) {
+      html += '<div class="locker-acc">';
+      chips.forEach(function (c) { html += '<span class="locker-chip">' + escapeHtml(c) + "</span>"; });
+      html += "</div>";
+    } else {
+      html += '<div class="hint">No accessories equipped — find them in the shop.</div>';
+    }
+    html += "</div>";
+    box.innerHTML = html;
+  }
+
+  // ---- Tile search filter shared by locker + shop ----
+  function filterTileGrids(root, q) {
+    if (!root) return;
+    q = String(q || "").toLowerCase();
+    root.querySelectorAll(".search-empty").forEach(function (n) { n.remove(); });
+    let shown = 0;
+    root.querySelectorAll(".skin-tile").forEach(function (t) {
+      const nm = t.querySelector(".skin-name");
+      const hit = !q || ((nm && nm.textContent) || "").toLowerCase().indexOf(q) !== -1;
+      t.style.display = hit ? "" : "none";
+      if (hit) shown++;
+    });
+    root.querySelectorAll(".skin-section").forEach(function (sec) {
+      const tiles = sec.querySelectorAll(".skin-tile");
+      let vis = 0;
+      tiles.forEach(function (t) { if (t.style.display !== "none") vis++; });
+      sec.style.display = (!tiles.length || vis) ? "" : "none";
+    });
+    root.querySelectorAll(".section-title").forEach(function (title) {
+      let g = title.nextElementSibling;
+      while (g && !g.classList.contains("skin-grid") && !g.classList.contains("skin-tree")) g = g.nextElementSibling;
+      if (!g) return;
+      const tiles = g.querySelectorAll(".skin-tile");
+      let vis = 0;
+      tiles.forEach(function (t) { if (t.style.display !== "none") vis++; });
+      const show = !tiles.length || vis;
+      title.style.display = show ? "" : "none";
+      g.style.display = show ? "" : "none";
+    });
+    if (!shown && q) {
+      const p = document.createElement("p");
+      p.className = "hint search-empty";
+      p.textContent = 'No matches for "' + q + '".';
+      root.appendChild(p);
+    }
+  }
+
+  function applyLockerSearch() {
+    filterTileGrids(el("skinGrid"), lockerQuery);
+  }
+
+  function applyShopSearch() {
+    const m = el("modalShop");
+    if (m) filterTileGrids(m, shopQuery);
   }
 
   // ---- Custom skin slot: 1T coins, then paint your own 16x16 cube ----
@@ -3492,6 +3572,7 @@
     renderShopBg();
     renderShopPacks();
     renderShopFx();
+    applyShopSearch();
     syncCoinUI();
   }
 
@@ -7841,6 +7922,10 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     const btnDownloadHome = el("btnDownloadHome");
     if (btnDownloadHome) btnDownloadHome.addEventListener("click", () => openModal("modalDownload"));
     el("btnOpenShop").addEventListener("click", () => openModal("modalShop"));
+    const lockerSearch = el("lockerSearch");
+    if (lockerSearch) lockerSearch.addEventListener("input", function () { lockerQuery = lockerSearch.value; renderSkins(); });
+    const shopSearch = el("shopSearch");
+    if (shopSearch) shopSearch.addEventListener("input", function () { shopQuery = shopSearch.value; renderShop(); });
     el("btnStreakClaim").addEventListener("click", () => claimStreak());
     el("homeStats").addEventListener("click", (ev) => {
       if (ev.target && ev.target.closest && ev.target.closest(".hs-streak")) openStreakModal();
