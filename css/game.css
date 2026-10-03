@@ -1840,12 +1840,11 @@ body.gfx-good .wheel-clip img {
 .px-search { width: 100%; box-sizing: border-box; margin: 8px 0; padding: 8px 10px; background: #0a1420; border: 2px solid #2ee6ff; color: #ffffff; font: inherit; border-radius: 0; outline: none; }
 .px-search:focus { box-shadow: 0 0 0 2px #2ee6ff; }
 .px-search::placeholder { color: #5a6b8c; }
-.locker-wrap { display: flex; gap: 12px; align-items: flex-start; }
-.locker-list { flex: 1; min-width: 0; }
+.locker-wrap { display: flex; gap: 20px; align-items: flex-start; }
+.locker-list { flex: 1; min-width: 0; background: rgba(6,12,24,.55); border: 2px solid #1d2e4f; padding: 14px; }
 .locker-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-.locker-preview { width: 250px; flex: none; position: sticky; top: 0; background: #16233d; border: 2px solid #ffd23c; padding: 12px; text-align: center; }
-.locker-preview img { width: 128px; height: 128px; image-rendering: pixelated; }
-.locker-preview .locker-name { font-weight: bold; font-size: 16px; margin-top: 6px; }
+.locker-preview { width: 300px; flex: none; position: sticky; top: 0; background: linear-gradient(180deg, #1d2e4f 0%, #0a1420 100%); border: 3px solid #ffd23c; box-shadow: 0 0 28px rgba(0,0,0,.6); padding: 16px 12px; text-align: center; }
+.locker-preview img { width: 180px; height: 180px; image-rendering: pixelated; }
 .locker-preview .px-btn { margin-top: 8px; width: 100%; }
 @media (max-width: 720px) {
   .locker-wrap { flex-direction: column; }
@@ -1882,7 +1881,7 @@ body.gfx-good .wheel-clip img {
 .locker-bar .chip[data-cat="CODES"].active { background: #2ee6ff; color: #062a14; }
 .locker-bar .chip[data-cat="IRL"].active { background: #ffffff; color: #12203a; }
 .locker-bar .chip[data-cat="CUSTOM"].active { background: #ff6bff; color: #2e042e; }
-.locker-preview { --rar: #ffd23c; background: radial-gradient(circle at 50% 18%, rgba(255,255,255,.09), rgba(255,255,255,0) 55%), linear-gradient(180deg, #16233d 0%, #0a1420 100%); border: 2px solid var(--rar); box-shadow: 0 0 18px rgba(0,0,0,.5); }
+.locker-preview { --rar: #ffd23c; background: radial-gradient(circle at 50% 18%, rgba(255,255,255,.09), rgba(255,255,255,0) 55%), linear-gradient(180deg, #1d2e4f 0%, #0a1420 100%); border-color: var(--rar); }
 .locker-preview.rar-STARTER { --rar: #3ee07a; }
 .locker-preview.rar-SHOP { --rar: #ffd23c; }
 .locker-preview.rar-DEATHS { --rar: #ff4d62; }
@@ -1892,7 +1891,7 @@ body.gfx-good .wheel-clip img {
 .locker-preview.rar-CODES { --rar: #2ee6ff; }
 .locker-preview.rar-IRL { --rar: #ffffff; }
 .locker-preview.rar-CUSTOM { --rar: #ff6bff; }
-.locker-preview img { width: 140px; height: 140px; filter: drop-shadow(0 0 14px var(--rar)); }
+.locker-preview img { width: 180px; height: 180px; filter: drop-shadow(0 0 14px var(--rar)); }
 .locker-banner { background: var(--rar); margin: 10px -12px 0; padding: 8px 10px; }
 .locker-banner .locker-name { color: #0a1420; font-size: 18px; margin-top: 0; }
 .locker-banner .locker-cat { color: #0a1420; font-size: 11px; font-weight: 900; letter-spacing: 2px; }

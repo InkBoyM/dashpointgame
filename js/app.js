@@ -3188,7 +3188,8 @@
     left.appendChild(ownBar);
     left.appendChild(g);
     wrap.appendChild(left);
-    if (lockerPrev) wrap.appendChild(lockerPrev);
+    // (preview goes first: showcase column on the left)
+    if (lockerPrev) wrap.insertBefore(lockerPrev, left);
     grid.appendChild(wrap);
     renderLockerPreview();
     applyLockerSearch();
