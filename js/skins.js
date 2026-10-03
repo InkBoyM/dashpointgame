@@ -62,4 +62,9 @@ window.DashPointSkins = [
   { id: 50, name: "cursed", src: "assets/skins/skin-50.png", hint: "Buy in the shop", shopCat: "luxury", unlock: { type: "shop", cost: "1000000000000000" } },
   { id: 51, name: "isreal", src: "assets/skins/skin-51.png", hint: "Buy in the shop", shopCat: "countries", unlock: { type: "shop", cost: 100 } },
   { id: 52, name: "Belerus", src: "assets/skins/skin-52.png", hint: "Buy in the shop", shopCat: "countries", unlock: { type: "shop", cost: 100 } },
+  { id: 53, name: "Afghanistan", src: "assets/skins/skin-53.png", hint: "Buy in the shop", shopCat: "countries", unlock: { type: "shop", cost: 100 } },
+  { id: 54, name: "Albania", src: "assets/skins/skin-54.png", hint: "Buy in the shop", shopCat: "countries", unlock: { type: "shop", cost: 100 } },
+  { id: 55, name: "Algeria", src: "assets/skins/skin-55.png", hint: "Buy in the shop", shopCat: "countries", unlock: { type: "shop", cost: 100 } },
+  { id: 56, name: "Andorra", src: "assets/skins/skin-56.png", hint: "Buy in the shop", shopCat: "countries", unlock: { type: "shop", cost: 100 } },
+  { id: 57, name: "Angola", src: "assets/skins/skin-57.png", hint: "Buy in the shop", shopCat: "countries", unlock: { type: "shop", cost: 100 } },
 ];
