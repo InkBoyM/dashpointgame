@@ -2476,7 +2476,7 @@
     save();
     syncHomeStats();
     syncCoinUI();
-    if (el("modalSkins").classList.contains("visible")) renderSkins();
+    if (state.screen === "skins") renderSkins();
     if (el("modalShop") && el("modalShop").classList.contains("visible")) renderShop();
     checkAchievements();
   }
@@ -2612,7 +2612,7 @@
     { title: "WELCOME TO DASHPOINT", body: "This quick tour shows where everything lives. You can skip anytime, or replay it from Settings or the ? button on home.", screen: "home" },
     { title: "PLAY", body: "Official campaign levels. Beat them to unlock skins and coins. Harder faces mean harder levels — torture is the top.", screen: "home", target: "#btnPlay" },
     { title: "SKINS", body: "Your cube locker. Some skins unlock by beating levels or dying enough. Others you buy.", screen: "home", target: "#btnSkinsHome" },
-    { title: "UNLOCK & BUY", body: "SHOP spends coins on skins, tags, trails, and pets. CHEST and WHEEL gamble coins. CODES redeem free stuff.", screen: "home", modal: "modalSkins", target: "#skinUnlockRow" },
+    { title: "UNLOCK & BUY", body: "SHOP spends coins on skins, tags, trails, and pets. CHEST and WHEEL gamble coins. CODES redeem free stuff.", screen: "skins", target: "#skinUnlockRow" },
     { title: "NETWORK", body: "The community hub: search players and levels, leaderboards, the editor, and multiplayer rooms.", screen: "home", target: "#btnNetwork" },
     { title: "MAKE LEVELS", body: "EDITOR opens the level builder (desktop). Build a map, then post it so other players can download and comment.", screen: "network", target: "#netEditor" },
     { title: "MULTIPLAYER", body: "Rooms live here now — not in Profile. Host a room or join with a 5-letter code.", screen: "network", target: "#netMultiplayer" },
@@ -2627,6 +2627,7 @@
   function tourPrepare(step) {
     tourCloseModals();
     if (step.screen === "network") show("network");
+    else if (step.screen === "skins") { show("skins"); }
     else if (step.screen === "netmp") {
       show("netmp");
       try { syncMpUI(); } catch (e) {}
@@ -2739,6 +2740,7 @@
     document.querySelectorAll(".screen").forEach((s) => s.classList.remove("visible"));
     el("screen-" + name).classList.add("visible");
     if (name === "levels") renderLevels();
+    if (name === "skins") renderSkins();
     if (name === "game") resizeCanvas();
     if (name === "home") renderLotd();
     if (name === "network" || name === "netsaved" || name === "netsearch" || name === "netboards" || name === "netmp") state.netBack = name;
@@ -3092,7 +3094,7 @@
       }
       grid.appendChild(customSec);
     } catch (e) {}
-    const title = document.querySelector("#modalSkins h2");
+    const title = document.querySelector("#lockerTitle");
     if (title && !title.dataset.bob) {
       title.dataset.bob = "1";
       title.style.cursor = "pointer";
@@ -3323,7 +3325,7 @@
       img.onload = function () {
         try {
           state.images.skins[CUSTOM_SKIN_ID] = img;
-          if (el("modalSkins").classList.contains("visible")) renderSkins();
+          if (state.screen === "skins") renderSkins();
         } catch (e) {}
       };
       img.src = url;
@@ -4209,7 +4211,7 @@
     save();
     queueAchievement(s);
     renderShop();
-    if (el("modalSkins").classList.contains("visible")) renderSkins();
+    if (state.screen === "skins") renderSkins();
     syncHomeStats();
     syncCoinUI();
   }
@@ -4255,7 +4257,7 @@
     save();
     syncHomeStats();
     syncCoinUI();
-    if (el("modalSkins").classList.contains("visible")) renderSkins();
+    if (state.screen === "skins") renderSkins();
   }
 
   let wheelBusy = false;
@@ -4345,7 +4347,6 @@
   function openModal(id) {
     el(id).classList.add("visible");
     try { sfxPlay("tick"); } catch (e) {}
-    if (id === "modalSkins") renderSkins();
     if (id === "modalStats") renderStats();
     if (id === "modalShop") renderShop();
     if (id === "modalChest") {
@@ -7926,7 +7927,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       }
       state.keys.add(ev.code);
     }
-    if (ev.code === "KeyA" && ev.altKey && el("modalSkins").classList.contains("visible")) {
+    if (ev.code === "KeyA" && ev.altKey && state.screen === "skins") {
       ev.preventDefault();
       unlockSecretA();
       return;
@@ -7987,7 +7988,9 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       document.body.classList.add("touch");
     }, { passive: true });
     el("btnPlay").addEventListener("click", () => show("levels"));
-    el("btnSkinsHome").addEventListener("click", () => openModal("modalSkins"));
+    el("btnSkinsHome").addEventListener("click", () => show("skins"));
+    const btnSkinsBack = el("btnSkinsBack");
+    if (btnSkinsBack) btnSkinsBack.addEventListener("click", () => show("home"));
     const btnDownloadHome = el("btnDownloadHome");
     if (btnDownloadHome) btnDownloadHome.addEventListener("click", () => openModal("modalDownload"));
     el("btnOpenShop").addEventListener("click", () => openModal("modalShop"));

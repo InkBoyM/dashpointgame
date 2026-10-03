@@ -153,15 +153,17 @@
 
   <div class="chat-feed" id="chatFeed"></div>
 
-  <div class="modal-root" id="modalSkins">
-    <div class="modal">
-      <div class="modal-head">
-        <h2>SKINS</h2>
-        <div class="coin-chip" id="skinsCoins"></div>
-      </div>
+  <div class="screen" id="screen-skins">
+    <header class="topbar">
+      <button class="px-btn small" id="btnSkinsBack">&#9664; BACK</button>
+      <h1 class="bar-title" id="lockerTitle">LOCKER</h1>
+      <span class="bar-spacer"></span>
+      <div class="coin-chip" id="skinsCoins"></div>
+    </header>
+    <div class="locker-screen">
       <input id="lockerSearch" class="px-search" type="text" placeholder="SEARCH SKINS..." autocomplete="off" />
-      <div class="locker-preview" id="lockerPreview"></div>
       <div class="skin-grid" id="skinGrid"></div>
+      <div class="locker-preview" id="lockerPreview"></div>
       <p class="hint" id="skinHint">Beat levels and collect deaths to unlock new cubes. Buy extras in the shop.</p>
       <div class="row-end skin-actions">
         <div class="row-gap" id="skinUnlockRow">
@@ -170,7 +172,6 @@
           <button class="px-btn small" id="btnOpenWheel"><img src="assets/ui/wheel.png" alt="" /><span>WHEEL</span></button>
           <button class="px-btn small" id="btnOpenCodes">CODES</button>
         </div>
-        <button class="px-btn small" data-close="modalSkins">DONE</button>
       </div>
     </div>
   </div>
