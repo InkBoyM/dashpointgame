@@ -1850,28 +1850,36 @@ body.gfx-good .wheel-clip img {
   .locker-wrap { flex-direction: column; }
   .locker-preview { width: auto; position: static; }
 }
-/* ===== Locker theme: rarity colors + glow ===== */
+/* ===== Locker theme: bright Fortnite look ===== */
 #screen-skins {
-  background:
-    radial-gradient(ellipse at 50% -10%, rgba(46, 230, 255, 0.08), transparent 50%),
-    linear-gradient(180deg, #0d1830 0%, #101f3c 100%);
+  background: radial-gradient(ellipse at 50% -10%, #4f96ff 0%, #2b5fd9 45%, #173180 100%);
 }
+#screen-skins .topbar { background: rgba(5, 13, 32, 0.9); border-bottom-color: rgba(0,0,0,.5); }
+#lockerTitle { color: #ffffff; letter-spacing: 5px; text-shadow: 0 3px 0 rgba(0,0,0,.4); cursor: pointer; }
+#screen-skins .coin-chip { background: rgba(5,13,32,.9); }
+#screen-skins .px-search { background: rgba(4, 10, 26, 0.85); border: 2px solid rgba(255,255,255,.65); color: #fff; }
+#screen-skins .px-search::placeholder { color: rgba(255,255,255,.55); }
+#screen-skins .px-search:focus { box-shadow: 0 0 0 3px rgba(255,255,255,.5); border-color: #fff; }
+#screen-skins .hint { color: rgba(255,255,255,.85); }
 .locker-screen { flex: 1; overflow: auto; padding: 20px; width: min(1100px, 100%); margin: 0 auto; box-sizing: border-box; }
-#lockerTitle { cursor: pointer; text-shadow: 0 0 12px rgba(46,230,255,.5); }
-#screen-skins .skin-tile { --rar: #9db4d8; border-bottom: 5px solid var(--rar); transition: transform .08s, border-color .08s, box-shadow .08s; }
-#screen-skins .skin-tile img { filter: drop-shadow(0 3px 0 rgba(0,0,0,.45)); }
-#screen-skins .skin-tile:hover { border-color: var(--rar); filter: brightness(1.12); }
-#screen-skins .skin-tile.selected { border-color: var(--rar); box-shadow: 0 0 0 2px var(--rar), 0 0 18px var(--rar), 4px 4px 0 rgba(0,0,0,.4); }
-.skin-tile.rar-STARTER { --rar: #3ee07a; }
-.skin-tile.rar-SHOP { --rar: #ffd23c; }
-.skin-tile.rar-DEATHS { --rar: #ff4d62; }
-.skin-tile.rar-JUMPS { --rar: #ff9d2e; }
-.skin-tile.rar-VICTORY { --rar: #b45cff; }
-.skin-tile.rar-SECRET { --rar: #8b5cf6; }
-.skin-tile.rar-CODES { --rar: #2ee6ff; }
-.skin-tile.rar-IRL { --rar: #ffffff; }
-.skin-tile.rar-CUSTOM { --rar: #ff6bff; }
-.locker-bar .chip { border-width: 2px; }
+.locker-list { background: rgba(4,10,26,.45); border: 2px solid rgba(255,255,255,.25); }
+#screen-skins .skin-tile { --rar: #9db4d8; border: 0; border-radius: 8px; padding: 14px 8px 0; gap: 10px; overflow: hidden; background: linear-gradient(180deg, color-mix(in srgb, var(--rar) 62%, #0b1530), color-mix(in srgb, var(--rar) 30%, #0b1530)); box-shadow: 0 5px 0 rgba(0,0,0,.35); transition: transform .08s, box-shadow .08s; }
+#screen-skins .skin-tile img { width: 56px; height: 56px; filter: drop-shadow(0 4px 0 rgba(0,0,0,.4)); }
+#screen-skins .skin-tile .skin-name { align-self: stretch; background: rgba(0,0,0,.5); margin: 0 -8px; padding: 7px 4px; font-size: 12px; color: #fff; }
+#screen-skins .skin-tile .skin-hint { color: rgba(255,255,255,.85); padding-bottom: 8px; }
+#screen-skins .skin-tile:hover { filter: brightness(1.1); transform: translateY(-2px); box-shadow: 0 7px 0 rgba(0,0,0,.35); }
+#screen-skins .skin-tile.selected { box-shadow: 0 0 0 3px #ffffff, 0 0 22px rgba(255,255,255,.7), 0 5px 0 rgba(0,0,0,.35); transform: translateY(-2px); }
+#screen-skins .skin-tile.rar-STARTER { --rar: #3ee07a; }
+#screen-skins .skin-tile.rar-SHOP { --rar: #ffd23c; }
+#screen-skins .skin-tile.rar-DEATHS { --rar: #ff5b6e; }
+#screen-skins .skin-tile.rar-JUMPS { --rar: #ff9d2e; }
+#screen-skins .skin-tile.rar-VICTORY { --rar: #c26bff; }
+#screen-skins .skin-tile.rar-SECRET { --rar: #8b5cf6; }
+#screen-skins .skin-tile.rar-CODES { --rar: #2ee6ff; }
+#screen-skins .skin-tile.rar-IRL { --rar: #e8ecf5; }
+#screen-skins .skin-tile.rar-CUSTOM { --rar: #ff6bff; }
+.locker-bar .chip { border-width: 2px; background: rgba(4,10,26,.7); color: #fff; border: 2px solid rgba(255,255,255,.4); border-radius: 20px; }
+.locker-bar .chip.active { border-color: #fff; }
 .locker-bar .chip[data-cat="STARTER"].active { background: #3ee07a; color: #062a14; }
 .locker-bar .chip[data-cat="SHOP"].active { background: #ffd23c; color: #3a2a00; }
 .locker-bar .chip[data-cat="DEATHS"].active { background: #ff4d62; color: #2a060b; }
@@ -1881,7 +1889,7 @@ body.gfx-good .wheel-clip img {
 .locker-bar .chip[data-cat="CODES"].active { background: #2ee6ff; color: #062a14; }
 .locker-bar .chip[data-cat="IRL"].active { background: #ffffff; color: #12203a; }
 .locker-bar .chip[data-cat="CUSTOM"].active { background: #ff6bff; color: #2e042e; }
-.locker-preview { --rar: #ffd23c; background: radial-gradient(circle at 50% 18%, rgba(255,255,255,.09), rgba(255,255,255,0) 55%), linear-gradient(180deg, #1d2e4f 0%, #0a1420 100%); border-color: var(--rar); }
+.locker-preview { --rar: #ffd23c; background: linear-gradient(180deg, color-mix(in srgb, var(--rar) 65%, #0b1530), color-mix(in srgb, var(--rar) 25%, #0b1530)); border: 0; border-radius: 10px; box-shadow: 0 6px 0 rgba(0,0,0,.4); }
 .locker-preview.rar-STARTER { --rar: #3ee07a; }
 .locker-preview.rar-SHOP { --rar: #ffd23c; }
 .locker-preview.rar-DEATHS { --rar: #ff4d62; }
@@ -1892,12 +1900,12 @@ body.gfx-good .wheel-clip img {
 .locker-preview.rar-IRL { --rar: #ffffff; }
 .locker-preview.rar-CUSTOM { --rar: #ff6bff; }
 .locker-preview img { width: 180px; height: 180px; filter: drop-shadow(0 0 14px var(--rar)); }
-.locker-banner { background: var(--rar); margin: 10px -12px 0; padding: 8px 10px; }
-.locker-banner .locker-name { color: #0a1420; font-size: 18px; margin-top: 0; }
-.locker-banner .locker-cat { color: #0a1420; font-size: 11px; font-weight: 900; letter-spacing: 2px; }
-.locker-preview .hint { color: #c8d8f0; }
-.locker-preview .px-btn.good { font-size: 15px; padding: 10px; }
-.locker-chip { border-color: var(--rar, #2ee6ff); }
+.locker-banner { background: rgba(0,0,0,.45); margin: 10px -12px 0; padding: 10px; }
+.locker-banner .locker-name { color: #fff; font-size: 22px; margin-top: 0; text-shadow: 0 2px 0 rgba(0,0,0,.5); }
+.locker-banner .locker-cat { color: rgba(255,255,255,.85); font-size: 12px; font-weight: 900; letter-spacing: 3px; }
+.locker-preview .hint { color: rgba(255,255,255,.9); }
+.locker-preview .px-btn.good { font-size: 16px; padding: 12px; box-shadow: inset -3px -3px 0 rgba(0,0,0,.3), 0 4px 0 rgba(0,0,0,.4); }
+.locker-chip { background: rgba(0,0,0,.5); border: 2px solid rgba(255,255,255,.5); color: #fff; }
 .locker-acc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .locker-chip { font-size: 12px; background: #0a1420; border: 1px solid #2ee6ff; padding: 2px 8px; white-space: nowrap; }
 .search-empty { text-align: center; }
