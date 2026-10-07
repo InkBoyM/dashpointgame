@@ -14,7 +14,9 @@
     "the_climb.dashpoint.json": 3,
     "The_Rush.dashpoint.json": 3,
     "Cool_Run.dashpoint.json": 3,
+    "The_Flip.dashpoint.json": 3,
     "The_Tunnel.dashpoint.json": 4,
+    "The_Maze.dashpoint.json": 4,
     "Agony.dashpoint.json": 5,
     "The_Tower_of_Torture.dashpoint.json": 5,
     "The_Dropper.dashpoint.json": 5,
@@ -532,11 +534,13 @@
     "the_climb.dashpoint.json",
     "The_Rush.dashpoint.json",
     "Cool_Run.dashpoint.json",
+    "The_Flip.dashpoint.json",
     "Agony.dashpoint.json",
     "The_Tower_of_Torture.dashpoint.json",
     "The_Dropper.dashpoint.json",
     "The_Tower_of_Agony.dashpoint.json",
     "The_Tunnel.dashpoint.json",
+    "The_Maze.dashpoint.json",
   ];
 
   const SKINS = window.DashPointSkins || [];
@@ -2907,9 +2911,17 @@
 
     const extras = Object.keys(campaignState.extra || {}).map(function (id) { return campaignState.extra[id]; });
     extras.sort(function (a, b) { return (a.addedAt || 0) - (b.addedAt || 0); });
+    const loadedNames = {};
+    loaded.forEach(function (e) {
+      try {
+        const n = e.level && e.level.name;
+        if (n) loadedNames[String(n).toLowerCase()] = true;
+      } catch (err) {}
+    });
     for (let xi = 0; xi < extras.length; xi++) {
       const ex = extras[xi];
       if (!ex || !ex.id || seen["net:" + ex.id]) continue;
+      if (ex.title && loadedNames[String(ex.title).toLowerCase()]) continue;
       try {
         const level = await parseNetworkCampaign(ex.id);
         loaded.push(campaignEntry("extra", "", ex, level));
