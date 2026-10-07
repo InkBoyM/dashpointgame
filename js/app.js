@@ -59,6 +59,9 @@
   //   PATCH (x.y.z) — fixes, tweaks, balance, shop content drops
   // Newest entry first; APP_VER is always RELEASES[0].v.
   const RELEASES = [
+    { v: "1.93", title: "Blue Dash orb", items: [
+      "New Blue Dash tile: longer hover dash that ignores gravity while you fly",
+    ] },
     { v: "1.92", title: "Belerus shop skin", items: [
       "New shop skin: Belerus in Countries for 100 coins",
     ] },

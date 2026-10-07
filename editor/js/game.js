@@ -29,6 +29,7 @@
     iorb: { id: "iorb", solid: false, hazard: false, rotatable: false, hidden: true, label: "Invis orb" },
     pad: { id: "pad", solid: false, hazard: false, rotatable: false, label: "Bounce pad" },
     dash: { id: "dash", solid: false, hazard: false, rotatable: false, label: "Dash" },
+    blueDash: { id: "blueDash", solid: false, hazard: false, rotatable: false, label: "Blue Dash" },
     checkpoint: { id: "checkpoint", solid: false, hazard: false, rotatable: false, label: "Checkpoint" },
     slopeL: { id: "slopeL", solid: true, hazard: false, rotatable: false, slope: "L", label: "Slope /" },
     slopeR: { id: "slopeR", solid: true, hazard: false, rotatable: false, slope: "R", label: "Slope \\" },
@@ -87,6 +88,10 @@
 
   function isDjOrbId(id) {
     return id === "djOrb";
+  }
+
+  function isDashId(id) {
+    return id === "dash" || id === "blueDash";
   }
 
   function isPlatformId(id) {
@@ -211,6 +216,7 @@
     orb: "assets/tiles/BounceOrb.png",
     pad: "assets/tiles/BouncePad.png",
     dash: "assets/tiles/DashIcon.png",
+    blueDash: "assets/tiles/blueDash.png",
     checkpoint: "assets/tiles/checkpoint.png",
     checkpointTouched: "assets/tiles/checkpoint-touched.png",
     slopeL: "assets/tiles/slopeL.png",
@@ -263,6 +269,7 @@
     orb: "assets/tiles/ultra/orb.png",
     pad: "assets/tiles/ultra/pad.png",
     dash: "assets/tiles/ultra/dash.png",
+    blueDash: "assets/tiles/ultra/blueDash.png",
     checkpoint: "assets/tiles/ultra/checkpoint.png",
     checkpointTouched: "assets/tiles/ultra/checkpoint-touched.png",
     slopeL: "assets/tiles/slopeL.png",
@@ -1894,7 +1901,7 @@
     }
 
     counts() {
-      const out = { brick: 0, ibrick: 0, fbrick: 0, spike: 0, ispike: 0, fspike: 0, goal: 0, igoal: 0, orb: 0, iorb: 0, pad: 0, dash: 0, coin10: 0, coin50: 0, coin100: 0, coin500: 0, slopeL: 0, slopeR: 0, platform: 0, portalA: 0, portalB: 0, gravOrb: 0, water: 0, lava: 0, djOrb: 0, crusher: 0, saw: 0, ice: 0, mud: 0, half: 0, halfT: 0, convL: 0, convR: 0, empty: 0, labels: 0, pictures: 0, widgets: 0 };
+      const out = { brick: 0, ibrick: 0, fbrick: 0, spike: 0, ispike: 0, fspike: 0, goal: 0, igoal: 0, orb: 0, iorb: 0, pad: 0, dash: 0, blueDash: 0, coin10: 0, coin50: 0, coin100: 0, coin500: 0, slopeL: 0, slopeR: 0, platform: 0, portalA: 0, portalB: 0, gravOrb: 0, water: 0, lava: 0, djOrb: 0, crusher: 0, saw: 0, ice: 0, mud: 0, half: 0, halfT: 0, convL: 0, convR: 0, empty: 0, labels: 0, pictures: 0, widgets: 0 };
       for (let r = 0; r < this.rows; r++) {
         for (let c = 0; c < this.cols; c++) {
           const t = this.grid[r][c];
@@ -2252,6 +2259,7 @@
       this.orbFlash = 0;
       this.padFlash = 0;
       this.dashFlash = 0;
+      this.blueDash = 0;
       this.portalFlash = 0;
       this.gravFlash = 0;
       this.djFlash = 0;
@@ -2916,11 +2924,12 @@
       const p = this.player;
       const box = this.playerBox();
       const hits = this.nearbyTiles(box.x, box.y, box.w, box.h, 2);
-      const dashes = hits.filter(({ tile }) => tile.id === "dash").map(({ c, r, tile }) => dashBox(c, r, tile));
+      const dashes = hits.filter(({ tile }) => isDashId(tile.id));
       for (const m of this.movers || []) {
-        if (!m.done && m.tile.id === "dash") dashes.push(dashBox(m.x / TILE, m.y / TILE));
+        if (!m.done && isDashId(m.tile && m.tile.id)) dashes.push({ c: m.x / TILE, r: m.y / TILE, tile: m.tile });
       }
-      for (const b of dashes) {
+      for (const hit of dashes) {
+        const b = dashBox(hit.c, hit.r, hit.tile);
         if (!aabbOverlap(box, b)) continue;
         if (this.dashFlash > 0 || this.dead || this.won) return;
         const g = this.level.gameplay;
@@ -2928,10 +2937,18 @@
         if (this.input.left) dir -= 1;
         if (this.input.right) dir += 1;
         if (dir === 0) dir = p.facing || 1;
-        p.vx = dir * g.moveSpeed * 2.3;
-        p.vy *= 0.3;
         p.facing = dir;
-        this.dashFlash = 0.35;
+        if (hit.tile.id === "blueDash") {
+          p.vx = dir * g.moveSpeed * 3.4;
+          p.vy = 0;
+          this.dashFlash = 0.55;
+          this.blueDash = 0.55;
+        } else {
+          p.vx = dir * g.moveSpeed * 2.3;
+          p.vy *= 0.3;
+          this.dashFlash = 0.35;
+          this.blueDash = 0;
+        }
         return;
       }
     }
@@ -3075,6 +3092,7 @@
       if (this.orbFlash > 0) this.orbFlash = Math.max(0, this.orbFlash - dt);
       if (this.padFlash > 0) this.padFlash = Math.max(0, this.padFlash - dt);
       if (this.dashFlash > 0) this.dashFlash = Math.max(0, this.dashFlash - dt);
+      if (this.blueDash > 0) this.blueDash = Math.max(0, this.blueDash - dt);
       if (this.portalFlash > 0) this.portalFlash = Math.max(0, this.portalFlash - dt);
       if (this.gravFlash > 0) this.gravFlash = Math.max(0, this.gravFlash - dt);
       if (this.djFlash > 0) this.djFlash = Math.max(0, this.djFlash - dt);
@@ -3175,7 +3193,9 @@
         else if (z.kind === "windL") this.zoneWindX = -1;
       }
       this.gFlip = flipZ;
-      if (this.inWater) {
+      if (this.blueDash > 0) {
+        p.vy = 0;
+      } else if (this.inWater) {
         // slow sink + buoyancy: weak gravity, capped fall, swim on hold
         p.vy += g.gravity * 0.32 * dt;
         if (jumpDown) p.vy -= g.gravity * 1.15 * dt;
@@ -3196,7 +3216,10 @@
       if (p.onGround) this.coyote = g.coyoteMs / 1000;
       else this.coyote = Math.max(0, this.coyote - dt);
 
-      if (this.buffer > 0 && this.coyote > 0) {
+      if (this.blueDash > 0) {
+        p.vy = 0;
+        this.buffer = 0;
+      } else if (this.buffer > 0 && this.coyote > 0) {
         p.vy = -g.jumpForce * gd * (this.gFlip || 1);
         if (this.inWater) p.vy *= 0.62;
         // slope launch: jumping while running up a 45° face keeps
@@ -3352,6 +3375,7 @@
     if (isDjOrbId(tile.id)) return "#2ee6ff";
     if (tile.id === "pad") return "#2ee6ff";
     if (tile.id === "dash") return "#ff9a1f";
+    if (tile.id === "blueDash") return "#3d7bff";
     if (tile.id === "key") return "#ffd23c";
     if (tile.id === "door") return "#8a5a2b";
     if (isSawId(tile.id)) return "#ff5a6e";
@@ -3395,7 +3419,7 @@
       }
       ctx.closePath();
       ctx.fill();
-    } else if (isOrbId(tile.id) || isGravOrbId(tile.id) || isDjOrbId(tile.id) || isCoinId(tile.id)) {
+    } else if (isOrbId(tile.id) || isGravOrbId(tile.id) || isDjOrbId(tile.id) || isDashId(tile.id) || isCoinId(tile.id)) {
       ctx.beginPath();
       ctx.arc(x + size / 2, y + size / 2, size * 0.38, 0, Math.PI * 2);
       ctx.fill();
@@ -4286,6 +4310,7 @@
       else if (isOrbId(tile.id)) realImg = realTileImage("orb");
       else if (tile.id === "pad") realImg = realTileImage("pad");
       else if (tile.id === "dash") realImg = realTileImage("dash");
+      else if (tile.id === "blueDash") realImg = realTileImage("blueDash");
       else if (isGoalId(tile.id)) realImg = realTileImage("goal");
     }
     if (!realImg) {
@@ -4332,6 +4357,8 @@
         img = images.pad;
       } else if (tile.id === "dash") {
         img = images.dash;
+      } else if (tile.id === "blueDash") {
+        img = images.blueDash;
       } else if (isGoalId(tile.id)) {
         img = images.goal;
       } else if (tile.id === "door") {
@@ -4341,7 +4368,7 @@
       img = realImg;
     }
     if (!img) {
-      if (isSlopeId(tile.id) || isPortalId(tile.id) || isGravOrbId(tile.id) || isDjOrbId(tile.id) || isSawId(tile.id) || tile.id === "platform" || tile.id === "crusher" || tile.id === "ice" || tile.id === "mud" || tile.id === "convL" || tile.id === "convR" || isHalfId(tile.id) || tile.id === "water" || tile.id === "lava") {
+      if (isSlopeId(tile.id) || isPortalId(tile.id) || isGravOrbId(tile.id) || isDjOrbId(tile.id) || isDashId(tile.id) || isSawId(tile.id) || tile.id === "platform" || tile.id === "crusher" || tile.id === "ice" || tile.id === "mud" || tile.id === "convL" || tile.id === "convR" || isHalfId(tile.id) || tile.id === "water" || tile.id === "lava") {
         drawSimpleTile(ctx, tile, x, y, size, opts);
       }
       return;
@@ -4766,9 +4793,9 @@
             const b = padBox(c, r, tile);
             ctx.strokeStyle = "rgba(255,157,46,0.9)";
             ctx.strokeRect(b.x, b.y, b.w, b.h);
-          } else if (tile.id === "dash") {
+          } else if (isDashId(tile.id)) {
             const b = dashBox(c, r, tile);
-            ctx.strokeStyle = "rgba(46,230,255,0.9)";
+            ctx.strokeStyle = tile.id === "blueDash" ? "rgba(61,123,255,0.95)" : "rgba(46,230,255,0.9)";
             ctx.strokeRect(b.x, b.y, b.w, b.h);
           } else if (isCoinId(tile.id)) {
             const b = coinBox(c, r, tile);
@@ -4905,10 +4932,11 @@
         ctx.restore();
       }
       if (fx.flashes && gfx !== "simple" && engine.dashFlash > 0) {
-        const t = 1 - engine.dashFlash / 0.35;
+        const dashMax = engine.blueDash > 0 ? 0.55 : 0.35;
+        const t = 1 - engine.dashFlash / dashMax;
         ctx.save();
-        ctx.globalAlpha = 1 - t;
-        ctx.strokeStyle = "#2ee6ff";
+        ctx.globalAlpha = Math.max(0, 1 - t);
+        ctx.strokeStyle = engine.blueDash > 0 ? "#3d7bff" : "#2ee6ff";
         ctx.lineWidth = 3 / zoom;
         ctx.beginPath();
         ctx.arc(p.x + p.w / 2, p.y + p.h / 2, TILE * (0.5 + t * 0.8), 0, Math.PI * 2);
@@ -5029,6 +5057,7 @@
     MAX_WIDGETS,
     SKINS,
     SONGS,
+    isDashId,
     Music,
     DEFAULT_GAMEPLAY,
     DEFAULT_KEYBINDS,

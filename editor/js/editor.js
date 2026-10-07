@@ -2359,6 +2359,7 @@
     document.getElementById("cOrb").textContent = v.counts.orb;
     document.getElementById("cPad").textContent = v.counts.pad;
     document.getElementById("cDash").textContent = v.counts.dash;
+    document.getElementById("cBlueDash").textContent = v.counts.blueDash || 0;
     document.getElementById("cGoal").textContent = (v.counts.goal || 0) + (v.counts.igoal || 0);
     const setStat = function (id, n) {
       const el = document.getElementById(id);
@@ -2727,6 +2728,7 @@
       else if (tile.id === "iorb") c.fillStyle = "#6ee0a0";
       else if (tile.id === "pad") c.fillStyle = "#ff9d2e";
       else if (tile.id === "dash") c.fillStyle = "#2ee6ff";
+      else if (tile.id === "blueDash") c.fillStyle = "#3d7bff";
       else if (DP.isCoinId && DP.isCoinId(tile.id)) c.fillStyle = "#ffd23c";
       else c.fillStyle = "#ffd23c";
       c.fillRect(ox + col * TILE * s, oy + row * TILE * s, Math.max(1, TILE * s), Math.max(1, TILE * s));
