@@ -285,6 +285,30 @@ def wind(cv, y0, color, seed=11, n=4):
                     cv[yy + 1][x] = color
 
 
+def maze_walls(cv, color, torch, seed=22):
+    H = len(cv)
+    W = len(cv[0])
+    rnd = random.Random(seed)
+    for x in range(0, W, 9):
+        if rnd.random() < 0.75:
+            for xx in range(x, min(W, x + 6)):
+                cv[1][xx] = color
+                cv[2][xx] = color
+                cv[H - 2][xx] = color
+                cv[H - 3][xx] = color
+    for y in range(0, H, 9):
+        if rnd.random() < 0.75:
+            for yy in range(y, min(H, y + 6)):
+                cv[yy][1] = color
+                cv[yy][2] = color
+                cv[yy][W - 2] = color
+                cv[yy][W - 3] = color
+    for _ in range(6):
+        x = rnd.randrange(4, W - 4)
+        y = rnd.randrange(4, H - 4)
+        circle(cv, x, y, 2, torch, fill=True)
+
+
 LEVELS = [
  ("00_welcome", "Welcome", "#ffd23c", lambda cv, W, H: (
     dots(cv, 26, hx("#ffd23c"), 5), dots(cv, 14, hx("#ffffff"), 6),
@@ -323,6 +347,9 @@ LEVELS = [
  ("the_tower_of_agony", "The Tower of Agony", "#dc143c", lambda cv, W, H: (
     battlements(cv, 5, hx("#3a4358")), spike_row(cv, H - 6, hx("#dc143c"), False, step=3),
     dots(cv, 16, hx("#5b0e18"), 21))),
+ ("the_maze", "The Maze", "#bcd2f0", lambda cv, W, H: (
+    maze_walls(cv, hx("#5b6b8c"), hx("#ff9d2e"), 22),
+    dots(cv, 14, hx("#2e3d55"), 23))),
 ]
 
 

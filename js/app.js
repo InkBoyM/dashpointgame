@@ -4696,10 +4696,13 @@
 
   let introTimer = null;
 
-  const TITLE_SLUGS = ["00_welcome", "cool_run", "orb_run", "spike_run", "the_climb", "the_hill", "the_rush", "the_tunnel", "the_dropper", "the_blow", "agony", "the_tower_of_torture", "the_tower_of_agony"];
-  function titleSlugFor(file) {
-    const base = String(file || "").split("/").pop().replace(/\.dashpoint\.json$/i, "").toLowerCase();
-    return TITLE_SLUGS.indexOf(base) !== -1 ? base : "";
+  const TITLE_SLUGS = ["00_welcome", "cool_run", "orb_run", "spike_run", "the_climb", "the_hill", "the_rush", "the_tunnel", "the_dropper", "the_blow", "agony", "the_tower_of_torture", "the_tower_of_agony", "the_maze"];
+  function titleSlugFor(file, name) {
+    const fb = String(file || "").split("/").pop().replace(/\.dashpoint\.json$/i, "").toLowerCase();
+    if (TITLE_SLUGS.indexOf(fb) !== -1) return fb;
+    const nb = String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    if (TITLE_SLUGS.indexOf(nb) !== -1) return nb;
+    return "";
   }
   function preloadTitleArt() {
     try {
@@ -4726,7 +4729,7 @@
     el("introAuthor").textContent = "by " + (meta?.authorName || (entry.level ? "DashPoint" : "?"));
     const art = el("introArt");
     const titleEl = el("introTitle");
-    const slug = titleSlugFor(file);
+    const slug = titleSlugFor(file, (entry.level && entry.level.name) || (meta && meta.title) || "");
     if (slug && !autoMove && art && titleEl) {
       art.onload = function () { titleEl.style.display = "none"; art.style.display = ""; };
       art.onerror = function () { art.style.display = "none"; titleEl.style.display = ""; };
