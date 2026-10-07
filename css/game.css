@@ -1,5 +1,5 @@
 :root {
-  --ink: #12203a;
+  --ink: #12203a; /* deploy probe */
   --ink-dark: #0a1420;
   --panel: #16233d;
   --panel-2: #1d2e4f;
@@ -642,6 +642,7 @@ body.joystick #joystick { display: block; }
   from { opacity: 0; transform: translateY(14px) scale(0.96); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
+#introArt { max-width: min(92vw, 560px); height: auto; image-rendering: pixelated; filter: drop-shadow(4px 4px 0 rgba(0, 0, 0, 0.65)); }
 #introTitle {
   font-size: clamp(28px, 6vw, 52px);
   font-weight: 900;
@@ -1837,4 +1838,75 @@ body.gfx-good .wheel-clip img {
   color: #c8d8f0;
 }
 .ui-tour-acts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-
+.px-search { width: 100%; box-sizing: border-box; margin: 8px 0; padding: 8px 10px; background: #0a1420; border: 2px solid #2ee6ff; color: #ffffff; font: inherit; border-radius: 0; outline: none; }
+.px-search:focus { box-shadow: 0 0 0 2px #2ee6ff; }
+.px-search::placeholder { color: #5a6b8c; }
+.locker-wrap { display: flex; gap: 20px; align-items: flex-start; }
+.locker-list { flex: 1; min-width: 0; background: rgba(6,12,24,.55); border: 2px solid #1d2e4f; padding: 14px; }
+.locker-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.locker-preview { width: 300px; flex: none; position: sticky; top: 0; background: linear-gradient(180deg, #1d2e4f 0%, #0a1420 100%); border: 3px solid #ffd23c; box-shadow: 0 0 28px rgba(0,0,0,.6); padding: 16px 12px; text-align: center; }
+.locker-preview img { width: 180px; height: 180px; image-rendering: pixelated; }
+.locker-preview .px-btn { margin-top: 8px; width: 100%; }
+@media (max-width: 720px) {
+  .locker-wrap { flex-direction: column; }
+  .locker-preview { width: auto; position: static; }
+}
+/* ===== Locker theme: bright Fortnite look ===== */
+#screen-skins {
+  background: radial-gradient(ellipse at 50% -10%, #4f96ff 0%, #2b5fd9 45%, #173180 100%);
+}
+#screen-skins .topbar { background: rgba(5, 13, 32, 0.9); border-bottom-color: rgba(0,0,0,.5); }
+#lockerTitle { color: #ffffff; letter-spacing: 5px; text-shadow: 0 3px 0 rgba(0,0,0,.4); cursor: pointer; }
+#screen-skins .coin-chip { background: rgba(5,13,32,.9); }
+#screen-skins .px-search { background: rgba(4, 10, 26, 0.85); border: 2px solid rgba(255,255,255,.65); color: #fff; }
+#screen-skins .px-search::placeholder { color: rgba(255,255,255,.55); }
+#screen-skins .px-search:focus { box-shadow: 0 0 0 3px rgba(255,255,255,.5); border-color: #fff; }
+#screen-skins .hint { color: rgba(255,255,255,.85); }
+.locker-screen { flex: 1; overflow: auto; padding: 20px; width: min(1100px, 100%); margin: 0 auto; box-sizing: border-box; }
+.locker-list { background: rgba(4,10,26,.45); border: 2px solid rgba(255,255,255,.25); }
+#screen-skins .skin-tile { --rar: #9db4d8; border: 0; border-radius: 8px; padding: 14px 8px 0; gap: 10px; overflow: hidden; background: linear-gradient(180deg, color-mix(in srgb, var(--rar) 62%, #0b1530), color-mix(in srgb, var(--rar) 30%, #0b1530)); box-shadow: 0 5px 0 rgba(0,0,0,.35); transition: transform .08s, box-shadow .08s; }
+#screen-skins .skin-tile img { width: 56px; height: 56px; filter: drop-shadow(0 4px 0 rgba(0,0,0,.4)); }
+#screen-skins .skin-tile .skin-name { align-self: stretch; background: rgba(0,0,0,.5); margin: 0 -8px; padding: 7px 4px; font-size: 12px; color: #fff; }
+#screen-skins .skin-tile .skin-hint { color: rgba(255,255,255,.85); padding-bottom: 8px; }
+#screen-skins .skin-tile:hover { filter: brightness(1.1); transform: translateY(-2px); box-shadow: 0 7px 0 rgba(0,0,0,.35); }
+#screen-skins .skin-tile.selected { box-shadow: 0 0 0 3px #ffffff, 0 0 22px rgba(255,255,255,.7), 0 5px 0 rgba(0,0,0,.35); transform: translateY(-2px); }
+#screen-skins .skin-tile.rar-STARTER { --rar: #3ee07a; }
+#screen-skins .skin-tile.rar-SHOP { --rar: #ffd23c; }
+#screen-skins .skin-tile.rar-DEATHS { --rar: #ff5b6e; }
+#screen-skins .skin-tile.rar-JUMPS { --rar: #ff9d2e; }
+#screen-skins .skin-tile.rar-VICTORY { --rar: #c26bff; }
+#screen-skins .skin-tile.rar-SECRET { --rar: #8b5cf6; }
+#screen-skins .skin-tile.rar-CODES { --rar: #2ee6ff; }
+#screen-skins .skin-tile.rar-IRL { --rar: #e8ecf5; }
+#screen-skins .skin-tile.rar-CUSTOM { --rar: #ff6bff; }
+.locker-bar .chip { border-width: 2px; background: rgba(4,10,26,.7); color: #fff; border: 2px solid rgba(255,255,255,.4); border-radius: 20px; }
+.locker-bar .chip.active { border-color: #fff; }
+.locker-bar .chip[data-cat="STARTER"].active { background: #3ee07a; color: #062a14; }
+.locker-bar .chip[data-cat="SHOP"].active { background: #ffd23c; color: #3a2a00; }
+.locker-bar .chip[data-cat="DEATHS"].active { background: #ff4d62; color: #2a060b; }
+.locker-bar .chip[data-cat="JUMPS"].active { background: #ff9d2e; color: #2a1500; }
+.locker-bar .chip[data-cat="VICTORY"].active { background: #b45cff; color: #1c0633; }
+.locker-bar .chip[data-cat="SECRET"].active { background: #8b5cf6; color: #12042e; }
+.locker-bar .chip[data-cat="CODES"].active { background: #2ee6ff; color: #062a14; }
+.locker-bar .chip[data-cat="IRL"].active { background: #ffffff; color: #12203a; }
+.locker-bar .chip[data-cat="CUSTOM"].active { background: #ff6bff; color: #2e042e; }
+.locker-preview { --rar: #ffd23c; background: linear-gradient(180deg, color-mix(in srgb, var(--rar) 65%, #0b1530), color-mix(in srgb, var(--rar) 25%, #0b1530)); border: 0; border-radius: 10px; box-shadow: 0 6px 0 rgba(0,0,0,.4); }
+.locker-preview.rar-STARTER { --rar: #3ee07a; }
+.locker-preview.rar-SHOP { --rar: #ffd23c; }
+.locker-preview.rar-DEATHS { --rar: #ff4d62; }
+.locker-preview.rar-JUMPS { --rar: #ff9d2e; }
+.locker-preview.rar-VICTORY { --rar: #b45cff; }
+.locker-preview.rar-SECRET { --rar: #8b5cf6; }
+.locker-preview.rar-CODES { --rar: #2ee6ff; }
+.locker-preview.rar-IRL { --rar: #ffffff; }
+.locker-preview.rar-CUSTOM { --rar: #ff6bff; }
+.locker-preview img { width: 180px; height: 180px; filter: drop-shadow(0 0 14px var(--rar)); }
+.locker-banner { background: rgba(0,0,0,.45); margin: 10px -12px 0; padding: 10px; }
+.locker-banner .locker-name { color: #fff; font-size: 22px; margin-top: 0; text-shadow: 0 2px 0 rgba(0,0,0,.5); }
+.locker-banner .locker-cat { color: rgba(255,255,255,.85); font-size: 12px; font-weight: 900; letter-spacing: 3px; }
+.locker-preview .hint { color: rgba(255,255,255,.9); }
+.locker-preview .px-btn.good { font-size: 16px; padding: 12px; box-shadow: inset -3px -3px 0 rgba(0,0,0,.3), 0 4px 0 rgba(0,0,0,.4); }
+.locker-chip { background: rgba(0,0,0,.5); border: 2px solid rgba(255,255,255,.5); color: #fff; }
+.locker-acc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.locker-chip { font-size: 12px; background: #0a1420; border: 1px solid #2ee6ff; padding: 2px 8px; white-space: nowrap; }
+.search-empty { text-align: center; }

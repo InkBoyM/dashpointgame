@@ -83,6 +83,7 @@
     <div id="widgetLayer"></div>
     <div id="introCard" class="intro-card hidden">
       <div id="introDiff"></div>
+      <img id="introArt" alt="" style="display:none" />
       <div id="introTitle">LEVEL</div>
       <div id="introAuthor">by ?</div>
     </div>
@@ -153,13 +154,17 @@
 
   <div class="chat-feed" id="chatFeed"></div>
 
-  <div class="modal-root" id="modalSkins">
-    <div class="modal">
-      <div class="modal-head">
-        <h2>SKINS</h2>
-        <div class="coin-chip" id="skinsCoins"></div>
-      </div>
+  <div class="screen" id="screen-skins">
+    <header class="topbar">
+      <button class="px-btn small" id="btnSkinsBack">&#9664; BACK</button>
+      <h1 class="bar-title" id="lockerTitle">LOCKER</h1>
+      <span class="bar-spacer"></span>
+      <div class="coin-chip" id="skinsCoins"></div>
+    </header>
+    <div class="locker-screen">
+      <input id="lockerSearch" class="px-search" type="text" placeholder="SEARCH SKINS..." autocomplete="off" />
       <div class="skin-grid" id="skinGrid"></div>
+      <div class="locker-preview" id="lockerPreview"></div>
       <p class="hint" id="skinHint">Beat levels and collect deaths to unlock new cubes. Buy extras in the shop.</p>
       <div class="row-end skin-actions">
         <div class="row-gap" id="skinUnlockRow">
@@ -168,7 +173,6 @@
           <button class="px-btn small" id="btnOpenWheel"><img src="assets/ui/wheel.png" alt="" /><span>WHEEL</span></button>
           <button class="px-btn small" id="btnOpenCodes">CODES</button>
         </div>
-        <button class="px-btn small" data-close="modalSkins">DONE</button>
       </div>
     </div>
   </div>
@@ -351,6 +355,7 @@
         <h2>SHOP</h2>
         <div class="coin-chip" id="shopCoins"></div>
       </div>
+      <input id="shopSearch" class="px-search" type="text" placeholder="SEARCH SHOP..." autocomplete="off" />
       <p class="hint">Earn coins by beating levels (first clear) or unlocking skins. Buy tags to show next to your account name.</p>
       <div class="section-title">SKINS</div>
       <div class="skin-tree" id="shopGrid"></div>
@@ -433,6 +438,7 @@
       <label class="check-row"><input type="checkbox" id="setHaptics" checked /> Haptics</label>
       <label class="check-row"><input type="checkbox" id="setSfx" checked /> Sound FX</label>
       <label class="check-row"><input type="checkbox" id="setMusic" checked /> Music</label>
+      <label class="check-row"><input type="checkbox" id="setTexV2" /> New textures</label>
       <div class="section-title">GHOST RACE</div>
       <div class="slider-row"><span>Opacity</span><b id="setGhostOpVal">100%</b></div>
       <input type="range" id="setGhostOp" min="0" max="100" step="5" value="100" />
@@ -551,7 +557,7 @@
 
       <hr class="sep" />
       <div class="section-title">Stats</div>
-      <div class="row-gap"><button class="px-btn small gold" id="btnProfStats">VIEW STATS</button></div>
+      <div class="row-gap"><button class="px-btn small gold" id="btnProfStats">VIEW STATS</button><button class="px-btn small gold" id="btnProfAchv">ACHIEVEMENTS</button></div>
       <hr class="sep" />
       <div class="row-end"><button class="px-btn small" data-close="modalProfile">CLOSE</button></div>
     </div>
@@ -569,6 +575,17 @@
     </div>
   </div>
 
+  <div class="modal-root" id="modalAchv">
+    <div class="modal">
+      <div class="modal-head">
+        <h2>ACHIEVEMENTS</h2>
+      </div>
+      <p class="hint" id="achvHead"></p>
+      <div class="skin-grid" id="achvGrid"></div>
+      <div class="row-end"><button class="px-btn small" data-close="modalAchv">CLOSE</button></div>
+    </div>
+  </div>
+
   <div class="modal-root" id="modalStats">
     <div class="modal">
       <h2>STATS</h2>
@@ -581,6 +598,9 @@
       <hr class="sep" />
       <div class="section-title">BEST TIMES</div>
       <div class="net-results" id="statBest"></div>
+      <hr class="sep" />
+      <div class="section-title">ACHIEVEMENTS</div>
+      <div class="skin-grid" id="statAchv"></div>
       <div class="row-end"><button class="px-btn small" data-close="modalStats">CLOSE</button></div>
     </div>
   </div>
@@ -710,6 +730,7 @@
         <button class="chip" data-board="crowns">CROWNS</button>
         <button class="chip" data-board="playtime">PLAYTIME</button>
         <button class="chip" data-board="made">MADE</button>
+        <button class="chip" data-board="achv">ACHV</button>
       </div>
     </div>
     <div class="leaderboard leaderboard-full" id="netBoardsList"><p class="loading-note">Pick a category.</p></div>
