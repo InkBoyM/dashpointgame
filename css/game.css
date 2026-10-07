@@ -636,6 +636,10 @@ body.joystick #joystick { display: block; }
   pointer-events: none;
   z-index: 4;
   animation: introIn 0.35s ease-out;
+  background: rgba(5, 13, 32, 0.72);
+  padding: 14px 12px;
+  border-top: 3px solid rgba(255, 255, 255, 0.25);
+  border-bottom: 3px solid rgba(255, 255, 255, 0.25);
 }
 .intro-card.hidden { display: none; }
 @keyframes introIn {
