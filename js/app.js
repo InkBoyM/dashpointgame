@@ -4696,18 +4696,45 @@
 
   let introTimer = null;
 
+  const TITLE_SLUGS = ["00_welcome", "cool_run", "orb_run", "spike_run", "the_climb", "the_hill", "the_rush", "the_tunnel", "the_dropper", "the_blow", "agony", "the_tower_of_torture", "the_tower_of_agony"];
+  function titleSlugFor(file) {
+    const base = String(file || "").split("/").pop().replace(/\.dashpoint\.json$/i, "").toLowerCase();
+    return TITLE_SLUGS.indexOf(base) !== -1 ? base : "";
+  }
+  function preloadTitleArt() {
+    try {
+      TITLE_SLUGS.forEach(function (s) {
+        const img = new Image();
+        img.src = "assets/titles/title-" + s + ".png";
+      });
+    } catch (e) {}
+  }
+
   function showIntro(entry) {
     const card = el("introCard");
     if (!card || !entry) return;
     const meta = entry.meta || null;
     const file = entry.file || "";
     el("introTitle").textContent = (entry.level && entry.level.name) || meta?.title || "LEVEL";
+    let autoMove = false;
     try {
       if (state.engine && state.engine.level && state.engine.level.gameplay && state.engine.level.gameplay.autoMove) {
         el("introTitle").textContent += " [AUTO]";
+        autoMove = true;
       }
     } catch (e) {}
     el("introAuthor").textContent = "by " + (meta?.authorName || (entry.level ? "DashPoint" : "?"));
+    const art = el("introArt");
+    const titleEl = el("introTitle");
+    const slug = titleSlugFor(file);
+    if (slug && !autoMove && art && titleEl) {
+      art.onload = function () { titleEl.style.display = "none"; art.style.display = ""; };
+      art.onerror = function () { art.style.display = "none"; titleEl.style.display = ""; };
+      art.src = "assets/titles/title-" + slug + ".png";
+    } else {
+      if (art) { art.removeAttribute("src"); art.style.display = "none"; }
+      if (titleEl) titleEl.style.display = "";
+    }
     let tier = 2;
     try {
       tier = fileDiff(file, meta);
@@ -8604,6 +8631,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         state.images = images;
         ensureCustomSkin();
         loadPetImages();
+        preloadTitleArt();
         loadCustomBg();
         applyBlur();
         loadLevels();
