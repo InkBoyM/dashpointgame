@@ -881,7 +881,7 @@
   }
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, effects: [], effect: "", suspend: null, streak: { n: 0, day: "" }, achv: {}, chestsOpened: 0, hnsWins: 0, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", seenTutorial: false, bellSeen: {}, follows: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, effects: [], effect: "", suspend: null, streak: { n: 0, day: "" }, achv: {}, chestsOpened: 0, hnsWins: 0, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", texV2: false, ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", seenTutorial: false, bellSeen: {}, follows: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
   }
 
   function touchUIDefaults() {
@@ -4382,6 +4382,7 @@
       el("setHaptics").checked = save_.data.haptics !== false;
       el("setSfx").checked = save_.data.sfx !== false;
       el("setMusic").checked = save_.data.music !== false;
+      el("setTexV2").checked = !!save_.data.texV2;
       renderReleases();
       save_.data.seenVer = APP_VER;
       save();
@@ -5873,6 +5874,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       showSpawn: false,
       remoteCubes: remoteCubes || [],
       graphics: gfxMode(),
+      texV2: !!save_.data.texV2,
       heat: state.heatmap,
       fx: gfxFlags(),
       customBg: customBgImg,
@@ -8276,6 +8278,10 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       save_.data.sfx = ev.target.checked;
       save();
       if (ev.target.checked) { try { sfxPlay("coin"); } catch (e) {} }
+    });
+    el("setTexV2").addEventListener("change", (ev) => {
+      save_.data.texV2 = ev.target.checked;
+      save();
     });
     el("setMusic").addEventListener("change", (ev) => {
       save_.data.music = ev.target.checked;

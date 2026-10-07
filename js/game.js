@@ -650,6 +650,11 @@
     } catch (e) {
       images.neon = null;
     }
+    try {
+      images.v2 = await buildArtPack(images, "v2", false);
+    } catch (e) {
+      images.v2 = null;
+    }
     return images;
   }
 
@@ -4612,7 +4617,10 @@
     extras = extras || {};
     const gfx = extras.graphics === "good" || extras.graphics === "simple" || extras.graphics === "dlls5" || extras.graphics === "ultra" || extras.graphics === "drawing" || extras.graphics === "revamped" || extras.graphics === "neon" ? extras.graphics : "normal";
     const real = gfx === "dlls5";
-    const pack = gfxPack(images, gfx);
+    let pack = gfxPack(images, gfx);
+    if (extras.texV2 && images && images.v2 && (gfx === "normal" || gfx === "good" || gfx === "simple" || gfx === "dlls5")) {
+      pack = Object.assign({}, pack, images.v2);
+    }
     const fx = Object.assign({ shadows: true, flashes: true, particles: true }, extras.fx || {});
     const w = ctx.canvas.width;
     const h = ctx.canvas.height;
