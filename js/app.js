@@ -4700,7 +4700,7 @@
 
   let introTimer = null;
 
-  const TITLE_SLUGS = ["00_welcome", "cool_run", "orb_run", "spike_run", "the_climb", "the_hill", "the_rush", "the_tunnel", "the_dropper", "the_blow", "agony", "the_tower_of_torture", "the_tower_of_agony", "the_maze"];
+  const TITLE_SLUGS = ["00_welcome", "cool_run", "orb_run", "spike_run", "the_climb", "the_hill", "the_rush", "the_tunnel", "the_dropper", "the_blow", "agony", "the_tower_of_torture", "the_tower_of_agony", "the_maze", "the_flip"];
   function titleSlugFor(file, name) {
     const fb = String(file || "").split("/").pop().replace(/\.dashpoint\.json$/i, "").toLowerCase();
     if (TITLE_SLUGS.indexOf(fb) !== -1) return fb;

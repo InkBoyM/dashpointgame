@@ -309,6 +309,22 @@ def maze_walls(cv, color, torch, seed=22):
         circle(cv, x, y, 2, torch, fill=True)
 
 
+def flip_arrows(cv, color, seed=24):
+    H = len(cv)
+    W = len(cv[0])
+    rnd = random.Random(seed)
+    for _ in range(5):
+        cx = rnd.randrange(8, W - 8)
+        up = rnd.random() < 0.5
+        for k in range(4):
+            y = 4 + k if up else H - 5 - k
+            wdt = 4 - k
+            for dx in range(-wdt, wdt + 1):
+                xx = cx + dx
+                if 0 <= xx < W and 0 <= y < H:
+                    cv[y][xx] = color
+
+
 LEVELS = [
  ("00_welcome", "Welcome", "#ffd23c", lambda cv, W, H: (
     dots(cv, 26, hx("#ffd23c"), 5), dots(cv, 14, hx("#ffffff"), 6),
@@ -350,6 +366,9 @@ LEVELS = [
  ("the_maze", "The Maze", "#bcd2f0", lambda cv, W, H: (
     maze_walls(cv, hx("#5b6b8c"), hx("#ff9d2e"), 22),
     dots(cv, 14, hx("#2e3d55"), 23))),
+ ("the_flip", "The Flip", "#7df0e8", lambda cv, W, H: (
+    flip_arrows(cv, hx("#7df0e8"), 24),
+    dots(cv, 16, hx("#1e5a56"), 25))),
 ]
 
 
