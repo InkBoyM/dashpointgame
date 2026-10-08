@@ -2315,6 +2315,7 @@
       this.portalCd = 0;
       this.ship = false;
       this.shipCd = 0;
+      this.shipGrace = 0;
       this.inWater = false;
       this.groundSlope = null;
       this.wasSlope = null;
@@ -2328,6 +2329,7 @@
       this.crushers = [];
       this.trailParts = [];
       this.trailTick = 0;
+      this.shipTick = 0;
       this.petInit = false;
       const triggers = this.level.triggers || [];
       for (const tg of triggers) {
@@ -3069,12 +3071,50 @@
         if (tile.id !== "shipPortal") continue;
         if (!aabbOverlap(box, dashBox(c, r, tile))) continue;
         this.ship = !this.ship;
+        if (this.ship) this.shipGrace = 0.35;
         this.shipCd = 0.6;
         this.portalFlash = 0.3;
         this.buffer = 0;
         p.vy *= 0.3;
         return;
       }
+    }
+
+    checkShipCrash(wasVx) {
+      // GD rules: a flying ship dies on any solid contact.
+      // Boarding grace: you may take off from the ground.
+      if (!this.ship || this.shipGrace > 0 || this.dead || this.won) return;
+      const p = this.player;
+      if (p.onGround) { this.kill("ship"); return; }
+      if (wasVx !== 0 && p.vx === 0) { this.kill("ship"); return; }
+      const hb = this.playerBox();
+      hb.h = 6;
+      const hits = this.nearbyTiles(hb.x, hb.y, hb.w, hb.h, 0);
+      for (const { tile, c, r } of hits) {
+        const type = TILE_TYPES[tile.id];
+        if (!type || !type.solid) continue;
+        if (tile.id === "door" && this.openDoors && this.openDoors.has(c + "," + r)) continue;
+        const s = isHalfId(tile.id) ? halfBox(c, r, tile) : solidBox(c, r, tile);
+        if (aabbOverlap(hb, s)) { this.kill("ship"); return; }
+      }
+    }
+
+    tickShipExhaust(dt) {
+      if (!this.ship || this.dead || this.won) return;
+      const p = this.player;
+      this.shipTick = (this.shipTick || 0) + dt;
+      if (this.shipTick < 1 / 40) return;
+      this.shipTick = 0;
+      this.trailParts.push({
+        x: p.x - 6 + Math.random() * 4,
+        y: p.y + p.h / 2 + (Math.random() - 0.5) * 10,
+        vx: -140 - Math.random() * 60,
+        vy: (Math.random() - 0.5) * 60,
+        life: 0.35, max: 0.35, size: 5,
+        color: Math.random() < 0.5 ? "#ff9d2e" : "#ffd23c",
+        grav: 0, drag: 1,
+      });
+      if (this.trailParts.length > 220) this.trailParts.shift();
     }
 
     checkGravOrbs() {
@@ -3168,6 +3208,7 @@
       if (this.djFlash > 0) this.djFlash = Math.max(0, this.djFlash - dt);
       if (this.portalCd > 0) this.portalCd = Math.max(0, this.portalCd - dt);
       if (this.shipCd > 0) this.shipCd = Math.max(0, this.shipCd - dt);
+      if (this.shipGrace > 0) this.shipGrace = Math.max(0, this.shipGrace - dt);
       if (this.tpSafe > 0) this.tpSafe = Math.max(0, this.tpSafe - dt);
 
       if (this.dead) {
@@ -3381,6 +3422,8 @@
       this.checkCheckpoints();
       this.checkCoins();
       this.checkKeysAndDoors();
+      if (this.ship && !this.dead && !this.won) this.checkShipCrash(wasVx);
+      if (this.ship && !this.dead && !this.won) this.tickShipExhaust(dt);
       this.updateMovers(dt);
       this.updatePlats(dt);
       this.updateCrushers(dt);
