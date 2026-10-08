@@ -2051,6 +2051,101 @@
       showNotice("Couldn't load ghost: " + (e.message||e), true);
     }
   }
+
+  // ---- BOT DEMO: sensor-driven autopilot, view-only ----
+  // The bot reads tiles (never cheats: same physics, same hitboxes),
+  // retries from scratch on death, and nothing it does is saved.
+  function botInput() {
+    const out = { left: false, right: false, jump: false };
+    const eng = state.engine;
+    if (!eng || eng.dead || eng.won || state.paused) return out;
+    const p = eng.player, lvl = eng.level;
+    const T = 32;
+    // ship + water fly by feel: hold while sinking, release while rising
+    if (eng.ship) {
+      out.right = true;
+      out.jump = p.vy > 0;
+      return out;
+    }
+    if (eng.inWater) {
+      out.right = true;
+      out.jump = p.vy > 40;
+      return out;
+    }
+    const info = function (c, r) {
+      let t = null;
+      try { t = lvl.get(c, r); } catch (e) { t = null; }
+      if (!t) return { solid: false, haz: false, orb: false };
+      const ty = DP.TILE_TYPES[t.id];
+      return {
+        solid: !!(ty && ty.solid),
+        haz: !!(DP.isSpikeId(t.id) || DP.isSawId(t.id) || DP.isLavaId(t.id)),
+        orb: !!(DP.isGravOrbId(t.id) || DP.isDjOrbId(t.id) || t.id === "orb" || t.id === "djOrb" || t.id === "gravOrb"),
+      };
+    };
+    const r0 = Math.floor(p.y / T), r1 = Math.floor((p.y + p.h - 1) / T);
+    const pc = Math.floor((p.x + p.w / 2) / T);
+    const speed = Math.abs(p.vx);
+    const look = Math.max(2, Math.min(5, Math.round(1 + speed / 140)));
+    let wall = 99, haz = 99, gap = false, orb = false;
+    for (let i = 1; i <= look; i++) {
+      for (let r = r0; r <= r1; r++) {
+        const a = info(pc + i, r);
+        if (a.solid && i < wall) wall = i;
+        if (a.haz && i < haz) haz = i;
+        if (a.orb) orb = true;
+      }
+      if (i <= 3 && !info(pc + i, r1 + 1).solid && !info(pc + i, r1 + 2).solid) gap = true;
+    }
+    out.right = true;
+    if (!p.onGround) return out;
+    if (orb) {
+      out.jump = (Math.floor(performance.now() / 150) % 2) === 0;
+      return out;
+    }
+    if (wall <= 2 || haz <= 2 || gap) out.jump = true;
+    return out;
+  }
+
+  function beginDemo() {
+    const entry = state.netEntry || state.levels[state.current];
+    if (!entry || !state.engine) return;
+    state.demoSnap = {
+      deaths: save_.data.deaths | 0,
+      jumps: save_.data.jumps | 0,
+      coins: save_.data.coins,
+    };
+    state.demo = { attempt: 1, max: 25 };
+    el("winCard").classList.remove("visible");
+    el("pauseCard").classList.remove("visible");
+    state.paused = false;
+    restartLevel();
+    showNotice("BOT DEMO attempt 1 — hands off. Quit to stop.", false);
+  }
+
+  function endDemo() {
+    if (!state.demo && !state.demoSnap) return;
+    const s = state.demoSnap;
+    if (s) {
+      save_.data.deaths = s.deaths;
+      save_.data.jumps = s.jumps;
+      save_.data.coins = s.coins;
+      try { save(); } catch (e) {}
+      try { syncCoinUI(); } catch (e) {}
+      try { syncHomeStats(); } catch (e) {}
+    }
+    state.demo = null;
+    state.demoSnap = null;
+  }
+
+  async function liDemo() {
+    if (!levelInfoMeta) return;
+    const sv = levelInfoMeta;
+    el("modalLevelInfo").classList.remove("visible");
+    await playNetworkLevel(sv.meta, true);
+    if (!state.engine) return;
+    beginDemo();
+  }
   function getGhostPos(t){
     if (!ghostPlayback || !ghostPlayback.points || !ghostPlayback.points.length) return null;
     var pts = ghostPlayback.points;
@@ -4927,6 +5022,7 @@
   }
 
   function quitToLevels() {
+    endDemo();
     if (DP.Music) DP.Music.stop();
     flushPlaytime();
     try { flushHeat(); } catch (e) {}
@@ -4961,6 +5057,14 @@
     tuffFinishRun();
     const entry = state.netEntry || state.levels[state.current];
     if (!entry) return;
+    if (state.demo) {
+      const t = state.engine.time;
+      const att = state.demo.attempt;
+      endDemo();
+      el("winText").textContent = "BOT CLEAR in " + fmtTime(t) + " on attempt " + att + " — nothing saved.";
+      el("winCard").classList.add("visible");
+      return;
+    }
     flushPlaytime();
     try { flushHeat(); } catch (e) {}
     const t = state.engine.time;
@@ -5751,11 +5855,15 @@
     const pad = padState();
     try { pollHns(); } catch (e) {}
     const frozen = !!state.hnsFreeze;
-    state.engine.setInput({
+    if (state.demo && state.engine) {
+      state.engine.setInput(botInput());
+    } else {
+      state.engine.setInput({
         left: !frozen && (bindPressed("left") || !!(pad && pad.left) || state.touch.left),
         right: !frozen && (bindPressed("right") || !!(pad && pad.right) || state.touch.right),
         jump: !frozen && (bindPressed("jump") || !!(pad && pad.jump) || state.touch.jump),
       });
+    }
     if (pad && pad.startEdge && state.screen === "game" && !el("winCard").classList.contains("visible")) {
       restartLevel();
     }
@@ -5779,16 +5887,18 @@
       const n = state.engine.pendingJumps | 0;
       state.engine.pendingJumps = 0;
       if (n > 0) {
-        save_.data.jumps = (save_.data.jumps | 0) + n;
-        save();
-        checkUnlocks();
+        if (!state.demo) {
+          save_.data.jumps = (save_.data.jumps | 0) + n;
+          save();
+          checkUnlocks();
+        }
         try { sfxPlay("jump"); } catch (e) {}
       }
     }
     if (state.engine.pendingCoinGrant) {
       const n = state.engine.pendingCoinGrant | 0;
       state.engine.pendingCoinGrant = 0;
-      if (n > 0 && !state.practice) {
+      if (n > 0 && !state.practice && !state.demo) {
         const got = grantCoins(n);
         if (got) {
           save();
@@ -5800,17 +5910,32 @@
       }
     }
     if (state.engine.dead && !wasDead) {
-      state.deaths += 1;
-      save_.data.deaths += 1;
-      try { if (save_.data.attempts[state.currentFile]) save_.data.attempts[state.currentFile].deaths += 1; } catch(e){}
-      save();
-      checkUnlocks();
-      addShake(12); // death juice
-      haptic("death");
-      recordHeatDeath();
-      try { tuffLogDeath(); } catch (e) {}
+      if (!state.demo) {
+        state.deaths += 1;
+        save_.data.deaths += 1;
+        try { if (save_.data.attempts[state.currentFile]) save_.data.attempts[state.currentFile].deaths += 1; } catch(e){}
+        save();
+        checkUnlocks();
+        addShake(12); // death juice
+        haptic("death");
+        recordHeatDeath();
+        try { tuffLogDeath(); } catch (e) {}
+      } else {
+        addShake(12);
+      }
     }
-    if (state.engine.dead && save_.data.autoRespawn && state.engine.deathTimer > 0.55) respawn();
+    if (!state.demo && state.engine.dead && save_.data.autoRespawn && state.engine.deathTimer > 0.55) respawn();
+    if (state.demo && state.engine.dead && state.engine.deathTimer > 0.9) {
+      state.demo.attempt++;
+      if (state.demo.attempt > state.demo.max) {
+        endDemo();
+        showNotice("Bot gave up after 25 tries", true);
+        quitToLevels();
+      } else {
+        showNotice("BOT DEMO attempt " + state.demo.attempt, false);
+        restartLevel();
+      }
+    }
     if (state.engine.won && !state.winShown) {
       state.winShown = true;
       haptic("win");
@@ -5819,7 +5944,7 @@
     if (!state.engine.won) state.winShown = false;
 
     followPlayer();
-    if (!state.practice) { try{ recordGhost(edt); }catch(e){} }
+    if (!state.practice && !state.demo) { try{ recordGhost(edt); }catch(e){} }
     try { tuffSample(); } catch (e) {} // runs in practice too, so EDIT always has tracking
     tickShake(dt);
     trackPlaytime(dt);
@@ -8194,6 +8319,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnPauseHns").addEventListener("click", () => { hnsToggle(); syncPracticeUI(); });
     el("btnPauseHeat").addEventListener("click", toggleHeat);
     el("btnPauseMap").addEventListener("click", toggleMinimap);
+    el("btnPauseDemo").addEventListener("click", () => { resumeGame(); beginDemo(); });
+    el("btnLiDemo").addEventListener("click", liDemo);
     el("hudPractice").addEventListener("click", () => {
       if (state.practice && state.playing && !state.paused) placePracticeCheckpoint();
     });
