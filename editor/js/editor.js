@@ -1223,6 +1223,10 @@
   function applyTile(c, r, tile) {
     if (!state.level.inBounds(c, r)) return false;
     if (tile && !DP.TILE_TYPES[tile.id]) return false;
+    if (tile && tile.id === "shipPortal" && !(state.level.gameplay && state.level.gameplay.autoMove)) {
+      setStatus("Ship portal needs auto-move mode (Mode chips)");
+      return false;
+    }
     const prev = state.level.get(c, r);
     if (tile === null) {
       if (!prev) return false;

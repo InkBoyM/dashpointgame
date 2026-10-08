@@ -54,6 +54,7 @@
     coin500: { id: "coin500", solid: false, hazard: false, rotatable: false, label: "Coin +500" },
     key: { id: "key", solid: false, hazard: false, rotatable: false, label: "Key" },
     door: { id: "door", solid: true, hazard: false, rotatable: false, label: "Locked door" },
+    shipPortal: { id: "shipPortal", solid: false, hazard: false, rotatable: false, label: "Ship portal (auto-move only)" },
   };
 
   const COIN_VALUES = { coin10: 10, coin50: 50, coin100: 100, coin500: 500 };
@@ -268,6 +269,8 @@
     coin500: "assets/tiles/coin500.png",
     key: "assets/tiles/key.png",
     door: "assets/tiles/door.png",
+    shipPortal: "assets/tiles/shipPortal.png",
+    ship: "assets/tiles/ship.png",
     title: "assets/ui/title.png",
     play: "assets/ui/play.png",
     settings: "assets/ui/settings.png",
@@ -1933,7 +1936,7 @@
     }
 
     counts() {
-      const out = { brick: 0, ibrick: 0, fbrick: 0, spike: 0, ispike: 0, fspike: 0, goal: 0, igoal: 0, orb: 0, iorb: 0, pad: 0, dash: 0, blueDash: 0, coin10: 0, coin50: 0, coin100: 0, coin500: 0, slopeL: 0, slopeR: 0, platform: 0, portalA: 0, portalB: 0, gravOrb: 0, water: 0, lava: 0, djOrb: 0, crusher: 0, saw: 0, ice: 0, mud: 0, half: 0, halfT: 0, convL: 0, convR: 0, empty: 0, labels: 0, pictures: 0, widgets: 0 };
+      const out = { brick: 0, ibrick: 0, fbrick: 0, spike: 0, ispike: 0, fspike: 0, goal: 0, igoal: 0, orb: 0, iorb: 0, pad: 0, dash: 0, blueDash: 0, coin10: 0, coin50: 0, coin100: 0, coin500: 0, slopeL: 0, slopeR: 0, platform: 0, portalA: 0, portalB: 0, gravOrb: 0, water: 0, lava: 0, djOrb: 0, crusher: 0, saw: 0, ice: 0, mud: 0, half: 0, halfT: 0, convL: 0, convR: 0, shipPortal: 0, empty: 0, labels: 0, pictures: 0, widgets: 0 };
       for (let r = 0; r < this.rows; r++) {
         for (let c = 0; c < this.cols; c++) {
           const t = this.grid[r][c];
@@ -2310,6 +2313,8 @@
       this.gravDir = 1;
       this.gFlip = 1;
       this.portalCd = 0;
+      this.ship = false;
+      this.shipCd = 0;
       this.inWater = false;
       this.groundSlope = null;
       this.wasSlope = null;
@@ -3054,6 +3059,24 @@
       this.portalFlash = 0.3;
     }
 
+    checkShipPortals() {
+      // Ship portal: touch to board/leave the ship (cooldown both ways).
+      if (this.dead || this.won || this.shipCd > 0) return;
+      const p = this.player;
+      const box = this.playerBox();
+      const hits = this.nearbyTiles(box.x, box.y, box.w, box.h, 2);
+      for (const { tile, c, r } of hits) {
+        if (tile.id !== "shipPortal") continue;
+        if (!aabbOverlap(box, dashBox(c, r, tile))) continue;
+        this.ship = !this.ship;
+        this.shipCd = 0.6;
+        this.portalFlash = 0.3;
+        this.buffer = 0;
+        p.vy *= 0.3;
+        return;
+      }
+    }
+
     checkGravOrbs() {
       // Gravity orb: press jump while touching to flip up/down.
       const p = this.player;
@@ -3118,6 +3141,7 @@
       if (this.tpSafe > 0) return;
       if (this.dead || this.won) return;
       this.dead = true;
+      this.ship = false;
       this.deathReason = reason || "spike";
       this.deathTimer = 0;
       this.flash = 0.35;
@@ -3143,6 +3167,7 @@
       if (this.gravFlash > 0) this.gravFlash = Math.max(0, this.gravFlash - dt);
       if (this.djFlash > 0) this.djFlash = Math.max(0, this.djFlash - dt);
       if (this.portalCd > 0) this.portalCd = Math.max(0, this.portalCd - dt);
+      if (this.shipCd > 0) this.shipCd = Math.max(0, this.shipCd - dt);
       if (this.tpSafe > 0) this.tpSafe = Math.max(0, this.tpSafe - dt);
 
       if (this.dead) {
@@ -3242,6 +3267,12 @@
       this.gFlip = flipZ;
       if (this.blueDash > 0) {
         p.vy = 0;
+      } else if (this.ship) {
+        // GD ship: hold jump to climb, release to sink. No ground jumps.
+        if (jumpDown) p.vy -= 3200 * dt;
+        else p.vy += 1500 * dt;
+        p.vy = clamp(p.vy, -560, 460);
+        this.buffer = 0;
       } else if (this.inWater) {
         // slow sink + buoyancy: weak gravity, capped fall, swim on hold
         p.vy += g.gravity * 0.32 * dt;
@@ -3346,6 +3377,7 @@
       this.checkPads();
       this.checkDashes();
       this.checkPortals();
+      this.checkShipPortals();
       this.checkCheckpoints();
       this.checkCoins();
       this.checkKeysAndDoors();
@@ -4429,12 +4461,14 @@
         img = images.goal;
       } else if (tile.id === "door") {
         img = images.door;
+      } else if (tile.id === "shipPortal") {
+        img = images.shipPortal;
       }
     } else {
       img = realImg;
     }
     if (!img) {
-      if (isSlopeId(tile.id) || isPortalId(tile.id) || isGravOrbId(tile.id) || isDjOrbId(tile.id) || isDashId(tile.id) || isSawId(tile.id) || tile.id === "platform" || tile.id === "crusher" || tile.id === "ice" || tile.id === "mud" || tile.id === "convL" || tile.id === "convR" || isHalfId(tile.id) || tile.id === "water" || tile.id === "lava") {
+      if (isSlopeId(tile.id) || isPortalId(tile.id) || isGravOrbId(tile.id) || isDjOrbId(tile.id) || isDashId(tile.id) || isSawId(tile.id) || tile.id === "platform" || tile.id === "crusher" || tile.id === "ice" || tile.id === "mud" || tile.id === "convL" || tile.id === "convR" || isHalfId(tile.id) || tile.id === "water" || tile.id === "lava" || tile.id === "shipPortal") {
         drawSimpleTile(ctx, tile, x, y, size, opts);
       }
       return;
@@ -5083,7 +5117,15 @@
         }
         ctx.globalAlpha = 1;
       }
-      if (hasSkinImage(images, skinId)) {
+      if (engine.ship && images.ship) {
+        ctx.save();
+        ctx.translate(p.x + p.w / 2, p.y + p.h / 2);
+        const tilt = Math.max(-1, Math.min(1, p.vy / 600)) * 0.6;
+        ctx.rotate(tilt);
+        ctx.drawImage(images.ship, -22, -15, 44, 30);
+        if (hasSkinImage(images, skinId)) drawSkinImage(ctx, images, skinId, -13, -13, 26);
+        ctx.restore();
+      } else if (hasSkinImage(images, skinId)) {
         ctx.save();
         ctx.translate(dx + TILE / 2, dy + TILE / 2);
         ctx.rotate((p.rot * Math.PI) / 180);
