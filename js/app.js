@@ -1023,7 +1023,6 @@
     }
   }
 
-
   function load() {
     try {
       const raw = localStorage.getItem(STORAGE);
@@ -2052,287 +2051,6 @@
     }
   }
 
-  // ---- BOT DEMO: sensor-driven autopilot, view-only ----
-  // The bot reads tiles (never cheats: same physics, same hitboxes),
-  // retries from scratch on death, and nothing it does is saved.
-  function botInput() {
-    const out = { left: false, right: false, jump: false };
-    const eng = state.engine;
-    if (!eng || eng.dead || eng.won || state.paused) return out;
-    const p = eng.player, lvl = eng.level;
-    const T = 32;
-    // ship + water fly by feel: hold while sinking, release while rising
-    if (eng.ship) {
-      out.right = true;
-      out.jump = p.vy > 0;
-      return out;
-    }
-    if (eng.inWater) {
-      out.right = true;
-      out.jump = p.vy > 40;
-      return out;
-    }
-    const info = function (c, r) {
-      let t = null;
-      try { t = lvl.get(c, r); } catch (e) { t = null; }
-      if (!t) return { solid: false, haz: false, orb: false };
-      const ty = DP.TILE_TYPES[t.id];
-      return {
-        solid: !!(ty && ty.solid),
-        haz: !!(DP.isSpikeId(t.id) || DP.isSawId(t.id) || DP.isLavaId(t.id)),
-        orb: !!(DP.isGravOrbId(t.id) || DP.isDjOrbId(t.id) || t.id === "orb" || t.id === "djOrb" || t.id === "gravOrb"),
-      };
-    };
-    const r0 = Math.floor(p.y / T), r1 = Math.floor((p.y + p.h - 1) / T);
-    const pc = Math.floor((p.x + p.w / 2) / T);
-    // orbs: press only while actually touching one (the engine eats the
-    // press on overlap). Never pulse near them — that clips real jumps.
-    let orb = false;
-    {
-      const c0 = Math.floor((p.x - 6) / T), c1 = Math.floor((p.x + p.w + 6) / T);
-      const q0 = Math.floor((p.y - 6) / T), q1 = Math.floor((p.y + p.h + 6) / T);
-      for (let c = c0; c <= c1 && !orb; c++) {
-        for (let r = q0; r <= q1 && !orb; r++) {
-          if (info(c, r).orb) orb = true;
-        }
-      }
-    }
-    out.right = true;
-    if (orb) {
-      out.jump = true;
-      return out;
-    }
-    if (!p.onGround) {
-      // hold jump through the rise or jumpCut clips it mid-air.
-      // hold length varies per attempt so retries explore different arcs.
-      if (state.demo) state.demo.wasG = false;
-      const attH = (state.demo && state.demo.attempt) || 1;
-      const holdVy = [-60, -140, -220, -320, -420, -520][(attH - 1) % 6];
-      out.right = true;
-      out.jump = p.vy < holdVy;
-      return out;
-    }
-    // grounded: one quiet frame after landing so the next press is a
-    // fresh edge (the engine only jumps on false->true transitions).
-    if (state.demo) {
-      if (!state.demo.wasG) state.demo.landPause = 1;
-      state.demo.wasG = true;
-      if (state.demo.landPause > 0) { state.demo.landPause--; out.right = true; return out; }
-    }
-    // grounded: treat each contiguous threat run as one jump. Take off
-    // only when the fixed jump arc (~190px) can carry past its far end,
-    // so we stop landing inside spike beds; block tops inside the arc
-    // become safe stepping stones automatically on the next scan.
-    const feetRow = Math.floor((p.y + p.h) / T);
-    const frontX = p.x + p.w;
-    const fc = Math.floor(frontX / T);
-    let gap = true;
-    for (let i = 1; i <= 3; i++) {
-      const a = info(fc + i, feetRow);
-      if (a.solid || a.haz) { gap = false; break; }
-    }
-    if (gap) { out.jump = true; if (state.demo) state.demo.why = "gap"; return out; }
-    let field = false;
-    for (let i = 0; i <= 8; i++) {
-      const c = fc + i;
-      let h = 0;
-      for (let r = feetRow - 1; r >= feetRow - 5; r--) {
-        const a = info(c, r);
-        if (a.solid || a.haz) h++;
-        else break;
-      }
-      if (info(c, feetRow).haz) h++;
-      if (h > 0) { field = true; break; }
-    }
-    if (!field) return out;
-    if (Math.abs(p.vx) < 30) {
-      let hh = 0;
-      for (let r = feetRow - 1; r >= feetRow - 5; r--) {
-        const a = info(fc, r);
-        if (a.solid || a.haz) hh++;
-        else break;
-      }
-      if (hh > 0 && fc * T - frontX <= 34) { out.jump = true; return out; }
-      return out;
-    }
-    // simulate a full jump arc from here with real level physics.
-    // Jump only if the sim lands somewhere safe.
-    const g = (lvl.gameplay || {});
-    const JF = g.jumpForce || 660, GV = g.gravity || 2100, JC = (g.jumpCut == null ? 0.42 : g.jumpCut);
-    const dt = 1 / 60;
-    const simLand = function (x0, v0, holdVy) {
-      // hitbox-accurate arc sim from candidate takeoff x0.
-      const airA = (g.airAccel == null ? 2100 : g.airAccel);
-      const cap = (g.moveSpeed || 320);
-      let vx = Math.max(v0, 60);
-      let x = x0, y = p.y + p.h, vy = -JF, released = false;
-      const hb = function (box) {
-        const c0 = Math.floor(box.x / T), c1 = Math.floor((box.x + box.w - 1) / T);
-        const r0 = Math.floor(box.y / T), r1 = Math.floor((box.y + box.h - 1) / T);
-        let wall = false, land = -1;
-        for (let c = c0; c <= c1 && !wall && land < 0; c++) {
-          for (let r = r0; r <= r1; r++) {
-            const t = lvl.get(c, r);
-            if (!t) continue;
-            if (DP.isSpikeId(t.id)) {
-              if (DP.aabbOverlap(box, DP.spikeBox(c, r, t.rot || 0, t))) return "dead";
-            } else if (DP.isSawId(t.id)) {
-              if (DP.aabbOverlap(box, DP.sawBox(c, r, t))) return "dead";
-            } else if (DP.isLavaId(t.id)) {
-              if (DP.aabbOverlap(box, { x: c * T, y: r * T, w: T, h: T })) return "dead";
-            } else {
-              const ty = DP.TILE_TYPES[t.id];
-              if (ty && ty.solid) {
-                const s = DP.isHalfId(t.id) ? DP.halfBox(c, r, t) : DP.solidBox(c, r, t);
-                if (DP.aabbOverlap(box, s)) {
-                  if (vy > 0 && (box.y + box.h - s.y) < 12) land = x;
-                  else wall = true;
-                }
-              }
-            }
-          }
-        }
-        if (land > 0) return land;
-        if (wall) return "wall";
-        return null;
-      };
-      for (let i = 0; i < 140; i++) {
-        if (!released && vy >= holdVy) { vy *= JC; released = true; }
-        vy += GV * dt;
-        vx = Math.min(cap, vx + airA * dt);
-        x += vx * dt;
-        y += vy * dt;
-        const r = hb({ x: x, y: y - p.h, w: p.w, h: p.h });
-        if (r === "dead" || r === "wall") return -1;
-        if (typeof r === "number" && r > 0) return r;
-        if (y - (p.y + p.h) > 240) return -1;
-      }
-      return -1;
-    };
-    const v0 = Math.abs(p.vx);
-    const attS = (state.demo && state.demo.attempt) || 1;
-    const holdVy = [-60, -140, -220, -320, -420, -520][(attS - 1) % 6];
-    // try takeoffs here and ahead; take the earliest safe one so we
-    // don't run past the window. Path there must be runnable.
-    // Landing must make progress (no pogo-ing in place).
-    // a landing only counts if it makes progress: past the field's
-    // far end, or stepped up onto a clean top. (Landing just before
-    // the spikes is how demos go to die.)
-    let fs = -1, fe = -1;
-    for (let i = 0; i <= 12; i++) {
-      const c = fc + i;
-      let h = 0;
-      for (let r = feetRow - 1; r >= feetRow - 5; r--) {
-        const a = info(c, r);
-        if (a.solid || a.haz) h++;
-        else break;
-      }
-      if (info(c, feetRow).haz) h++;
-      if (h > 0) { if (fs < 0) fs = c; fe = c; }
-      else if (fs >= 0) break;
-    }
-    const feetBottom = p.y + p.h;
-    const landOK = function (lx) {
-      if (fs >= 0 && lx - 8 >= fe * T + T - 32) return true;
-      const c0 = Math.floor((lx - 8) / T), c1 = Math.floor((lx + 8) / T);
-      let top = Infinity, ok = true;
-      for (let c = c0; c <= c1; c++) {
-        let ct = Infinity;
-        for (let r = feetRow - 5; r <= feetRow + 2; r++) {
-          if (info(c, r).solid) { ct = r * T; break; }
-        }
-        if (ct === Infinity) { ok = false; break; }
-        for (let r = Math.floor((ct - 28) / T); r <= Math.floor((ct - 1) / T); r++) {
-          const a = info(c, r);
-          if (a.haz || a.solid) { ok = false; break; }
-        }
-        if (!ok) break;
-        if (ct < top) top = ct;
-      }
-      return ok && top < feetBottom - 4 && feetBottom - top <= 110;
-    };
-    let fire = false;
-    const tryLand = simLand(p.x, v0, holdVy);
-    if (tryLand > 0 && landOK(tryLand)) fire = true;
-    if (!fire) {
-      for (let lead = 12; lead <= 72 && !fire; lead += 12) {
-        const tx = frontX + lead;
-        let clear = true;
-        for (let cx = Math.floor(frontX / T); cx <= Math.floor(tx / T) + 1; cx++) {
-          for (let r = feetRow - 1; r <= feetRow; r++) {
-            const a = info(cx, r);
-            if (a.haz || (a.solid && r < feetRow)) { clear = false; break; }
-          }
-          if (!clear) break;
-        }
-        if (!clear) break;
-        const cl = simLand(tx - p.w, v0, holdVy);
-        if (cl > 0 && landOK(cl)) fire = true;
-      }
-    }
-    if (fire) {
-      out.jump = true; return out;
-    }
-    if (v0 > 160) {
-      const bl = simLand(p.x, 150, holdVy);
-      if (bl > 0 && landOK(bl)) { out.right = false; return out; }
-    }
-    let fs2 = -1;
-    for (let i = 0; i <= 8; i++) {
-      const c = fc + i;
-      let h = 0;
-      for (let r = feetRow - 1; r >= feetRow - 5; r--) {
-        const a = info(c, r);
-        if (a.solid || a.haz) h++;
-        else break;
-      }
-      if (info(c, feetRow).haz) h++;
-      if (h > 0) { fs2 = c; break; }
-    }
-    const startDist2 = (fs2 < 0 ? 9999 : fs2 * T - frontX);
-    if (startDist2 < 15) { out.jump = true; return out; }
-    return out;
-  }
-
-  function beginDemo() {
-    const entry = state.netEntry || state.levels[state.current];
-    if (!entry || !state.engine) return;
-    state.demoSnap = {
-      deaths: save_.data.deaths | 0,
-      jumps: save_.data.jumps | 0,
-      coins: save_.data.coins,
-    };
-    state.demo = { attempt: 1, bestX: 0, stallDeaths: 0 };
-    el("winCard").classList.remove("visible");
-    el("pauseCard").classList.remove("visible");
-    state.paused = false;
-    restartLevel();
-    showNotice("BOT DEMO attempt 1 — hands off. Quit to stop.", false);
-  }
-
-  function endDemo() {
-    if (!state.demo && !state.demoSnap) return;
-    const s = state.demoSnap;
-    if (s) {
-      save_.data.deaths = s.deaths;
-      save_.data.jumps = s.jumps;
-      save_.data.coins = s.coins;
-      try { save(); } catch (e) {}
-      try { syncCoinUI(); } catch (e) {}
-      try { syncHomeStats(); } catch (e) {}
-    }
-    state.demo = null;
-    state.demoSnap = null;
-  }
-
-  async function liDemo() {
-    if (!levelInfoMeta) return;
-    const sv = levelInfoMeta;
-    el("modalLevelInfo").classList.remove("visible");
-    await playNetworkLevel(sv.meta, true);
-    if (!state.engine) return;
-    beginDemo();
-  }
   function getGhostPos(t){
     if (!ghostPlayback || !ghostPlayback.points || !ghostPlayback.points.length) return null;
     var pts = ghostPlayback.points;
@@ -2652,8 +2370,6 @@
     }
   }
 
-
-
   // ---- Discord record feed (main levels only) ----
   const RECORD_WEBHOOK = "https://discord.com/api/webhooks/1553954164709658686/SRIubj3GZmYEZB76aZTUqdh3BzGTA8DauWKi9CiKwmrJwicib3PDK461NynZ6qZAsGa4";
   const RECORD_BOT_AVATAR = "https://dashpointgame.templateslide.com/assets/skins/skin-35.png";
@@ -2697,7 +2413,6 @@
       sendRecordWebhook(msg);
     } catch (e) {}
   }
-
 
   const els = {};
   function el(id) {
@@ -5209,7 +4924,6 @@
   }
 
   function quitToLevels() {
-    endDemo();
     if (DP.Music) DP.Music.stop();
     flushPlaytime();
     try { flushHeat(); } catch (e) {}
@@ -5244,14 +4958,6 @@
     tuffFinishRun();
     const entry = state.netEntry || state.levels[state.current];
     if (!entry) return;
-    if (state.demo) {
-      const t = state.engine.time;
-      const att = state.demo.attempt;
-      endDemo();
-      el("winText").textContent = "BOT CLEAR in " + fmtTime(t) + " on attempt " + att + " — nothing saved.";
-      el("winCard").classList.add("visible");
-      return;
-    }
     flushPlaytime();
     try { flushHeat(); } catch (e) {}
     const t = state.engine.time;
@@ -6042,15 +5748,11 @@
     const pad = padState();
     try { pollHns(); } catch (e) {}
     const frozen = !!state.hnsFreeze;
-    if (state.demo && state.engine) {
-      state.engine.setInput(botInput());
-    } else {
-      state.engine.setInput({
+    state.engine.setInput({
         left: !frozen && (bindPressed("left") || !!(pad && pad.left) || state.touch.left),
         right: !frozen && (bindPressed("right") || !!(pad && pad.right) || state.touch.right),
         jump: !frozen && (bindPressed("jump") || !!(pad && pad.jump) || state.touch.jump),
       });
-    }
     if (pad && pad.startEdge && state.screen === "game" && !el("winCard").classList.contains("visible")) {
       restartLevel();
     }
@@ -6074,18 +5776,16 @@
       const n = state.engine.pendingJumps | 0;
       state.engine.pendingJumps = 0;
       if (n > 0) {
-        if (!state.demo) {
-          save_.data.jumps = (save_.data.jumps | 0) + n;
-          save();
-          checkUnlocks();
-        }
+        save_.data.jumps = (save_.data.jumps | 0) + n;
+        save();
+        checkUnlocks();
         try { sfxPlay("jump"); } catch (e) {}
       }
     }
     if (state.engine.pendingCoinGrant) {
       const n = state.engine.pendingCoinGrant | 0;
       state.engine.pendingCoinGrant = 0;
-      if (n > 0 && !state.practice && !state.demo) {
+      if (n > 0 && !state.practice) {
         const got = grantCoins(n);
         if (got) {
           save();
@@ -6097,61 +5797,17 @@
       }
     }
     if (state.engine.dead && !wasDead) {
-      if (!state.demo) {
-        state.deaths += 1;
-        save_.data.deaths += 1;
-        try { if (save_.data.attempts[state.currentFile]) save_.data.attempts[state.currentFile].deaths += 1; } catch(e){}
-        save();
-        checkUnlocks();
-        addShake(12); // death juice
-        haptic("death");
-        recordHeatDeath();
-        try { tuffLogDeath(); } catch (e) {}
-      } else {
-        addShake(12);
-      }
+      state.deaths += 1;
+      save_.data.deaths += 1;
+      try { if (save_.data.attempts[state.currentFile]) save_.data.attempts[state.currentFile].deaths += 1; } catch(e){}
+      save();
+      checkUnlocks();
+      addShake(12); // death juice
+      haptic("death");
+      recordHeatDeath();
+      try { tuffLogDeath(); } catch (e) {}
     }
-    if (!state.demo && state.engine.dead && save_.data.autoRespawn && state.engine.deathTimer > 0.55) respawn();
-    if (state.demo && state.engine.dead && state.engine.deathTimer > 0.9) {
-      state.demo.attempt++;
-      if (state.engine.player.x > (state.demo.bestX | 0) + 32) {
-        state.demo.bestX = Math.round(state.engine.player.x);
-        state.demo.stallDeaths = 0;
-      } else {
-        state.demo.stallDeaths = (state.demo.stallDeaths | 0) + 1;
-      }
-      if (state.demo.attempt > 60 || state.demo.stallDeaths > 40) {
-        endDemo();
-        showNotice("Bot gave up here", true);
-        quitToLevels();
-      } else if (state.engine.checkpoint) {
-        respawn();
-      } else {
-        showNotice("BOT DEMO attempt " + state.demo.attempt, false);
-        restartLevel();
-      }
-    }
-    if (state.demo && !state.engine.dead && !state.engine.won) {
-      const d = state.demo, ex = state.engine.player.x;
-      if (ex > (d.bestX | 0) + 32) {
-        d.bestX = Math.round(ex);
-        d.stallDeaths = 0;
-        d.stallT = state.engine.time;
-      } else if (state.engine.time - (d.stallT || 0) > 4) {
-        d.attempt++;
-        d.stallDeaths = (d.stallDeaths | 0) + 1;
-        d.stallT = state.engine.time;
-        if (d.attempt > 60 || d.stallDeaths > 40) {
-          endDemo();
-          showNotice("Bot gave up here", true);
-          quitToLevels();
-        } else if (state.engine.checkpoint) {
-          respawn();
-        } else {
-          restartLevel();
-        }
-      }
-    }
+    if (state.engine.dead && save_.data.autoRespawn && state.engine.deathTimer > 0.55) respawn();
     if (state.engine.won && !state.winShown) {
       state.winShown = true;
       haptic("win");
@@ -6160,7 +5816,7 @@
     if (!state.engine.won) state.winShown = false;
 
     followPlayer();
-    if (!state.practice && !state.demo) { try{ recordGhost(edt); }catch(e){} }
+    if (!state.practice) { try{ recordGhost(edt); }catch(e){} }
     try { tuffSample(); } catch (e) {} // runs in practice too, so EDIT always has tracking
     tickShake(dt);
     trackPlaytime(dt);
@@ -8535,8 +8191,6 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnPauseHns").addEventListener("click", () => { hnsToggle(); syncPracticeUI(); });
     el("btnPauseHeat").addEventListener("click", toggleHeat);
     el("btnPauseMap").addEventListener("click", toggleMinimap);
-    el("btnPauseDemo").addEventListener("click", () => { resumeGame(); beginDemo(); });
-    el("btnLiDemo").addEventListener("click", liDemo);
     el("hudPractice").addEventListener("click", () => {
       if (state.practice && state.playing && !state.paused) placePracticeCheckpoint();
     });
