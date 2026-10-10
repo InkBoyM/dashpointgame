@@ -2747,7 +2747,7 @@
     if (name === "skins") renderSkins();
     if (name === "game") resizeCanvas();
     if (name === "home") renderLotd();
-    if (name === "network" || name === "netsaved" || name === "netsearch" || name === "netboards" || name === "netmp") state.netBack = name;
+    if (name === "network" || name === "netsaved" || name === "netsearch" || name === "netboards" || name === "netmp" || name === "netchat") state.netBack = name;
   }
 
   function lotdDateStr(d) {
@@ -6159,12 +6159,20 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     const u = MP.getUser();
     el("netAcct").textContent = u ? "logged in as " + u.name : "not logged in";
     showPanel(null);
+    try { dmRefreshInbox().catch(function () {}); } catch (e) {}
+    try { dmStartRealtime(); } catch (e) {}
+    try { dmSyncBadges(); } catch (e) {}
   }
 
   function showPanel(which) {
     if (which === "saved") show("netsaved");
     else if (which === "search") show("netsearch");
     else if (which === "boards") show("netboards");
+    else if (which === "chat") {
+      show("netchat");
+      try { dmRefreshInbox(); } catch (e) {}
+      try { dmRenderList(); } catch (e) {}
+    }
     else if (which === "mp") {
       show("netmp");
       try { syncMpUI(); } catch (e) {}
@@ -6969,6 +6977,16 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       vb.textContent = "VIEW";
       vb.addEventListener("click", function (ev) { ev.stopPropagation(); openAccount(r.uid); });
       wrap.appendChild(vb);
+      const cb = document.createElement("button");
+      cb.className = "px-btn tiny gold";
+      cb.textContent = "CHAT";
+      const unread = dmUnreadFor(r.uid);
+      if (unread > 0) cb.textContent = "CHAT (" + (unread > 9 ? "9+" : unread) + ")";
+      cb.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        dmOpenChatWith(r.uid, r.name);
+      });
+      wrap.appendChild(cb);
       row.appendChild(wrap);
       box.appendChild(row);
     });
@@ -7016,6 +7034,498 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = oldLabel || "INVITE"; }
     }
+  }
+
+  /* ---------------- DIRECT MESSAGES + PARTY CHAT ----------------
+     DM = persistent 1:1 with people you follow (Firebase, works offline-
+     tolerant via inbox unread counts). Party = ephemeral room chat.
+     Enter in a level opens the overlay: solo -> most recent DM, 1 party
+     member -> DM with them, 2+ members -> PARTY or pick a member DM. */
+  let dmInbox = [];
+  let dmInboxOn = false;
+  let dmInboxBaselined = false;
+  let dmInboxBaselineTs = 0;
+  let dmActivePeer = null; // {uid, name} for the NETWORK > CHAT thread pane
+  let dmThreadMsgs = [];
+  let dmThreadOnFor = "";
+  let dmOverlayTarget = null; // {kind:"dm"|"party", uid, name}
+  let dmPartySeenTs = 0;
+  let dmPartyUnread = 0;
+  const DM_LAST_KEY = "dashpoint.dm.last";
+
+  function dmMe() {
+    try { return currentMe(); } catch (e) { return null; }
+  }
+  function dmRoomMembers() {
+    try {
+      const all = (MP.roomPlayers && MP.roomPlayers()) || [];
+      return all.filter(function (p) { return !p.me && p.online && p.uid; });
+    } catch (e) { return []; }
+  }
+  function dmInboxHas(uid) {
+    uid = String(uid || "");
+    return dmInbox.some(function (r) { return r.peerUid === uid; });
+  }
+  function dmCanChatWith(uid) {
+    uid = String(uid || "");
+    if (!uid) return false;
+    const me = dmMe();
+    if (!me || me.uid === uid) return false;
+    try { if (isFollowingLocal(uid)) return true; } catch (e) {}
+    if (dmInboxHas(uid)) return true; // they messaged you: replies always allowed
+    if (dmRoomMembers().some(function (p) { return p.uid === uid; })) return true;
+    return false;
+  }
+  function dmGetLastPeer() {
+    try {
+      const raw = localStorage.getItem(DM_LAST_KEY);
+      if (raw) {
+        const o = JSON.parse(raw);
+        if (o && o.uid) return o;
+      }
+    } catch (e) {}
+    if (dmInbox.length) return { uid: dmInbox[0].peerUid, name: dmInbox[0].peerName };
+    return null;
+  }
+  function dmSetLastPeer(uid, name) {
+    if (!uid) return;
+    try { localStorage.setItem(DM_LAST_KEY, JSON.stringify({ uid: uid, name: String(name || "player").slice(0, 24), ts: Date.now() })); } catch (e) {}
+  }
+  function dmTotalUnread() {
+    let n = 0;
+    for (const r of dmInbox) n += r.unread | 0;
+    return Math.min(99, n);
+  }
+  function dmUnreadFor(uid) {
+    const r = dmInbox.find(function (x) { return x.peerUid === String(uid || ""); });
+    return r ? (r.unread | 0) : 0;
+  }
+  function dmSyncBadges() {
+    const n = dmTotalUnread();
+    const label = n > 9 ? "9+" : String(n);
+    const c = el("chatCount");
+    if (c) {
+      c.textContent = label;
+      c.classList.toggle("hidden", n <= 0);
+    }
+    const sub = el("netChatSub");
+    if (sub) sub.textContent = n > 0 ? n + " unread message" + (n === 1 ? "" : "s") : "DM people you follow";
+    const ac = el("acctChatCount");
+    if (ac && accountView) {
+      const u = dmUnreadFor(accountView.uid);
+      ac.textContent = u > 9 ? "9+" : String(u);
+      ac.classList.toggle("hidden", u <= 0);
+    } else if (ac) {
+      ac.classList.add("hidden");
+    }
+    const pm = el("partyCountMp");
+    if (pm) {
+      pm.textContent = dmPartyUnread > 9 ? "9+" : String(dmPartyUnread);
+      pm.classList.toggle("hidden", !(dmPartyUnread > 0 && !dmOverlayOpen()));
+    }
+  }
+  function dmFmtTime(ts) {
+    try {
+      const d = new Date(ts);
+      const now = new Date();
+      const sameDay = d.toDateString() === now.toDateString();
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mm = String(d.getMinutes()).padStart(2, "0");
+      if (sameDay) return hh + ":" + mm;
+      return (d.getMonth() + 1) + "/" + d.getDate() + " " + hh + ":" + mm;
+    } catch (e) { return ""; }
+  }
+  function dmBubbleHtml(m, meUid) {
+    const mine = m.fromUid && meUid && m.fromUid === meUid;
+    const who = mine ? "me" : "them";
+    return '<div class="dm-bubble ' + who + '"><b>' + escapeHtml(mine ? "You" : (m.fromName || "player")) +
+      " · " + escapeHtml(dmFmtTime(m.ts)) + "</b>" + escapeHtml(m.text) + "</div>";
+  }
+  async function dmRefreshInbox() {
+    const me = dmMe();
+    if (!me || !NET.listDmInbox) { dmInbox = []; dmSyncBadges(); return; }
+    try { dmInbox = await NET.listDmInbox(); }
+    catch (e) { dmInbox = dmInbox || []; }
+    dmSyncBadges();
+    try { if (state.screen === "netchat") dmRenderList(); } catch (e) {}
+  }
+  function dmStartRealtime() {
+    if (dmInboxOn || !NET.onDmInbox) return;
+    let attached = false;
+    try {
+      attached = NET.onDmInbox(function (list) {
+        list = Array.isArray(list) ? list : [];
+        let maxTs = dmInboxBaselineTs;
+        const fresh = [];
+        for (const r of list) {
+          const ts = r.lastTs || 0;
+          if (ts > maxTs) maxTs = ts;
+          if (dmInboxBaselined && ts > dmInboxBaselineTs && r.lastFrom && dmMe() && r.lastFrom !== dmMe().uid && (r.unread | 0) > 0) {
+            fresh.push(r);
+          }
+        }
+        const first = !dmInboxBaselined;
+        dmInboxBaselined = true;
+        dmInboxBaselineTs = Math.max(dmInboxBaselineTs, maxTs);
+        dmInbox = list;
+        dmSyncBadges();
+        try { if (state.screen === "netchat") dmRenderList(); } catch (e) {}
+        // Live-update the open thread pane if the message belongs to it.
+        try {
+          if (dmActivePeer && list.some(function (r) { return r.peerUid === dmActivePeer.uid && r.lastTs > (dmThreadMsgs.length ? dmThreadMsgs[dmThreadMsgs.length - 1].ts : 0); })) {
+            dmLoadThread(dmActivePeer.uid, dmActivePeer.name, true);
+          }
+        } catch (e) {}
+        // Live-update overlay DM log too.
+        try {
+          if (!first && fresh.length && dmOverlayOpen() && dmOverlayTarget && dmOverlayTarget.kind === "dm") {
+            const hit = fresh.some(function (r) { return r.peerUid === dmOverlayTarget.uid; });
+            if (hit) dmOverlayLoadLog();
+          }
+        } catch (e) {}
+        if (!first) {
+          for (const r of fresh) {
+            dmSetLastPeer(r.peerUid, r.peerName);
+            showNotice(r.peerName + ": " + String(r.lastText || "").slice(0, 60), false);
+          }
+        }
+      });
+    } catch (e) { attached = false; }
+    if (attached) dmInboxOn = true;
+  }
+  function dmStopRealtime() {
+    dmInboxOn = false;
+    dmInboxBaselined = false;
+    dmInboxBaselineTs = 0;
+    try { if (NET.offDmInbox) NET.offDmInbox(); } catch (e) {}
+    try { if (NET.offDmThread) NET.offDmThread(); } catch (e) {}
+    dmThreadOnFor = "";
+  }
+  function dmRenderList() {
+    const box = el("dmList");
+    if (!box) return;
+    const me = dmMe();
+    if (!me) { box.innerHTML = '<p class="loading-note">Log in to chat.</p>'; return; }
+    let follows = {};
+    try { follows = followMap(); } catch (e) {}
+    const inboxByUid = {};
+    dmInbox.forEach(function (r) { inboxByUid[r.peerUid] = r; });
+    const rows = [];
+    dmInbox.forEach(function (r) {
+      rows.push({ uid: r.peerUid, name: r.peerName, prev: r.lastText || "", ts: r.lastTs || 0, unread: r.unread | 0, hasThread: true });
+    });
+    Object.keys(follows).forEach(function (uid) {
+      if (inboxByUid[uid] || (me && uid === me.uid)) return;
+      const local = follows[uid] || {};
+      rows.push({ uid: uid, name: local.name || "player", prev: "No messages yet — say hi", ts: 0, unread: 0, hasThread: false });
+    });
+    rows.sort(function (a, b) { return (b.ts || 0) - (a.ts || 0) || String(a.name).localeCompare(String(b.name)); });
+    box.innerHTML = "";
+    if (!rows.length) {
+      box.innerHTML = '<p class="loading-note">No follows yet — open a player profile and FOLLOW them, then chat here.</p>';
+      return;
+    }
+    rows.slice(0, 60).forEach(function (r) {
+      const row = document.createElement("button");
+      row.className = "dm-row" + (dmActivePeer && dmActivePeer.uid === r.uid ? " active" : "");
+      row.type = "button";
+      const badge = r.unread > 0 ? '<span class="chat-count" style="position:static">' + (r.unread > 9 ? "9+" : r.unread) + "</span>" : "";
+      row.innerHTML = '<span class="dm-main"><span class="dm-name">' + escapeHtml(r.name) + "</span>" +
+        '<div class="dm-prev">' + escapeHtml(r.prev) + "</div></span>" + badge;
+      row.addEventListener("click", function () { dmOpenThread(r.uid, r.name); });
+      box.appendChild(row);
+    });
+  }
+  async function dmOpenThread(uid, name) {
+    uid = String(uid || "").trim();
+    if (!uid) return;
+    const me = dmMe();
+    if (!me) { showNotice("Log in to chat.", true); return; }
+    dmActivePeer = { uid: uid, name: String(name || "player").slice(0, 24) };
+    dmSetLastPeer(uid, dmActivePeer.name);
+    const nm = el("dmThreadName");
+    if (nm) nm.textContent = "with " + dmActivePeer.name;
+    const hint = el("dmHint");
+    if (hint) hint.textContent = "";
+    dmRenderList();
+    await dmLoadThread(uid, dmActivePeer.name, false);
+    try {
+      if (NET.onDmThread && dmThreadOnFor !== uid) {
+        dmThreadOnFor = uid;
+        NET.onDmThread(uid, function (msgs) {
+          if (!dmActivePeer || dmActivePeer.uid !== uid) return;
+          dmThreadMsgs = msgs || [];
+          dmRenderThread();
+          try { if (state.screen === "netchat") dmRenderList(); } catch (e) {}
+        });
+      }
+    } catch (e) {}
+    try { if (NET.markDmRead) await NET.markDmRead(uid); } catch (e) {}
+    try { await dmRefreshInbox(); } catch (e) {}
+  }
+  async function dmLoadThread(uid, name, quiet) {
+    const box = el("dmThread");
+    if (box && !quiet) box.innerHTML = '<p class="loading-note">Loading…</p>';
+    try {
+      dmThreadMsgs = await NET.getDmThread(uid, 40);
+    } catch (e) {
+      dmThreadMsgs = [];
+      if (box && !quiet) box.innerHTML = '<p class="loading-note">Could not load messages.</p>';
+      return;
+    }
+    dmRenderThread();
+  }
+  function dmRenderThread() {
+    const box = el("dmThread");
+    if (!box || !dmActivePeer) return;
+    const me = dmMe();
+    const meUid = me ? me.uid : "";
+    box.innerHTML = "";
+    if (!dmThreadMsgs.length) {
+      box.innerHTML = '<p class="loading-note">No messages yet — say hi to ' + escapeHtml(dmActivePeer.name) + ".</p>";
+      return;
+    }
+    dmThreadMsgs.forEach(function (m) {
+      const d = document.createElement("div");
+      d.className = "dm-bubble " + ((m.fromUid === meUid) ? "me" : "them");
+      d.innerHTML = "<b>" + escapeHtml(m.fromUid === meUid ? "You" : (m.fromName || "player")) + " · " +
+        escapeHtml(dmFmtTime(m.ts)) + "</b>" + escapeHtml(m.text);
+      box.appendChild(d);
+    });
+    box.scrollTop = box.scrollHeight;
+  }
+  async function dmSendFromScreen() {
+    const inp = el("dmInput");
+    const hint = el("dmHint");
+    const me = dmMe();
+    if (!me) { showNotice("Log in to chat.", true); return; }
+    if (!dmActivePeer) {
+      if (hint) hint.textContent = "Pick someone above first.";
+      return;
+    }
+    const text = inp ? String(inp.value || "") : "";
+    if (!String(text).trim()) return;
+    if (!dmCanChatWith(dmActivePeer.uid)) {
+      const msg = "Follow " + dmActivePeer.name + " first (open their profile → FOLLOW).";
+      if (hint) hint.textContent = msg;
+      showNotice(msg, true);
+      return;
+    }
+    try {
+      if (hint) hint.textContent = "Sending…";
+      await NET.sendDm(dmActivePeer.uid, dmActivePeer.name, text);
+      dmSetLastPeer(dmActivePeer.uid, dmActivePeer.name);
+      if (inp) inp.value = "";
+      if (hint) hint.textContent = "";
+      await dmLoadThread(dmActivePeer.uid, dmActivePeer.name, true);
+      await dmRefreshInbox();
+    } catch (e) {
+      const msg = String((e && e.message) || e);
+      if (hint) hint.textContent = msg;
+      showNotice(msg, true);
+    }
+  }
+  function dmOpenChatWith(uid, name) {
+    uid = String(uid || "").trim();
+    if (!uid) return;
+    const me = dmMe();
+    if (!me) { showNotice("Log in to chat.", true); return; }
+    if (me.uid === uid) { showNotice("That's you.", true); return; }
+    show("netchat");
+    showPanel("chat");
+    dmRefreshInbox().then(function () { dmOpenThread(uid, name); }).catch(function () { dmOpenThread(uid, name); });
+  }
+  // ---- overlay (Enter in a level) ----
+  function dmOverlayOpen() {
+    const o = el("dmOverlay");
+    return !!(o && !o.classList.contains("hidden"));
+  }
+  function dmOverlayTargets() {
+    // Returns {def, list:[{kind,uid,name,label}]} for the chooser row.
+    const members = dmRoomMembers();
+    const list = [];
+    const seen = {};
+    if (members.length >= 1) {
+      list.push({ kind: "party", uid: "", name: "", label: "PARTY (" + (members.length + 1) + ")" });
+    }
+    members.forEach(function (p) {
+      seen[p.uid] = true;
+      list.push({ kind: "dm", uid: p.uid, name: p.name, label: "DM " + p.name });
+    });
+    // most recent DM peers first (max 3 extra, skip dupes)
+    const recents = dmInbox.slice(0, 3);
+    recents.forEach(function (r) {
+      if (seen[r.peerUid]) return;
+      seen[r.peerUid] = true;
+      list.push({ kind: "dm", uid: r.peerUid, name: r.peerName, label: "DM " + r.peerName });
+    });
+    if (!list.length) {
+      const last = dmGetLastPeer();
+      if (last) list.push({ kind: "dm", uid: last.uid, name: last.name, label: "DM " + last.name });
+    }
+    let def = list[0] || null;
+    if (members.length >= 2) def = list[0]; // PARTY default
+    else if (members.length === 1) def = list.find(function (t) { return t.kind === "dm"; }) || list[0];
+    else {
+      const last = dmGetLastPeer();
+      if (last) def = { kind: "dm", uid: last.uid, name: last.name, label: "DM " + last.name };
+    }
+    return { def: def, list: list };
+  }
+  function dmOpenOverlay() {
+    const me = dmMe();
+    if (!me) { showNotice("Log in to chat.", true); return; }
+    const o = el("dmOverlay");
+    if (!o) return;
+    const t = dmOverlayTargets();
+    if (!t.def) {
+      // nothing to talk to: jump to CHAT screen to pick a follow
+      show("netchat");
+      showPanel("chat");
+      dmRefreshInbox().catch(function () {});
+      showNotice("Follow someone first, then chat.", false);
+      return;
+    }
+    try { state.keys.clear(); } catch (e) {}
+    try { state.touch.left = state.touch.right = state.touch.jump = false; } catch (e) {}
+    o.classList.remove("hidden");
+    dmOverlaySetTarget(t.def.kind, t.def.uid, t.def.name, true);
+    setTimeout(function () { try { el("dmQuickInput").focus(); } catch (e) {} }, 60);
+  }
+  function dmOverlayClose() {
+    const o = el("dmOverlay");
+    if (o) o.classList.add("hidden");
+    dmOverlayTarget = null;
+    dmPartyUnread = 0;
+    dmSyncBadges();
+  }
+  function dmOverlaySetTarget(kind, uid, name, skipRender) {
+    dmOverlayTarget = { kind: kind === "party" ? "party" : "dm", uid: String(uid || ""), name: String(name || "player").slice(0, 24) };
+    if (dmOverlayTarget.kind === "party") {
+      dmPartyUnread = 0;
+      dmSyncBadges();
+    } else {
+      dmSetLastPeer(dmOverlayTarget.uid, dmOverlayTarget.name);
+    }
+    const title = el("dmTitle");
+    if (title) title.textContent = dmOverlayTarget.kind === "party" ? "PARTY CHAT" : "DM · " + dmOverlayTarget.name.toUpperCase();
+    // rebuild chooser chips
+    try {
+      const row = el("dmTargetRow");
+      const t = dmOverlayTargets();
+      // ensure current target is in the list
+      let list = t.list.slice();
+      if (dmOverlayTarget.kind === "dm" && !list.some(function (x) { return x.kind === "dm" && x.uid === dmOverlayTarget.uid; })) {
+        list.push({ kind: "dm", uid: dmOverlayTarget.uid, name: dmOverlayTarget.name, label: "DM " + dmOverlayTarget.name });
+      }
+      if (row) {
+        row.innerHTML = "";
+        list.slice(0, 8).forEach(function (opt) {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = "chip" + ((opt.kind === dmOverlayTarget.kind && (opt.kind === "party" || opt.uid === dmOverlayTarget.uid)) ? " active" : "");
+          b.textContent = opt.label.slice(0, 22);
+          b.addEventListener("click", function (ev) {
+            ev.stopPropagation();
+            dmOverlaySetTarget(opt.kind, opt.uid, opt.name);
+          });
+          row.appendChild(b);
+        });
+      }
+    } catch (e) {}
+    dmOverlayLoadLog();
+  }
+  async function dmOverlayLoadLog() {
+    const log = el("dmLog");
+    if (!log || !dmOverlayTarget) return;
+    const me = dmMe();
+    const meUid = me ? me.uid : "";
+    log.innerHTML = '<p class="loading-note">Loading…</p>';
+    if (dmOverlayTarget.kind === "party") {
+      let msgs = [];
+      try { msgs = (MP.getPartyChat && MP.getPartyChat()) || []; } catch (e) {}
+      log.innerHTML = "";
+      if (!msgs.length) log.innerHTML = '<p class="loading-note">No party messages yet — say hi.</p>';
+      msgs.slice(-30).forEach(function (m) {
+        const d = document.createElement("div");
+        d.className = "dm-bubble " + ((m.fromUid === meUid) ? "me" : "them");
+        d.innerHTML = "<b>" + escapeHtml(m.fromUid === meUid ? "You" : (m.fromName || "player")) + " · " +
+          escapeHtml(dmFmtTime(m.ts)) + "</b>" + escapeHtml(m.text);
+        log.appendChild(d);
+      });
+      log.scrollTop = log.scrollHeight;
+      return;
+    }
+    try {
+      const msgs = await NET.getDmThread(dmOverlayTarget.uid, 30);
+      log.innerHTML = "";
+      if (!msgs.length) log.innerHTML = '<p class="loading-note">No messages yet — say hi.</p>';
+      msgs.forEach(function (m) {
+        const d = document.createElement("div");
+        d.className = "dm-bubble " + ((m.fromUid === meUid) ? "me" : "them");
+        d.innerHTML = "<b>" + escapeHtml(m.fromUid === meUid ? "You" : (m.fromName || "player")) + " · " +
+          escapeHtml(dmFmtTime(m.ts)) + "</b>" + escapeHtml(m.text);
+        log.appendChild(d);
+      });
+      log.scrollTop = log.scrollHeight;
+      try { if (NET.markDmRead) await NET.markDmRead(dmOverlayTarget.uid); } catch (e) {}
+      try { await dmRefreshInbox(); } catch (e) {}
+    } catch (e) {
+      log.innerHTML = '<p class="loading-note">Could not load messages.</p>';
+    }
+  }
+  async function dmOverlaySend() {
+    const inp = el("dmQuickInput");
+    const hint = el("dmQuickHint");
+    const me = dmMe();
+    if (!me) { showNotice("Log in to chat.", true); return; }
+    if (!dmOverlayTarget) return;
+    const text = inp ? String(inp.value || "") : "";
+    if (!String(text).trim()) return;
+    try {
+      if (dmOverlayTarget.kind === "party") {
+        if (!MP.isActive()) { showNotice("Join a room for party chat.", true); return; }
+        const ok = MP.sendParty ? MP.sendParty(text) : false;
+        if (!ok) { showNotice("Couldn't send party message.", true); return; }
+        if (inp) inp.value = "";
+        setTimeout(dmOverlayLoadLog, 400);
+        return;
+      }
+      if (!dmCanChatWith(dmOverlayTarget.uid)) {
+        const msg = "Follow " + dmOverlayTarget.name + " first (open their profile → FOLLOW).";
+        if (hint) hint.textContent = msg;
+        showNotice(msg, true);
+        return;
+      }
+      await NET.sendDm(dmOverlayTarget.uid, dmOverlayTarget.name, text);
+      dmSetLastPeer(dmOverlayTarget.uid, dmOverlayTarget.name);
+      if (inp) inp.value = "";
+      if (hint) hint.textContent = "Game keeps running while you type.";
+      await dmOverlayLoadLog();
+    } catch (e) {
+      const msg = String((e && e.message) || e);
+      if (hint) hint.textContent = msg;
+      showNotice(msg, true);
+    }
+  }
+  function dmOnPartyUpdate(msgs) {
+    try {
+      msgs = Array.isArray(msgs) ? msgs : [];
+      if (dmOverlayOpen() && dmOverlayTarget && dmOverlayTarget.kind === "party") {
+        dmOverlayLoadLog();
+        dmPartySeenTs = Date.now();
+        dmPartyUnread = 0;
+      } else if (msgs.length) {
+        const last = msgs[msgs.length - 1];
+        const me = dmMe();
+        if (last && me && last.fromUid !== me.uid && last.ts > dmPartySeenTs) {
+          dmPartyUnread = Math.min(9, dmPartyUnread + 1);
+          showNotice((last.fromName || "Party") + ": " + String(last.text || "").slice(0, 60), false);
+        }
+        dmPartySeenTs = Date.now();
+      }
+      dmSyncBadges();
+    } catch (e) {}
   }
 
   function levelNameOf(file) {
@@ -7541,6 +8051,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     box.innerHTML = "";
     if (!theirs.length) box.innerHTML = '<p class="loading-note">No levels posted yet.</p>';
     else theirs.forEach(function(m){ box.appendChild(levelRow(m)); });
+    try { dmSyncBadges(); } catch (e) {}
     el("modalAccount").classList.add("visible");
   }
 
@@ -7896,7 +8407,52 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnNetBackSearch").addEventListener("click", () => show("network"));
     el("btnNetBackBoards").addEventListener("click", () => show("network"));
     el("btnNetBackMp").addEventListener("click", () => show("network"));
+    if (el("btnNetBackChat")) el("btnNetBackChat").addEventListener("click", () => show("network"));
     el("netMultiplayer").addEventListener("click", () => { showPanel("mp"); });
+    if (el("netChat")) el("netChat").addEventListener("click", () => {
+      const me = dmMe();
+      if (!me) { showNotice("Log in to chat.", true); return; }
+      showPanel("chat");
+      dmRefreshInbox().catch(function () {});
+      dmStartRealtime();
+    });
+    if (el("btnDmSend")) el("btnDmSend").addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      dmSendFromScreen();
+    });
+    if (el("dmInput")) {
+      el("dmInput").addEventListener("keydown", function (ev) {
+        ev.stopPropagation();
+        if (ev.code === "Enter" || ev.key === "Enter") { ev.preventDefault(); dmSendFromScreen(); }
+      });
+    }
+    if (el("btnMpPartyChat")) el("btnMpPartyChat").addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      if (!MP.isActive()) { showNotice("Host or join a room for party chat.", true); return; }
+      const o = el("dmOverlay");
+      if (o) o.classList.remove("hidden");
+      try { state.keys.clear(); } catch (e) {}
+      dmOverlaySetTarget("party", "", "", true);
+      setTimeout(function () { try { el("dmQuickInput").focus(); } catch (e) {} }, 60);
+    });
+    if (el("btnDmClose")) el("btnDmClose").addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      dmOverlayClose();
+    });
+    if (el("dmOverlay")) el("dmOverlay").addEventListener("click", function (ev) {
+      if (ev.target === el("dmOverlay")) dmOverlayClose();
+    });
+    if (el("btnDmQuickSend")) el("btnDmQuickSend").addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      dmOverlaySend();
+    });
+    if (el("dmQuickInput")) {
+      el("dmQuickInput").addEventListener("keydown", function (ev) {
+        ev.stopPropagation();
+        if (ev.code === "Enter" || ev.key === "Enter") { ev.preventDefault(); dmOverlaySend(); }
+        else if (ev.code === "Escape") { ev.preventDefault(); dmOverlayClose(); }
+      });
+    }
     el("netBoards").addEventListener("click", () => {
       showPanel("boards");
       renderBoards();
@@ -7941,6 +8497,12 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       ev.stopPropagation();
       giftFromProfile();
     });
+    if (el("btnAcctChat")) el("btnAcctChat").addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      if (!accountView) { showNotice("Open a player's profile first.", true); return; }
+      el("modalAccount").classList.remove("visible");
+      dmOpenChatWith(accountView.uid, accountView.name);
+    });
     if (el("btnGiftSend")) el("btnGiftSend").addEventListener("click", function (ev) {
       ev.stopPropagation();
       sendGiftConfirm();
@@ -7979,6 +8541,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     }
     if (ev.code === "Escape") {
       if (tourOn) { ev.preventDefault(); endUiTour(); return; }
+      try { if (typeof dmOverlayOpen === "function" && dmOverlayOpen()) { ev.preventDefault(); dmOverlayClose(); return; } } catch (e) {}
       if (document.querySelector(".n-opts.open")) {
         ev.preventDefault();
         closeAllOpts();
@@ -7990,12 +8553,19 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       }
       if (state.screen === "game") { ev.preventDefault(); if (state.paused) quitToLevels(); else pauseGame(); }
       else if (state.screen === "network") show("home");
-      else if (state.screen === "netsaved" || state.screen === "netsearch" || state.screen === "netboards" || state.screen === "netmp") show("network");
+      else if (state.screen === "netsaved" || state.screen === "netsearch" || state.screen === "netboards" || state.screen === "netmp" || state.screen === "netchat") show("network");
       else if (state.screen === "levels") show("home");
       return;
     }
     if (isTyping(ev)) return;
     if (document.querySelector(".modal-root.visible")) return;
+    // Enter in a level -> chat overlay (solo: most recent DM; party of 1:
+    // that member; party of 2+: PARTY default + member DMs to pick from).
+    if (ev.code === "Enter" && !ev.repeat && state.screen === "game" && state.playing && !state.paused && !el("winCard").classList.contains("visible") && !el("pauseCard").classList.contains("visible")) {
+      ev.preventDefault();
+      try { dmOpenOverlay(); } catch (e) {}
+      return;
+    }
     if (ev.code === "KeyT" && state.screen === "game" && !el("winCard").classList.contains("visible")) { ev.preventDefault(); startGhostRace(); return; }
     if (ev.code === "KeyX" && !ev.repeat && state.screen === "game" && state.playing && state.practice && !state.paused && !el("winCard").classList.contains("visible")) { ev.preventDefault(); placePracticeCheckpoint(); return; }
     if (ev.code === "Space") ev.preventDefault();
@@ -8390,8 +8960,16 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
         syncMpUI();
       },
       onNotice: (msg) => showNotice(msg, true),
+      onPartyChat: (msgs) => { try { dmOnPartyUpdate(msgs); } catch (e) {} },
     });
     MP.init();
+    // DM inbox starts with auth (also kicked off on every login below).
+    try {
+      if (NET.onAuth) NET.onAuth(function () {
+        try { dmRefreshInbox().catch(function () {}); } catch (e) {}
+        try { dmStartRealtime(); } catch (e) {}
+      });
+    } catch (e) {}
 
     // ---- Profile modal ----
     const pb = el("btnProfileHome");
@@ -8402,13 +8980,13 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     el("btnProfLogin").addEventListener("click", () => {
       profileMsg("");
       MP.login(el("profEmail").value.trim(), el("profPass").value)
-        .then(() => { profileMsg(""); syncAccountUI(); syncMpUI(); startInviteWatch(); checkBell().catch(() => {}); })
+        .then(() => { profileMsg(""); syncAccountUI(); syncMpUI(); startInviteWatch(); checkBell().catch(() => {}); dmRefreshInbox().catch(function () {}); dmStartRealtime(); })
         .catch((e) => profileMsg(friendlyAuthError(e)));
     });
     el("btnProfRegister").addEventListener("click", () => {
       profileMsg("");
       MP.register(el("profEmail").value.trim(), el("profPass").value)
-        .then(() => { profileMsg(""); syncAccountUI(); syncMpUI(); startInviteWatch(); checkBell().catch(() => {}); })
+        .then(() => { profileMsg(""); syncAccountUI(); syncMpUI(); startInviteWatch(); checkBell().catch(() => {}); dmRefreshInbox().catch(function () {}); dmStartRealtime(); })
         .catch((e) => profileMsg(friendlyAuthError(e)));
     });
     const guestBtn = el("btnProfGuest");
@@ -8423,6 +9001,8 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
             syncMpUI();
             startInviteWatch();
             checkBell().catch(() => {});
+            dmRefreshInbox().catch(function () {});
+            dmStartRealtime();
           })
           .catch((e) => profileMsg(friendlyAuthError(e, "guest")));
       });
@@ -8433,6 +9013,11 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       inviteBaselineTs = 0;
       inviteBaselined = false;
       try { if (window.DPNet && window.DPNet.offInvites) window.DPNet.offInvites(); } catch (e) {}
+      try { dmStopRealtime(); } catch (e) {}
+      dmInbox = [];
+      dmActivePeer = null;
+      dmOverlayClose();
+      try { dmSyncBadges(); } catch (e) {}
       MP.logout().then(() => { syncAccountUI(); syncMpUI(); }).catch((e) => profileMsg(friendlyAuthError(e)));
     });
 

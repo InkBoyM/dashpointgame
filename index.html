@@ -161,6 +161,23 @@
     <div id="chatBubbles"></div>
   </div>
 
+  <!-- DM + party chat overlay (Enter in a level, CHAT buttons everywhere) -->
+  <div id="dmOverlay" class="dm-overlay hidden" role="dialog" aria-label="Chat">
+    <div class="dm-panel">
+      <div class="dm-head">
+        <b id="dmTitle">CHAT</b>
+        <button class="px-btn tiny" id="btnDmClose" type="button">ESC ✕</button>
+      </div>
+      <div class="chips" id="dmTargetRow"></div>
+      <div class="dm-log" id="dmLog"></div>
+      <div class="row-gap" style="margin-top:8px">
+        <input class="px-input" id="dmQuickInput" maxlength="200" placeholder="Write a message… (Enter sends)" autocomplete="off" />
+        <button class="px-btn small good" id="btnDmQuickSend" type="button">SEND</button>
+      </div>
+      <p class="hint" id="dmQuickHint">Game keeps running while you type.</p>
+    </div>
+  </div>
+
   <div class="chat-feed" id="chatFeed"></div>
 
   <div class="screen" id="screen-skins">
@@ -661,6 +678,12 @@
           <b>MULTIPLAYER</b>
           <span>Host, join, and play with friends</span>
         </button>
+        <button class="net-tile" id="netChat">
+          <img src="assets/ui/net-search.png" alt="" />
+          <b>CHAT</b>
+          <span id="netChatSub">DM people you follow</span>
+          <span id="chatCount" class="chat-count hidden"></span>
+        </button>
         <button class="net-tile" id="netBoards">
           <img src="assets/ui/net.png" alt="" />
           <b>LEADERBOARDS</b>
@@ -675,6 +698,7 @@
       <button class="px-btn small" id="btnNetBackMp">&#9664; BACK</button>
       <h1 class="bar-title">MULTIPLAYER</h1>
       <span class="bar-spacer"></span>
+      <button class="px-btn small gold" id="btnMpPartyChat" title="Party chat">CHAT<span id="partyCountMp" class="chat-count hidden"></span></button>
     </header>
     <div class="net-mp-body">
       <div class="section-title">Room</div>
@@ -694,6 +718,26 @@
       <p class="hint">Followed players. If they're in a room, tap JOIN to hop in.</p>
       <label class="hint"><input type="checkbox" id="profSharePresence" checked /> Share what I'm playing</label>
       <div class="net-results" id="friendList"></div>
+    </div>
+  </div>
+
+  <div class="screen" id="screen-netchat">
+    <header class="topbar">
+      <button class="px-btn small" id="btnNetBackChat">&#9664; BACK</button>
+      <h1 class="bar-title">CHAT</h1>
+      <span class="bar-spacer"></span>
+    </header>
+    <div class="net-chat-body">
+      <p class="hint">DM people you follow. Messages arrive even when you're offline — unread counts show in red.</p>
+      <div class="section-title">Conversations</div>
+      <div class="net-results" id="dmList"><p class="loading-note">Log in to chat.</p></div>
+      <div class="section-title" style="margin-top:14px">Thread <span id="dmThreadName" class="hint"></span></div>
+      <div class="dm-thread" id="dmThread"><p class="loading-note">Pick someone above, or open their profile and hit CHAT.</p></div>
+      <div class="row-gap" style="margin-top:8px">
+        <input class="px-input" id="dmInput" maxlength="200" placeholder="Write a message…" autocomplete="off" />
+        <button class="px-btn small good" id="btnDmSend">SEND</button>
+      </div>
+      <p class="hint" id="dmHint"></p>
     </div>
   </div>
 
@@ -754,6 +798,7 @@
       <div class="stat-row"><span>Total deaths</span><b id="acctDeaths">0</b></div>
       <div class="acct-actions" id="acctActions" style="display:none">
         <button class="px-btn small good" id="btnAcctFollow">FOLLOW</button>
+        <button class="px-btn small gold" id="btnAcctChat">CHAT<span id="acctChatCount" class="chat-count hidden"></span></button>
         <button class="px-btn small" id="btnAcctInvite">INVITE</button>
         <button class="px-btn small gold" id="btnAcctGift">GIFT</button>
       </div>

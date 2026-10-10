@@ -151,6 +151,8 @@ window.DashPointMP = (function () {
   let lastSent = null;
   let watchingUid = null;
   let watchingName = "";
+  let cachedParty = [];
+  const PARTY_LIMIT = 30;
 
   function teardownLocal() {
     stopHeartbeat();
@@ -168,6 +170,7 @@ window.DashPointMP = (function () {
     lastSent = null;
     watchingUid = null;
     watchingName = "";
+    cachedParty = [];
     chatSentTs = 0;
     lastSentChatText = "";
   }
@@ -285,6 +288,23 @@ window.DashPointMP = (function () {
       cachedGame = snap.val() || null;
       emitState();
     });
+    watch(roomRef.child("partyChat"), "value", (snap) => {
+      const val = snap.val() || {};
+      const list = Object.keys(val).map((id) => {
+        const v = val[id] || {};
+        return {
+          id: id,
+          fromUid: String(v.fromUid || ""),
+          fromName: String(v.fromName || "player").slice(0, 24),
+          text: String(v.text || "").slice(0, 200),
+          ts: Number(v.ts) || 0,
+        };
+      }).filter((m) => !!m.text && !!m.ts);
+      list.sort((a, b) => a.ts - b.ts);
+      cachedParty = list.slice(Math.max(0, list.length - PARTY_LIMIT));
+      emitState();
+      if (cbs.onPartyChat) { try { cbs.onPartyChat(cachedParty); } catch (e) {} }
+    });
   }
 
   // Shared party-game state (e.g. hide & seek). Anyone in the room may write;
@@ -341,6 +361,29 @@ window.DashPointMP = (function () {
   function myChat() {
     if (!active || !chatSentTs) return null;
     return { text: lastSentChatText || "", ts: chatSentTs };
+  }
+
+  // Party chat: ephemeral room-wide messages, visible to everyone currently
+  // in the room. Rooms are deleted when the host leaves, so no pruning needed.
+  function sendParty(text) {
+    if (!active || !roomRef || !user) return false;
+    const clean = String(text || "").replace(/\s+/g, " ").trim().slice(0, 200);
+    if (!clean) return false;
+    try {
+      roomRef.child("partyChat").push({
+        fromUid: user.uid,
+        fromName: String(user.name || "player").slice(0, 24),
+        text: clean,
+        ts: Date.now(),
+      }).catch(() => {});
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function getPartyChat() {
+    return cachedParty.slice();
   }
 
   function others() {
@@ -524,6 +567,8 @@ window.DashPointMP = (function () {
     getGame: getGame,
     sendChat: sendChat,
     myChat: myChat,
+    sendParty: sendParty,
+    getPartyChat: getPartyChat,
     peers: peers,
     peerOnline: peerOnline,
     peerName: peerName,

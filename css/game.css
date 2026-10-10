@@ -1914,3 +1914,113 @@ body.gfx-good .wheel-clip img {
 .locker-acc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .locker-chip { font-size: 12px; background: #0a1420; border: 1px solid #2ee6ff; padding: 2px 8px; white-space: nowrap; }
 .search-empty { text-align: center; }
+
+/* ---------- DM + PARTY CHAT ---------- */
+.net-tile { position: relative; }
+.chat-count {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  min-width: 22px;
+  height: 22px;
+  background: var(--red);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  display: grid;
+  place-items: center;
+  padding: 0 6px;
+  border: 2px solid var(--ink-dark);
+  z-index: 2;
+}
+.px-btn .chat-count { top: -10px; right: -10px; }
+#btnMpPartyChat, #btnAcctChat { position: relative; }
+.net-chat-body {
+  flex: 1;
+  overflow: auto;
+  width: min(720px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 16px 0 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dm-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 180px;
+  max-height: 40vh;
+  overflow: auto;
+  background: var(--panel-2);
+  border: 2px solid var(--ink-dark);
+  padding: 10px;
+}
+.dm-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  width: 100%;
+  text-align: left;
+  background: var(--panel-2);
+  border: 2px solid var(--ink-dark);
+  color: var(--text);
+}
+.dm-row:hover { border-color: var(--cyan); }
+.dm-row.active { border-color: var(--gold); }
+.dm-row .dm-main { flex: 1; min-width: 0; }
+.dm-row .dm-name { font-weight: 900; font-size: 14px; }
+.dm-row .dm-prev { font-size: 12px; color: #9db4d8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dm-bubble {
+  max-width: 85%;
+  padding: 6px 10px;
+  font-size: 13px;
+  line-height: 1.35;
+  word-break: break-word;
+  background: #0a1420;
+  border: 2px solid var(--ink-dark);
+  align-self: flex-start;
+}
+.dm-bubble b { display: block; font-size: 11px; color: var(--cyan); margin-bottom: 2px; }
+.dm-bubble.me { align-self: flex-end; border-left: 4px solid var(--gold); }
+.dm-bubble.me b { color: var(--gold); }
+.dm-bubble.them { border-left: 4px solid var(--cyan); }
+.dm-bubble.sys { align-self: center; color: #9db4d8; font-style: italic; font-size: 12px; }
+.dm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: end center;
+  padding: 0 12px calc(12px + env(safe-area-inset-bottom));
+  background: rgba(0, 0, 0, 0.45);
+}
+.dm-panel {
+  width: min(560px, 100%);
+  background: var(--panel);
+  border: 3px solid var(--ink-dark);
+  box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.45);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: screenIn 0.18s ease-out;
+}
+.dm-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.dm-head b { letter-spacing: 2px; font-size: 14px; }
+.dm-log {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: min(38vh, 320px);
+  overflow: auto;
+  background: var(--panel-2);
+  border: 2px solid var(--ink-dark);
+  padding: 10px;
+}
+#dmTargetRow { display: flex; gap: 6px; flex-wrap: wrap; }
+#dmTargetRow .chip.active { background: var(--gold); color: #3a2a04; }
+@media (max-width: 700px) {
+  .dm-overlay { place-items: end stretch; }
+}

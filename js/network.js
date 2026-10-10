@@ -1341,6 +1341,227 @@ window.DPNet = (function () {
     inviteWatchUid = null;
   }
 
+  // ---- Direct messages (follow-gated, persistent) ----
+  // Data model (mirrors invites/gifts inbox pattern):
+  //   /dashpoint/dmThreads/{convoId}/{msgId} = {f,n,t,ts}
+  //   /dashpoint/dmInbox/{uid}/{peerUid} = {peerUid,peerName,lastText,lastTs,lastFrom,unread}
+  // convoId is deterministic: the two uids sorted and joined with "_".
+  // Required Firebase rules (add alongside invites/gifts rules):
+  //   "dmThreads": { "$c": { ".read": "auth != null",
+  //     "$m": { ".write": "auth != null && newData.child('f').val() === auth.uid" } } },
+  //   "dmInbox": { "$uid": { ".read": "auth != null && auth.uid === $uid",
+  //     "$peer": { ".write": "auth != null" } } },
+  const DM_MAX_LEN = 200;
+  const DM_THREAD_LIMIT = 40;
+  function dmConvoId(a, b) {
+    a = String(a || "").trim();
+    b = String(b || "").trim();
+    if (!a || !b) return "";
+    const pair = [a, b].sort();
+    return pair[0] + "_" + pair[1];
+  }
+  function dmMsgId() {
+    return Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+  }
+  function dmCleanText(t) {
+    return String(t == null ? "" : t).replace(/\s+/g, " ").trim().slice(0, DM_MAX_LEN);
+  }
+  async function sendDm(peerUid, peerName, text) {
+    const u = getEffectiveUser() || getUser();
+    if (!u) throw new Error("Log in to chat.");
+    peerUid = String(peerUid || "").trim();
+    if (!peerUid) throw new Error("Pick someone to chat with.");
+    if (peerUid === u.uid) throw new Error("You can't DM yourself.");
+    const clean = dmCleanText(text);
+    if (!clean) throw new Error("Write something first.");
+    const convo = dmConvoId(u.uid, peerUid);
+    if (!convo) throw new Error("Bad conversation.");
+    const now = Date.now();
+    const id = dmMsgId();
+    const myName = String(u.name || "player").slice(0, 24);
+    const theirName = String(peerName || "player").slice(0, 24);
+    await putJSON("/dashpoint/dmThreads/" + encodeURIComponent(convo) + "/" + encodeURIComponent(id), {
+      f: u.uid,
+      n: myName,
+      t: clean,
+      ts: now,
+    });
+    // My inbox: last message preview, zero unread.
+    try {
+      await patchJSON("/dashpoint/dmInbox/" + encodeURIComponent(u.uid) + "/" + encodeURIComponent(peerUid), {
+        peerUid: peerUid,
+        peerName: theirName,
+        lastText: clean,
+        lastTs: now,
+        lastFrom: u.uid,
+        unread: 0,
+      });
+    } catch (e) {}
+    // Their inbox: preview + unread bump (read-modify-write; races just add).
+    try {
+      let cur = null;
+      try { cur = await getJSON("/dashpoint/dmInbox/" + encodeURIComponent(peerUid) + "/" + encodeURIComponent(u.uid)); } catch (e2) { cur = null; }
+      const unread = Math.min(99, ((cur && cur.unread) | 0) + 1);
+      await patchJSON("/dashpoint/dmInbox/" + encodeURIComponent(peerUid) + "/" + encodeURIComponent(u.uid), {
+        peerUid: u.uid,
+        peerName: myName,
+        lastText: clean,
+        lastTs: now,
+        lastFrom: u.uid,
+        unread: unread,
+      });
+    } catch (e) {}
+    return { id: id, ts: now, text: clean };
+  }
+  async function listDmInbox() {
+    const u = getEffectiveUser() || getUser();
+    if (!u) return [];
+    try {
+      const val = await getJSON("/dashpoint/dmInbox/" + encodeURIComponent(u.uid));
+      if (!val || typeof val !== "object") return [];
+      const list = Object.keys(val).map(function (peer) {
+        const v = val[peer] || {};
+        return {
+          peerUid: String(v.peerUid || peer),
+          peerName: String(v.peerName || "player").slice(0, 24),
+          lastText: String(v.lastText || "").slice(0, DM_MAX_LEN),
+          lastTs: Number(v.lastTs) || 0,
+          lastFrom: String(v.lastFrom || ""),
+          unread: Math.max(0, Math.min(99, (v.unread | 0) || 0)),
+        };
+      }).filter(function (r) { return !!r.peerUid; });
+      list.sort(function (a, b) { return b.lastTs - a.lastTs; });
+      return list.slice(0, 50);
+    } catch (e) {
+      return [];
+    }
+  }
+  async function getDmThread(peerUid, limit) {
+    const u = getEffectiveUser() || getUser();
+    if (!u) throw new Error("Log in to chat.");
+    peerUid = String(peerUid || "").trim();
+    if (!peerUid) throw new Error("Pick someone to chat with.");
+    const convo = dmConvoId(u.uid, peerUid);
+    if (!convo) throw new Error("Bad conversation.");
+    limit = Math.max(1, Math.min(100, limit | 0 || DM_THREAD_LIMIT));
+    let val = null;
+    try { val = await getJSON("/dashpoint/dmThreads/" + encodeURIComponent(convo)); } catch (e) { val = null; }
+    if (!val || typeof val !== "object") return [];
+    const list = Object.keys(val).map(function (id) {
+      const v = val[id] || {};
+      return {
+        id: id,
+        fromUid: String(v.f || ""),
+        fromName: String(v.n || "player").slice(0, 24),
+        text: String(v.t || "").slice(0, DM_MAX_LEN),
+        ts: Number(v.ts) || 0,
+      };
+    }).filter(function (m) { return !!m.text && !!m.ts; });
+    list.sort(function (a, b) { return a.ts - b.ts; });
+    return list.slice(Math.max(0, list.length - limit));
+  }
+  async function markDmRead(peerUid) {
+    const u = getEffectiveUser() || getUser();
+    if (!u) return false;
+    peerUid = String(peerUid || "").trim();
+    if (!peerUid) return false;
+    try {
+      await patchJSON("/dashpoint/dmInbox/" + encodeURIComponent(u.uid) + "/" + encodeURIComponent(peerUid), { unread: 0 });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+  let dmInboxRef = null;
+  let dmInboxUid = null;
+  // Realtime inbox listener. cb(list) fires on every change (same shape as
+  // listDmInbox). Caller baselines to avoid old-message spam, like invites.
+  function onDmInbox(cb) {
+    try {
+      const u = (getEffectiveUser && getEffectiveUser()) || (getUser && getUser());
+      const db = ensure();
+      if (!u || !db || !db.ref) return false;
+      if (dmInboxRef && dmInboxUid === u.uid) return true;
+      try { if (dmInboxRef) dmInboxRef.off("value"); } catch (e) {}
+      dmInboxUid = u.uid;
+      dmInboxRef = db.ref("/dashpoint/dmInbox/" + encodeURIComponent(u.uid));
+      dmInboxRef.on("value", function (snap) {
+        let list = [];
+        try {
+          const val = snap.val();
+          if (val && typeof val === "object") {
+            list = Object.keys(val).map(function (peer) {
+              const v = val[peer] || {};
+              return {
+                peerUid: String(v.peerUid || peer),
+                peerName: String(v.peerName || "player").slice(0, 24),
+                lastText: String(v.lastText || "").slice(0, DM_MAX_LEN),
+                lastTs: Number(v.lastTs) || 0,
+                lastFrom: String(v.lastFrom || ""),
+                unread: Math.max(0, Math.min(99, (v.unread | 0) || 0)),
+              };
+            }).filter(function (r) { return !!r.peerUid; });
+            list.sort(function (a, b) { return b.lastTs - a.lastTs; });
+          }
+        } catch (e) {}
+        try { cb(list.slice(0, 50)); } catch (e) {}
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+  function offDmInbox() {
+    try { if (dmInboxRef) dmInboxRef.off("value"); } catch (e) {}
+    dmInboxRef = null;
+    dmInboxUid = null;
+  }
+  let dmThreadRef = null;
+  let dmThreadConvo = null;
+  // Realtime thread listener for one peer. cb(msgs) fires on every change.
+  function onDmThread(peerUid, cb) {
+    try {
+      const u = (getEffectiveUser && getEffectiveUser()) || (getUser && getUser());
+      const db = ensure();
+      if (!u || !db || !db.ref) return false;
+      peerUid = String(peerUid || "").trim();
+      const convo = dmConvoId(u.uid, peerUid);
+      if (!convo) return false;
+      try { if (dmThreadRef) dmThreadRef.off("value"); } catch (e) {}
+      dmThreadConvo = convo;
+      dmThreadRef = db.ref("/dashpoint/dmThreads/" + convo);
+      dmThreadRef.on("value", function (snap) {
+        let list = [];
+        try {
+          const val = snap.val();
+          if (val && typeof val === "object") {
+            list = Object.keys(val).map(function (id) {
+              const v = val[id] || {};
+              return {
+                id: id,
+                fromUid: String(v.f || ""),
+                fromName: String(v.n || "player").slice(0, 24),
+                text: String(v.t || "").slice(0, DM_MAX_LEN),
+                ts: Number(v.ts) || 0,
+              };
+            }).filter(function (m) { return !!m.text && !!m.ts; });
+            list.sort(function (a, b) { return a.ts - b.ts; });
+            list = list.slice(Math.max(0, list.length - DM_THREAD_LIMIT));
+          }
+        } catch (e) {}
+        try { cb(list); } catch (e) {}
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+  function offDmThread() {
+    try { if (dmThreadRef) dmThreadRef.off("value"); } catch (e) {}
+    dmThreadRef = null;
+    dmThreadConvo = null;
+  }
+
   return {
     init: ensure,
     onAuth: onAuth,
@@ -1409,6 +1630,15 @@ window.DPNet = (function () {
     updatePresence: updatePresence,
     onInvites: onInvites,
     offInvites: offInvites,
+    dmConvoId: dmConvoId,
+    sendDm: sendDm,
+    listDmInbox: listDmInbox,
+    getDmThread: getDmThread,
+    markDmRead: markDmRead,
+    onDmInbox: onDmInbox,
+    offDmInbox: offDmInbox,
+    onDmThread: onDmThread,
+    offDmThread: offDmThread,
     friendly: friendly,
   };
 })();
