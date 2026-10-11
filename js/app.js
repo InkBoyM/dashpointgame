@@ -61,6 +61,9 @@
   //   PATCH (x.y.z) — fixes, tweaks, balance, shop content drops
   // Newest entry first; APP_VER is always RELEASES[0].v.
   const RELEASES = [
+    { v: "1.94", title: "Chat icon", items: [
+      "Network CHAT tile uses the new speech-bubble icon",
+    ] },
     { v: "1.93", title: "Blue Dash orb", items: [
       "New Blue Dash tile: longer hover dash that ignores gravity while you fly",
     ] },
