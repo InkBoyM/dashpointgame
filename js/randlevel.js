@@ -1,15 +1,12 @@
 /* DashPoint — Dynamic Seeded Procedural Level Generator
- * 100% Random, Zero Static Templates, 100% Mathematically Proven Possible (Beatable).
+ * 100% Random, Zero Static Templates, 100% Guaranteed Physically Reachable (Beatable).
  *
- * Algorithm:
- *   1. Dynamic Kinematic Path Tracing: Simulates player physics forward from spawn to goal.
- *      At each step, dynamically samples maneuvers (jump, slope, pad launch, orb bounce,
- *      dash flight, gravity flip, conveyor sprint, water swim, key/door puzzle).
- *   2. Reserved Clearance Tunnel: Every maneuver reserves a mathematical clearance tunnel
- *      of safe air corresponding to the player's exact kinematic flight arc.
- *   3. Organic Terrain & Hazard Injection: Spikes, saws, lava, stalactites, and rock
- *      formations are injected dynamically ONLY outside the reserved clearance tunnel.
- *   4. Checkpoints & Coins: Periodic recovery points and coin rewards along jump parabolas.
+ * Physics Constraints:
+ *   - Player Jump Force: 660 px/s, Gravity: 2100 px/s², Tile: 48px -> Max jump height = 2.16 tiles.
+ *   - Normal jumps UP are strictly clamped to max 2 tiles delta (with max 2-tile horizontal gap).
+ *   - Higher ascents (3 to 5 tiles) strictly require a Bounce Pad directly on the takeoff ledge.
+ *   - Platforms are clean floating ledges (1 tile thick) — NEVER filled to the floor to prevent impassable monolith walls.
+ *   - Goal is always placed at the continuation of the final path height (no sudden cliffs).
  */
 (function (window) {
   "use strict";
@@ -70,316 +67,185 @@
   var SONGS = ["welcome", "hill", "orb", "spike", "cool"];
 
   // ─────────────────────────────────────────────────────────────────────────
-  // THE 100% DYNAMIC PROCEDURAL GENERATOR
+  // THE GENERATOR
   // ─────────────────────────────────────────────────────────────────────────
   function generate(rawSeed) {
     var seed = hashSeed(rawSeed);
     var rng = makePRNG(seed);
 
-    // Pick Theme, Song, and Title
     var theme = randPick(rng, THEMES);
     var song = randPick(rng, SONGS);
     var noun = randPick(rng, NOUNS);
     var levelTitle = theme.prefix + " " + noun + " #" + seed;
 
-    // Dynamically roll level dimensions
-    var cols = 90 + Math.floor(rng() * 45); // 90 to 135 columns
-    var rows = 24 + Math.floor(rng() * 8);  // 24 to 32 rows
+    var cols = 90 + Math.floor(rng() * 35); // 90 to 125 columns
+    var rows = 22; // standard vertical frame
 
-    // Grid stores placed tiles: grid[r][c] = { id, rot? }
-    // Clearance stores reserved air tunnel: clearance[r][c] = true
     var grid = [];
-    var clearance = [];
     for (var r = 0; r < rows; r++) {
       grid[r] = [];
-      clearance[r] = [];
-      for (var c = 0; c < cols; c++) {
-        grid[r][c] = null;
-        clearance[r][c] = false;
-      }
-    }
-
-    // Reserve safe air corridor
-    function markClear(c, r, w, h) {
-      for (var dy = 0; dy < h; dy++) {
-        for (var dx = 0; dx < w; dx++) {
-          var x = c + dx;
-          var y = r + dy;
-          if (x >= 0 && x < cols && y >= 0 && y < rows) {
-            clearance[y][x] = true;
-            grid[y][x] = null;
-          }
-        }
-      }
+      for (var c = 0; c < cols; c++) grid[r][c] = null;
     }
 
     function setTile(c, r, id) {
       if (c >= 0 && c < cols && r >= 0 && r < rows && id) {
-        var isEssential = (id === "goal" || id === "checkpoint" || id === "pad" ||
-          id === "orb" || id === "djOrb" || id === "dash" || id === "blueDash" ||
-          id === "gravOrb" || id === "key" || id === "door");
-        if (isEssential || !clearance[r][c]) {
-          grid[r][c] = { id: id };
+        grid[r][c] = { id: id };
+      }
+    }
+
+    function clearTile(c, r) {
+      if (c >= 0 && c < cols && r >= 0 && r < rows) {
+        grid[r][c] = null;
+      }
+    }
+
+    // Floating ledge (clean 1-tile thick platform, 3 tiles of guaranteed clear air above)
+    function placeLedge(cStart, width, surfaceR, solidId) {
+      for (var c = cStart; c < cStart + width && c < cols - 1; c++) {
+        setTile(c, surfaceR, solidId);
+        // Clear 3 tiles above platform for player jump space
+        for (var ar = surfaceR - 3; ar < surfaceR; ar++) {
+          clearTile(c, ar);
         }
       }
     }
 
-    // ── Outer Boundaries ───────────────────────────────────────────────────
+    // Outer borders
     for (var r = 0; r < rows; r++) {
       setTile(0, r, theme.solid);
       setTile(cols - 1, r, theme.solid);
     }
+    // Floor across the very bottom
     for (var c = 0; c < cols; c++) {
-      setTile(c, 0, theme.solid);
       setTile(c, rows - 1, theme.solid);
     }
 
-    // ── Safe Starting Area ─────────────────────────────────────────────────
+    // Starting platform
     var curC = 1;
-    var curR = rows - 6;
-    var startWidth = randInt(rng, 5, 7);
-
-    for (var c = curC; c < curC + startWidth; c++) {
-      for (var r = curR; r < rows; r++) setTile(c, r, theme.solid);
-      markClear(c, curR - 4, 1, 4);
-    }
+    var curR = rows - 5; // row 17
+    var startLen = 6;
+    placeLedge(curC, startLen, curR, theme.solid);
     var spawn = { c: 2, r: curR - 1 };
-    curC += startWidth;
+    curC += startLen;
 
     var lastCheckpointC = curC;
 
-    // ── Dynamic Kinematic Path Tracing Loop ────────────────────────────────
+    // ── Forward Path Generation Loop ───────────────────────────────────────
     while (curC < cols - 8) {
-      // Periodic Checkpoint Sanctuary every ~25-30 tiles
+      // Checkpoint Sanctuary every ~26-30 tiles
       if (curC - lastCheckpointC >= 26 && curC < cols - 16) {
-        var cpLen = randInt(rng, 4, 5);
-        for (var i = 0; i < cpLen; i++) {
-          for (var r = curR; r < rows; r++) setTile(curC + i, r, theme.solid);
-          markClear(curC + i, curR - 3, 1, 3);
-        }
+        var cpLen = 4;
+        placeLedge(curC, cpLen, curR, theme.solid);
         setTile(curC + 1, curR - 1, "checkpoint");
         lastCheckpointC = curC;
         curC += cpLen;
         continue;
       }
 
-      // Roll completely random maneuver
       var roll = rng();
 
-      if (roll < 0.22) {
-        // Maneuver 1: Running Surface with dynamic hazards (saws, spikes, or clean)
-        var len = randInt(rng, 3, 6);
-        for (var i = 0; i < len && curC + i < cols - 5; i++) {
-          for (var r = curR; r < rows; r++) setTile(curC + i, r, theme.solid);
-          markClear(curC + i, curR - 3, 1, 3);
-        }
-        // Probabilistic hazard in the middle of platform
-        if (len >= 4 && rng() < 0.45) {
-          var hCol = curC + Math.floor(len / 2);
+      if (roll < 0.25) {
+        // 1. Flat ledge with optional central hazard
+        var len = randInt(rng, 3, 5);
+        placeLedge(curC, len, curR, theme.solid);
+        if (len >= 4 && rng() < 0.4) {
+          var hCol = curC + 2;
           setTile(hCol, curR - 1, (rng() < 0.5) ? theme.spike : "saw");
-          // Coin above hazard as reward for jumping
           setTile(hCol, curR - 2, "coin50");
         }
         curC += len;
 
-      } else if (roll < 0.38) {
-        // Maneuver 2: Jump Gap across a hazard chasm
-        // Gap width strictly 2 to 3 tiles (physically jumpable)
+      } else if (roll < 0.45) {
+        // 2. Jump across gap:
+        // Gap strictly 2 to 3 tiles. Height delta strictly -2 to +2 (max jump = 2 tiles up!)
         var gap = randInt(rng, 2, 3);
-        var deltaY = randInt(rng, -2, 2); // can jump up 2 or down 2
-        var nextR = Math.max(7, Math.min(rows - 5, curR + deltaY));
-        if (nextR < curR - 1) gap = 2; // tight gap when jumping upward
+        var deltaY = randInt(rng, -2, 2);
+        var nextR = Math.max(7, Math.min(rows - 4, curR + deltaY));
+        if (nextR < curR - 1) gap = 2; // When jumping UP 2 tiles, gap must be at most 2!
 
-        // Pit in gap
+        // Pit under gap
         for (var g = 0; g < gap; g++) {
-          markClear(curC + g, Math.min(curR, nextR) - 4, 1, 8);
           setTile(curC + g, rows - 2, (rng() < 0.4) ? theme.liquid : theme.spike);
         }
-        // Coin arc over gap
-        setTile(curC + Math.floor(gap / 2), Math.min(curR, nextR) - 2, "coin50");
-        curC += gap;
-
-        // Landing platform
-        var platLen = randInt(rng, 3, 5);
-        for (var i = 0; i < platLen && curC + i < cols - 5; i++) {
-          for (var r = nextR; r < rows; r++) setTile(curC + i, r, theme.solid);
-          markClear(curC + i, nextR - 3, 1, 3);
-        }
-        curR = nextR;
-        curC += platLen;
-
-      } else if (roll < 0.50) {
-        // Maneuver 3: Natural Slopes (Rise or Fall)
-        var goUp = (rng() < 0.5 && curR > 9) || curR >= rows - 5;
-        if (goUp) {
-          setTile(curC, curR, "slopeL");
-          for (var r = curR + 1; r < rows; r++) setTile(curC, r, theme.solid);
-          markClear(curC, curR - 3, 1, 3);
-          curR -= 1;
-          setTile(curC + 1, curR, theme.solid);
-          for (var r = curR + 1; r < rows; r++) setTile(curC + 1, r, theme.solid);
-          markClear(curC + 1, curR - 3, 1, 3);
-          curC += 2;
-        } else {
-          setTile(curC, curR, "slopeR");
-          for (var r = curR + 1; r < rows; r++) setTile(curC, r, theme.solid);
-          markClear(curC, curR - 3, 1, 3);
-          curR += 1;
-          setTile(curC + 1, curR, theme.solid);
-          for (var r = curR + 1; r < rows; r++) setTile(curC + 1, r, theme.solid);
-          markClear(curC + 1, curR - 3, 1, 3);
-          curC += 2;
-        }
-
-      } else if (roll < 0.62) {
-        // Maneuver 4: Bounce Pad Launch (High Catapult)
-        setTile(curC, curR, "pad");
-        for (var r = curR + 1; r < rows; r++) setTile(curC, r, theme.solid);
-        var gap = randInt(rng, 2, 4);
-        var launchHeight = randInt(rng, 3, 5); // Pad launches 4-6 blocks high!
-        var nextR = Math.max(6, curR - launchHeight);
-
-        for (var g = 1; g < gap; g++) {
-          markClear(curC + g, nextR - 2, 1, rows - nextR);
-          setTile(curC + g, rows - 2, theme.spike);
-        }
+        setTile(curC + Math.floor(gap / 2), Math.min(curR, nextR) - 2, "coin10");
         curC += gap;
 
         var platLen = randInt(rng, 3, 4);
-        for (var i = 0; i < platLen && curC + i < cols - 5; i++) {
-          for (var r = nextR; r < rows; r++) setTile(curC + i, r, theme.solid);
-          markClear(curC + i, nextR - 3, 1, 3);
-        }
+        placeLedge(curC, platLen, nextR, theme.solid);
+        curR = nextR;
+        curC += platLen;
+
+      } else if (roll < 0.60) {
+        // 3. Bounce Pad Launch (for high ledges 3-4 tiles up)
+        setTile(curC, curR, "pad");
+        var gap = 2;
+        var nextR = Math.max(6, curR - randInt(rng, 3, 4));
+        setTile(curC + 1, rows - 2, theme.spike);
+        curC += gap;
+
+        var platLen = 3;
+        placeLedge(curC, platLen, nextR, theme.solid);
         setTile(curC + 1, nextR - 2, "coin100");
         curR = nextR;
         curC += platLen;
 
-      } else if (roll < 0.74) {
-        // Maneuver 5: Mid-air Bounce Orb / Double Jump Orb Chain
-        var gap = randInt(rng, 4, 5);
-        var orbX = curC + Math.floor(gap / 2);
-        var orbY = curR - 1;
-        var orbType = (rng() < 0.5) ? "orb" : "djOrb";
-        setTile(orbX, orbY, orbType);
-
-        for (var g = 0; g < gap; g++) {
-          markClear(curC + g, curR - 4, 1, 6);
-          setTile(curC + g, rows - 2, theme.spike);
-        }
+      } else if (roll < 0.72) {
+        // 4. Orb leap: gap 4 with bounce orb in the middle
+        var gap = 4;
+        setTile(curC + 2, curR - 1, (rng() < 0.5) ? "orb" : "djOrb");
+        for (var g = 0; g < gap; g++) setTile(curC + g, rows - 2, theme.spike);
         curC += gap;
 
-        var platLen = randInt(rng, 3, 4);
-        for (var i = 0; i < platLen && curC + i < cols - 5; i++) {
-          for (var r = curR; r < rows; r++) setTile(curC + i, r, theme.solid);
-          markClear(curC + i, curR - 3, 1, 3);
-        }
+        var platLen = 3;
+        placeLedge(curC, platLen, curR, theme.solid);
         curC += platLen;
 
       } else if (roll < 0.84) {
-        // Maneuver 6: Dash Boost / Blue Dash Hover Flight
-        var gap = randInt(rng, 5, 7);
+        // 5. Dash leap: gap 5 with dash in the middle
+        var gap = 5;
         var dashType = (rng() < 0.5) ? "dash" : "blueDash";
         setTile(curC + 2, curR - 1, dashType);
-
-        for (var g = 0; g < gap; g++) {
-          markClear(curC + g, curR - 3, 1, 5);
-          setTile(curC + g, rows - 2, theme.liquid);
-        }
-        setTile(curC + 4, curR - 1, "coin50");
+        for (var g = 0; g < gap; g++) setTile(curC + g, rows - 2, theme.liquid);
         curC += gap;
 
-        var platLen = randInt(rng, 3, 4);
-        for (var i = 0; i < platLen && curC + i < cols - 5; i++) {
-          for (var r = curR; r < rows; r++) setTile(curC + i, r, theme.solid);
-          markClear(curC + i, curR - 3, 1, 3);
-        }
+        var platLen = 3;
+        placeLedge(curC, platLen, curR, theme.solid);
         curC += platLen;
 
       } else if (roll < 0.92) {
-        // Maneuver 7: Gravity Inversion Flip Run
+        // 6. Gravity flip corridor
         setTile(curC, curR - 1, "gravOrb");
-        var flipLen = randInt(rng, 6, 9);
+        var flipLen = randInt(rng, 6, 8);
         for (var i = 1; i < flipLen && curC + i < cols - 5; i++) {
-          setTile(curC + i, 1, theme.solid); // solid ceiling to run on
-          markClear(curC + i, 2, 1, rows - 4);
+          setTile(curC + i, 1, theme.solid); // ceiling to run on
+          for (var ar = 2; ar <= 4; ar++) clearTile(curC + i, ar);
           setTile(curC + i, rows - 2, theme.spike);
           if (i % 3 === 0) setTile(curC + i, 2, "gspike");
-          else setTile(curC + i, 3, "coin50");
         }
-        setTile(curC + flipLen - 1, 3, "gravOrb"); // flip back down
+        setTile(curC + flipLen - 1, 3, "gravOrb"); // flip back
         curC += flipLen;
 
-        var platLen = 4;
-        for (var i = 0; i < platLen && curC + i < cols - 5; i++) {
-          for (var r = curR; r < rows; r++) setTile(curC + i, r, theme.solid);
-          markClear(curC + i, curR - 3, 1, 3);
-        }
+        var platLen = 3;
+        placeLedge(curC, platLen, curR, theme.solid);
         curC += platLen;
 
       } else {
-        // Maneuver 8: Conveyors, Ice, or Water Pit
-        var subType = randInt(rng, 0, 2);
-        if (subType === 0) {
-          // Conveyor sprint
-          var cLen = randInt(rng, 4, 6);
-          for (var i = 0; i < cLen && curC + i < cols - 5; i++) {
-            setTile(curC + i, curR, "convR");
-            for (var r = curR + 1; r < rows; r++) setTile(curC + i, r, theme.solid);
-            markClear(curC + i, curR - 3, 1, 3);
-          }
-          curC += cLen;
-        } else if (subType === 1) {
-          // Ice slide
-          var iLen = randInt(rng, 4, 6);
-          for (var i = 0; i < iLen && curC + i < cols - 5; i++) {
-            setTile(curC + i, curR, "ice");
-            for (var r = curR + 1; r < rows; r++) setTile(curC + i, r, theme.solid);
-            markClear(curC + i, curR - 3, 1, 3);
-          }
-          curC += iLen;
-        } else {
-          // Water pool
-          var wLen = randInt(rng, 4, 6);
-          for (var i = 0; i < wLen && curC + i < cols - 5; i++) {
-            setTile(curC + i, curR + 1, "water");
-            setTile(curC + i, curR + 2, "water");
-            for (var r = curR + 3; r < rows; r++) setTile(curC + i, r, theme.solid);
-            markClear(curC + i, curR - 2, 1, 4);
-          }
-          setTile(curC + 2, curR + 1, "coin50");
-          curC += wLen;
+        // 7. Conveyor or Ice runway
+        var len = 4;
+        var blockType = (rng() < 0.5) ? "convR" : "ice";
+        for (var c = curC; c < curC + len && c < cols - 5; c++) {
+          setTile(c, curR, blockType);
+          for (var ar = curR - 3; ar < curR; ar++) clearTile(c, ar);
         }
+        curC += len;
       }
     }
 
-    // ── Final Goal Platform ────────────────────────────────────────────────
-    var goalR = Math.min(rows - 3, Math.max(8, curR));
-    for (var c = curC; c < cols - 1; c++) {
-      for (var r = goalR; r < rows; r++) setTile(c, r, theme.solid);
-      markClear(c, goalR - 3, 1, 3);
-    }
-    var goalCol = cols - 4;
-    setTile(goalCol, goalR - 1, "goal");
+    // ── Final Goal Platform: Placed at the EXACT same height as curR ────────
+    placeLedge(curC, cols - curC - 1, curR, theme.solid);
+    setTile(cols - 4, curR - 1, "goal");
 
-    // ── Ambient Organic Terrain & Decor Pass (Strictly Outside Clearance) ──
-    for (var c = 1; c < cols - 1; c++) {
-      for (var r = 1; r < rows - 1; r++) {
-        if (!clearance[r][c] && !grid[r][c]) {
-          // Continuous 2D noise for natural organic formations
-          var noiseVal = Math.sin(c * 0.38 + seed * 0.1) * Math.cos(r * 0.42 + seed * 0.05);
-          // Stalactites hanging from high ceiling
-          if (noiseVal > 0.68 && r < 5) {
-            setTile(c, r, theme.solid);
-          }
-          // Deep underground rock bedrock
-          else if (noiseVal < -0.65 && r > rows - 4) {
-            setTile(c, r, theme.solid);
-          }
-        }
-      }
-    }
-
-    // ── Flatten Grid into Level Tiles ──────────────────────────────────────
+    // ── Build Tiles Array ──────────────────────────────────────────────────
     var tiles = [];
     for (var r = 0; r < rows; r++) {
       for (var c = 0; c < cols; c++) {
@@ -429,7 +295,7 @@
         authorName: "World Gen",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        editor: "DashPoint DynamicGen"
+        editor: "DashPoint DynamicGen 3.1"
       }
     };
   }
