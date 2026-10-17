@@ -7,10 +7,11 @@
  * so this file never needs to change for content updates.
  * Cross-origin requests (Firebase, CDNs) always go straight to network.
  */
-const CACHE = "dashpoint-v18"; // bumped: forces stale clients to drop old JS/CSS caches
+const CACHE = "dashpoint-v19"; // bumped: random levels
 const CORE = [
   "./",
   "index.html",
+  "random/index.html",
   "manifest.webmanifest",
   "assets/ui/icon-192.png",
   "assets/ui/icon-512.png",
@@ -20,6 +21,7 @@ const CORE = [
   "js/network.js",
   "js/mp.js",
   "js/skins.js",
+  "js/randlevel.js",
   "js/levels-data.js",
 ];
 

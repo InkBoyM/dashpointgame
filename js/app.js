@@ -61,6 +61,10 @@
   //   PATCH (x.y.z) — fixes, tweaks, balance, shop content drops
   // Newest entry first; APP_VER is always RELEASES[0].v.
   const RELEASES = [
+    { v: "1.95", title: "Random levels", items: [
+      "Visit /random for a seeded procedural level — unique layout, obstacles, theme, and song",
+      "Share the exact level with /random?seed=N — same seed always generates the same level",
+    ] },
     { v: "1.94", title: "Chat icon", items: [
       "Network CHAT tile uses the new speech-bubble icon",
     ] },
@@ -4698,8 +4702,8 @@
     cam.x = state.engine.player.x + state.engine.player.w / 2 - el("view").width / cam.zoom / 2;
     cam.y = state.engine.player.y + state.engine.player.h / 2 - el("view").height / cam.zoom / 2;
     el("winCard").classList.remove("visible");
-    el("btnWinMenu").textContent = state.netEntry ? "NETWORK" : "LEVELS";
-    el("btnWinNext").textContent = state.netEntry ? "BACK" : "NEXT ▸";
+    el("btnWinMenu").textContent = state.isRandom ? "HOME" : (state.netEntry ? "NETWORK" : "LEVELS");
+    el("btnWinNext").textContent = state.isRandom ? "NEW SEED ▸" : (state.netEntry ? "BACK" : "NEXT ▸");
     el("winTitle").textContent = "CLEARED!";
     show("game");
     syncAuthorChip();
@@ -4767,9 +4771,35 @@
     }, 2200);
   }
 
+  function playRandomLevel(seed) {
+    if (!window.DashPointRandLevel) return;
+    if (seed === undefined || seed === null) seed = window.DashPointRandLevel.parseSeedParam();
+    const parsedSeed = window.DashPointRandLevel.hashSeed(seed);
+    const levelJson = window.DashPointRandLevel.generate(parsedSeed);
+    const level = DP.Level.fromJSON(levelJson);
+    const entry = {
+      file: "random:" + parsedSeed,
+      id: "random:" + parsedSeed,
+      level: level,
+      meta: {
+        title: "Seed #" + parsedSeed,
+        authorName: "World Gen"
+      }
+    };
+    state.isRandom = true;
+    state.randomSeed = parsedSeed;
+    state.netEntry = entry;
+    state.current = -1;
+    try {
+      window.history.replaceState(null, "", "/random?seed=" + encodeURIComponent(parsedSeed));
+    } catch (e) {}
+    beginPlay(entry);
+  }
+
   function startLevel(index) {
     const entry = state.levels[index];
     if (!entry) return;
+    state.isRandom = false;
     state.current = index;
     state.netEntry = null;
     beginPlay(entry);
@@ -4945,7 +4975,12 @@
     el("pauseCard").classList.remove("visible");
     ghostMode = false; ghostPlayback = null; if (ghostCountdownTimer){ clearInterval(ghostCountdownTimer); ghostCountdownTimer=null; var cd=el("ghostCountdown"); if(cd) cd.classList.add("hidden"); }
     MP.clearCube();
-    el("winCard").classList.remove("visible");
+    if (state.isRandom) {
+      state.isRandom = false;
+      state.netEntry = null;
+      show("home");
+      return;
+    }
     if (state.netEntry) {
       state.netEntry = null;
       const back = state.netBack || "network";
@@ -8819,6 +8854,11 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
       if (mainLbPlayIndex >= 0) startLevel(mainLbPlayIndex);
     });
     el("btnWinNext").addEventListener("click", () => {
+      if (state.isRandom) {
+        const nextSeed = (Math.random() * 0xFFFFFFFF) >>> 0 || 1;
+        playRandomLevel(nextSeed);
+        return;
+      }
       if (state.netEntry) {
         quitToLevels();
         return;
@@ -9277,6 +9317,19 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
     try {
       const shared = new URLSearchParams(window.location.search).get("level");
       if (shared) setTimeout(function () { try { playSharedLevel(shared); } catch (e) {} }, 1500);
+    } catch (e) {}
+    try {
+      const RL = window.DashPointRandLevel;
+      if (RL && RL.isRandomRoute()) {
+        const randSeed = RL.parseSeedParam();
+        setTimeout(function () {
+          try {
+            playRandomLevel(randSeed);
+          } catch (err) {
+            showNotice("Random level failed: " + (err && err.message || err), true);
+          }
+        }, 800);
+      }
     } catch (e) {}
     requestAnimationFrame(frame);
     setTimeout(function () { try { checkBell(); } catch (e) {} }, 12000);
