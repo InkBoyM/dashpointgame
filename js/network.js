@@ -686,7 +686,7 @@ window.DPNet = (function () {
       const val = await getJSON("/dashpoint/leaderboards/" + sanitizeFirebaseKey(levelFile));
       if (!val) return [];
       const list = Object.keys(val).map(function(uid){ var v=val[uid]; return { uid:uid, time:v.time, name:v.name, skin:v.skin, tag: v.tag || "", nameColor: v.nameColor || "", frame: v.frame || "", updatedAt:v.updatedAt, edited: !!v.edited, origTime: v.origTime }; });
-      list.sort(function(a,b){ return a.time - b.time; });
+      list.sort(function(a,b){ return (a.time - b.time) || ((a.updatedAt || 0) - (b.updatedAt || 0)); });
       return list.slice(0, limit);
     } catch(e){ return []; }
   }

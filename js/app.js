@@ -2121,6 +2121,7 @@
     var canRace = !!opts.canRace;
     var admin = !!(window.DPNet && DPNet.isAdmin && DPNet.isAdmin());
     var file = opts.file || "";
+    var timeLabels = tieTimeLabels(list);
     var html = '<div class="lb-title">' + (opts.title || "TOP 10") + "</div>";
     for (var i = 0; i < list.length; i++) {
       var row = list[i];
@@ -2128,7 +2129,7 @@
       var edited = !!row.edited;
       var race = canRace && !isMe && !edited;
       var attr = race ? (' data-uid="' + escapeHtml(row.uid) + '" data-name="' + escapeHtml(row.name) + '"') : "";
-      var timeHtml = fmtTime(row.time) + (edited ? '<span class="lb-changed">CHANGED</span>' : "");
+      var timeHtml = timeLabels[i] + (edited ? '<span class="lb-changed">CHANGED</span>' : "");
       var hint = race ? '<span class="lb-race-hint">RACE ▶</span>' : (edited ? '<span class="lb-changed-hint">NO GHOST</span>' : "");
       var adminBtns = "";
       if (admin && file && row.uid) {
@@ -2505,6 +2506,59 @@
 
   function fmtTime(t) {
     return Number(t).toFixed(3) + "s";
+  }
+
+  // Rows that tie at the displayed millisecond are re-formatted with just
+  // enough extra decimals to show who is actually ahead on the board.
+  function tieTimeLabels(list) {
+    var out = [];
+    for (var n = 0; n < list.length; n++) out[n] = fmtTime(list[n].time);
+    var i = 0;
+    while (i < list.length) {
+      var key = Number(list[i].time || 0).toFixed(3);
+      var j = i + 1;
+      while (j < list.length && Number(list[j].time || 0).toFixed(3) === key) j++;
+      if (j - i > 1) {
+        var digits = 4;
+        while (digits < 9) {
+          var seen = {};
+          var dup = false;
+          for (var k = i; k < j; k++) {
+            var s = Number(list[k].time || 0).toFixed(digits);
+            if (seen[s]) { dup = true; break; }
+            seen[s] = 1;
+          }
+          if (!dup) break;
+          digits++;
+        }
+        for (var m = i; m < j; m++) out[m] = Number(list[m].time || 0).toFixed(digits) + "s";
+      }
+      i = j;
+    }
+    return out;
+  }
+
+  let winDeltaSeq = 0;
+  function setWinDelta(html) {
+    const d = el("winDelta");
+    if (!d) return;
+    d.innerHTML = html || "";
+    d.classList.toggle("hidden", !html);
+  }
+  function winGapHtml(lb, t) {
+    const list = lb && lb.list;
+    if (!list || !list.length) return "";
+    const topTime = Number(list[0].time);
+    if (!isFinite(topTime)) return "";
+    const gap = t - topTime;
+    const me = (typeof DPNet !== "undefined" && DPNet.getUser) ? DPNet.getUser() : null;
+    if (me && list[0].uid === me.uid) {
+      return Math.abs(gap) <= 0.0005 ? '<span class="gap good">#1</span>' : "";
+    }
+    if (gap > 0.0005) return '<span class="gap">+' + gap.toFixed(3) + "s off #1</span>";
+    if (lb.rank === 1) return '<span class="gap good">NEW #1</span>';
+    if (Math.abs(gap) <= 0.0005) return '<span class="gap">TIED #1</span>';
+    return '<span class="gap">FASTEST RUN</span>';
   }
 
   function hasSpaceUnlock() {
@@ -4996,11 +5050,13 @@
     tuffFinishRun();
     const entry = state.netEntry || state.levels[state.current];
     if (!entry) return;
+    const winSeq = ++winDeltaSeq;
     flushPlaytime();
     try { flushHeat(); } catch (e) {}
     const t = state.engine.time;
     if (state.practice) {
       el("winText").textContent = "PRACTICE CLEAR in " + fmtTime(t) + " — no records saved.";
+      setWinDelta("");
       el("winCard").classList.add("visible");
       return;
     }
@@ -5014,6 +5070,14 @@
     let gained = 0;
     if (firstClear) gained = grantCoins(coinsForFile(entry.file, entry.meta), "level:" + entry.file);
     save();
+    let pbHtml = "";
+    if (prevBest !== undefined && prevBest !== null && isFinite(Number(prevBest))) {
+      const diff = t - Number(prevBest);
+      if (diff < -0.0005) pbHtml = '<span class="pb">PB -' + Math.abs(diff).toFixed(3) + "s</span>";
+      else if (diff > 0.0005) pbHtml = '<span class="slower">+' + diff.toFixed(3) + "s off PB</span>";
+      else pbHtml = '<span class="pb">MATCHED PB</span>';
+    }
+    setWinDelta(pbHtml);
     el("winText").textContent = "Time " + fmtTime(t) + " · deaths " + state.deaths + (firstClear ? " · FIRST CLEAR!" : "") + (gained ? " · +" + fmtCoins(gained) + " coins" : "");
     el("winCard").classList.add("visible");
     checkUnlocks();
@@ -5027,6 +5091,10 @@
     } catch(e){}
     try { showLeaderboardAfterWin(entry, t).then(function (lb) {
       try { sendRecordFeed(entry, t, firstClear, prevBest, lb && lb.rank ? lb.rank : 0); } catch (e) {}
+      if (winSeq !== winDeltaSeq) return;
+      if (!el("winCard").classList.contains("visible")) return;
+      const gapHtml = winGapHtml(lb, t);
+      if (gapHtml) setWinDelta(pbHtml + (pbHtml ? ' <span class="sep">&middot;</span> ' : "") + gapHtml);
     }).catch(function () {}); } catch(e){}
     if (firstClear && entry.file === CLIMB_FILE) {
       showNotice("Space mode unlocked — turn it on in Settings!", false);

@@ -695,6 +695,12 @@ body.joystick #joystick { display: block; }
 }
 .card h2 { margin: 0 0 8px; font-size: 30px; letter-spacing: 3px; color: var(--gold); text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.5); }
 .card p { margin: 0 0 16px; color: #b9cbe8; letter-spacing: 1px; }
+#winDelta { margin: -8px 0 14px; font-size: 13px; font-weight: 900; letter-spacing: 1px; }
+#winDelta .pb { color: var(--good); }
+#winDelta .slower { color: var(--red); }
+#winDelta .gap { color: var(--gold); }
+#winDelta .gap.good { color: var(--good); }
+#winDelta .sep { color: #6f86a8; }
 .card-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .leaderboard { margin: 12px 0; max-height: 160px; overflow: auto; text-align: left; border: 2px solid var(--ink-dark); background: var(--panel-2); padding: 6px; }
 .leaderboard-full { max-height: min(50vh, 360px); }
