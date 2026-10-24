@@ -902,6 +902,33 @@
     </div>
   </div>
 
+  <div class="replay-screen" id="replayScreen" role="dialog" aria-modal="true" aria-label="Replay viewer">
+    <div class="replay-head">
+      <div class="replay-head-text">
+        <h2 id="replayTitle">REPLAY</h2>
+        <p class="replay-sub" id="replaySub"></p>
+      </div>
+      <button type="button" class="px-btn small" id="btnReplayClose">CLOSE</button>
+    </div>
+    <div class="replay-stage">
+      <canvas id="replayView"></canvas>
+      <div class="replay-loading" id="replayLoading">LOADING GHOST...</div>
+      <div class="replay-hint">SPACE play - LEFT/RIGHT seek - T trail - ESC close</div>
+    </div>
+    <div class="replay-controls">
+      <button type="button" class="px-btn small good" id="btnReplayPlay">PLAY</button>
+      <input type="range" id="replayScrub" min="0" max="1000" step="10" value="0" aria-label="Replay position" />
+      <span class="replay-time" id="replayTime">0.000s / 0.000s</span>
+      <div class="replay-speeds" aria-label="Playback speed">
+        <button type="button" class="px-btn tiny replay-speed-btn" data-speed="0.5">0.5x</button>
+        <button type="button" class="px-btn tiny replay-speed-btn on" data-speed="1">1x</button>
+        <button type="button" class="px-btn tiny replay-speed-btn" data-speed="2">2x</button>
+        <button type="button" class="px-btn tiny replay-speed-btn" data-speed="4">4x</button>
+      </div>
+      <button type="button" class="px-btn small" id="btnReplayTrail">TRAIL: ON</button>
+    </div>
+  </div>
+
   <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-database-compat.js"></script>

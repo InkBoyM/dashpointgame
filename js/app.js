@@ -895,7 +895,7 @@
   }
 
   function defaultSave() {
-    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, effects: [], effect: "", suspend: null, streak: { n: 0, day: "" }, achv: {}, chestsOpened: 0, hnsWins: 0, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", texV2: false, ghostOpacity: 100, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", seenTutorial: false, bellSeen: {}, follows: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
+    return { deaths: 0, jumps: 0, playtime: 0, coins: "0", coinPaid: {}, coinMigrated: false, codes: {}, skin: 1, unlocked: [1, 2, 3, 4, 5], beaten: {}, best: {}, attempts: {}, effects: [], effect: "", suspend: null, streak: { n: 0, day: "" }, achv: {}, chestsOpened: 0, hnsWins: 0, hitboxes: false, debugFps: false, autoRespawn: true, spaceMenu: false, graphics: "normal", texV2: false, ghostOpacity: 100, replayTrail: true, tags: [], tag: "", nameColors: [], nameColor: "", frames: [], frame: "",     trails: [], trail: "", packs: [], touchUI: { size: 72, lx: 14, ly: 14, rx: 14, ry: 14 }, touchMode: "buttons", showHeat: false, seenVer: "", seenTutorial: false, bellSeen: {}, follows: {}, chestFree: { basic: 0, gold: 0, diamond: 0, king: 0 }, championKeys: 0 };
   }
 
   function touchUIDefaults() {
@@ -2121,6 +2121,8 @@
     var canRace = !!opts.canRace;
     var admin = !!(window.DPNet && DPNet.isAdmin && DPNet.isAdmin());
     var file = opts.file || "";
+    var entry = opts.entry || null;
+    var canWatch = !!(entry && entry.level);
     var timeLabels = tieTimeLabels(list);
     var html = '<div class="lb-title">' + (opts.title || "TOP 10") + "</div>";
     for (var i = 0; i < list.length; i++) {
@@ -2129,6 +2131,9 @@
       var edited = !!row.edited;
       var race = canRace && !isMe && !edited;
       var attr = race ? (' data-uid="' + escapeHtml(row.uid) + '" data-name="' + escapeHtml(row.name) + '"') : "";
+      var watch = canWatch && !edited && row.uid
+        ? '<button type="button" class="px-btn tiny lb-watch" data-idx="' + i + '">WATCH</button>'
+        : "";
       var timeHtml = timeLabels[i] + (edited ? '<span class="lb-changed">CHANGED</span>' : "");
       var hint = race ? '<span class="lb-race-hint">RACE ▶</span>' : (edited ? '<span class="lb-changed-hint">NO GHOST</span>' : "");
       var adminBtns = "";
@@ -2138,13 +2143,22 @@
           '<button type="button" class="px-btn tiny danger lb-del" data-uid="' + escapeHtml(row.uid) + '" data-name="' + escapeHtml(row.name || "player") + '">REMOVE</button>' +
           "</span>";
       }
-      html += '<div class="lb-row' + (isMe ? " lb-me" : "") + (race ? " lb-race" : "") + (edited ? " lb-edited" : "") + '"' + attr + '><span class="lb-rank">#' + (i + 1) + '</span>' + frameAvatarHtml(row.skin, isMe ? equippedFrameId() : (row.frame || frameForUid(row.uid))) + (i === 0 && crownIcon() ? '<img class="lb-crown" src="' + crownIcon() + '" alt="crown" />' : "") + '<span class="lb-name">' + taggedNameHtml(row.name, row.tag || (isMe ? equippedTagId() : tagIdForUid(row.uid)), isMe ? " (you)" : "", row.nameColor || (isMe ? equippedNameColorId() : nameColorForUid(row.uid))) + '</span><span class="lb-time">' + timeHtml + "</span>" + hint + adminBtns + "</div>";
+      html += '<div class="lb-row' + (isMe ? " lb-me" : "") + (race ? " lb-race" : "") + (edited ? " lb-edited" : "") + '"' + attr + '><span class="lb-rank">#' + (i + 1) + '</span>' + frameAvatarHtml(row.skin, isMe ? equippedFrameId() : (row.frame || frameForUid(row.uid))) + (i === 0 && crownIcon() ? '<img class="lb-crown" src="' + crownIcon() + '" alt="crown" />' : "") + '<span class="lb-name">' + taggedNameHtml(row.name, row.tag || (isMe ? equippedTagId() : tagIdForUid(row.uid)), isMe ? " (you)" : "", row.nameColor || (isMe ? equippedNameColorId() : nameColorForUid(row.uid))) + '</span><span class="lb-time">' + timeHtml + "</span>" + hint + watch + adminBtns + "</div>";
     }
     if (opts.extraRow) html += opts.extraRow;
     box.innerHTML = html;
     if (canRace) {
       box.querySelectorAll(".lb-race").forEach(function (r) {
         r.addEventListener("click", function () { raceGhost(r.dataset.uid, r.dataset.name); });
+      });
+    }
+    if (canWatch) {
+      box.querySelectorAll(".lb-watch").forEach(function (b) {
+        b.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          var idx = Number(b.dataset.idx) | 0;
+          if (list[idx]) openReplay(entry, list[idx], idx + 1);
+        });
       });
     }
     if (admin && file) {
@@ -2212,7 +2226,8 @@
         user: u,
         canRace: !!opts.canRace,
         file: file,
-        title: "TOP 10 — " + escapeHtml(name) + (opts.titleExtra || ""),
+        entry: entry,
+        title: "TOP 10 - " + escapeHtml(name) + (opts.titleExtra || ""),
         extraRow: opts.extraRow || "",
       });
       return list;
@@ -2220,6 +2235,469 @@
       box.innerHTML = '<p class="loading-note">Leaderboard failed: ' + escapeHtml(e.message || String(e)) + "</p>";
       return [];
     }
+  }
+
+  /* ---------------- REPLAY VIEWER ---------------- */
+  let replayToken = 0;
+  let replay = {
+    open: false,
+    entry: null,
+    level: null,
+    row: null,
+    ghost: null,
+    points: [],
+    skin: 1,
+    duration: 0,
+    t: 0,
+    playing: false,
+    speed: 1,
+    showTrail: true,
+    raf: 0,
+    last: 0,
+    engine: null,
+    cam: { x: 0, y: 0, zoom: 3 },
+  };
+
+  function replayLevel(entry) {
+    if (entry && entry.level) return entry.level;
+    var list = state.levels || [];
+    var file = entry ? (entry.file || entry.id || "") : "";
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] && (list[i].file === file || list[i].id === file) && list[i].level) return list[i].level;
+    }
+    return null;
+  }
+
+  function sanitizeReplayGhost(ghost) {
+    if (!ghost || !Array.isArray(ghost.points) || !ghost.points.length) return null;
+    var pts = [];
+    var missingT = 0;
+    for (var i = 0; i < ghost.points.length && pts.length < 20000; i++) {
+      var p = ghost.points[i];
+      if (!p) continue;
+      var x = Number(p.x), y = Number(p.y), t = Number(p.t);
+      if (!isFinite(x) || !isFinite(y)) continue;
+      if (!isFinite(t) || t < 0) { t = i * 0.05; missingT++; }
+      pts.push({ x: x, y: y, rot: Number(p.rot) || 0, t: t });
+    }
+    if (!pts.length) return null;
+    if (missingT) pts.sort(function (a, b) { return a.t - b.t; });
+    var lastT = pts[pts.length - 1].t;
+    var runTime = Number(ghost.time);
+    if (!isFinite(runTime) || runTime < lastT) runTime = lastT;
+    return {
+      points: pts,
+      time: runTime,
+      skin: ghost.skin,
+      name: ghost.name || "",
+    };
+  }
+
+  function replayPosition(time) {
+    var pts = replay.points;
+    if (!pts.length) return null;
+    if (time <= pts[0].t) return pts[0];
+    var last = pts[pts.length - 1];
+    if (time >= last.t) return last;
+    var lo = 0, hi = pts.length - 1;
+    while (lo + 1 < hi) {
+      var mid = (lo + hi) >> 1;
+      if (pts[mid].t <= time) lo = mid;
+      else hi = mid;
+    }
+    var a = pts[lo], b = pts[hi];
+    var span = b.t - a.t;
+    var f = span > 0 ? (time - a.t) / span : 0;
+    return {
+      x: a.x + (b.x - a.x) * f,
+      y: a.y + (b.y - a.y) * f,
+      rot: a.rot + (b.rot - a.rot) * f,
+      t: time,
+    };
+  }
+
+  async function openReplay(entry, row, rank) {
+    if (!entry || !row || !row.uid) return;
+    var level = replayLevel(entry);
+    if (!level) {
+      showNotice("That level isn't loaded - open it once first", true);
+      return;
+    }
+    if (!state.images) {
+      showNotice("Sprites are still loading - try again in a second", true);
+      return;
+    }
+    var token = ++replayToken;
+    var file = entry.file || entry.id || "unknown";
+    var boardTime = Number(row.time) || 0;
+    replay.open = true;
+    replay.entry = entry;
+    replay.level = level;
+    replay.row = row;
+    replay.ghost = null;
+    replay.points = [];
+    replay.skin = DP.validSkinId(Number(row.skin) || 1);
+    replay.duration = 0;
+    replay.t = 0;
+    replay.playing = false;
+    replay.speed = 1;
+    replay.showTrail = save_.data.replayTrail !== false;
+    replay.last = 0;
+    replay.engine = {
+      level: level,
+      player: {
+        x: level.spawn.c * TILE + (TILE - DP.PLAYER_W) / 2,
+        y: level.spawn.r * TILE + TILE - DP.PLAYER_H,
+        w: DP.PLAYER_W,
+        h: DP.PLAYER_H,
+        rot: 0,
+        onGround: false,
+        vx: 1,
+      },
+      skin: replay.skin,
+      dead: false,
+      won: false,
+      time: 0,
+      touched: new Set(),
+      collected: new Set(),
+      openDoors: new Set(),
+      movers: null,
+      plats: null,
+      crushers: null,
+      trailParts: [],
+      flash: 0,
+      pet: "",
+    };
+    try { state.keys.clear(); } catch (e) {}
+    clearTouch();
+    document.body.classList.add("replay-open");
+    el("replayScreen").classList.add("visible");
+    el("replayLoading").classList.add("visible");
+    el("replayLoading").textContent = "LOADING GHOST...";
+    var title = (rank ? "#" + rank + " " : "") + (row.name || "PLAYER") + " - " + (level.name || file);
+    el("replayTitle").textContent = title.toUpperCase();
+    el("replaySub").textContent = "BOARD " + fmtTime(boardTime);
+    syncReplayUI();
+    cancelAnimationFrame(replay.raf);
+    replay.raf = requestAnimationFrame(replayFrame);
+    drawReplay();
+
+    var ghost = null;
+    try {
+      if (window.DPNet && DPNet.getGhostCloud) ghost = await DPNet.getGhostCloud(file, row.uid);
+    } catch (e) {}
+    if (token !== replayToken || !replay.open) return;
+    var me = null;
+    try { me = window.DPNet && DPNet.getUser ? DPNet.getUser() : null; } catch (e) {}
+    if (!ghost && me && me.uid === row.uid && DPNet.getGhostLocal) {
+      try { ghost = DPNet.getGhostLocal(file); } catch (e) {}
+    }
+    var clean = sanitizeReplayGhost(ghost);
+    if (!clean) {
+      replay.playing = false;
+      replay.duration = 0;
+      replay.points = [];
+      el("replayLoading").textContent = "NO GHOST FOR THIS RUN";
+      el("replaySub").textContent = "BOARD " + fmtTime(boardTime) + " - NO GHOST SAVED";
+      syncReplayUI();
+      return;
+    }
+    replay.ghost = clean;
+    replay.points = clean.points;
+    replay.skin = DP.validSkinId(clean.skin || row.skin || 1);
+    replay.engine.skin = replay.skin;
+    replay.duration = Math.max(0.05, clean.time);
+    replay.t = 0;
+    replay.playing = true;
+    var sub = "GHOST " + fmtTime(clean.time);
+    if (boardTime > 0 && Math.abs(boardTime - clean.time) >= 0.0005) sub += " - BOARD " + fmtTime(boardTime);
+    el("replaySub").textContent = sub;
+    el("replayLoading").classList.remove("visible");
+    syncReplayUI();
+  }
+
+  function syncReplayUI() {
+    var dur = replay.duration || 0;
+    var play = el("btnReplayPlay");
+    if (play) {
+      play.textContent = replay.playing ? "PAUSE" : (dur > 0 && replay.t >= dur - 0.001 ? "REPLAY" : "PLAY");
+      play.classList.toggle("good", !replay.playing);
+      play.disabled = dur <= 0;
+    }
+    var scrub = el("replayScrub");
+    if (scrub) {
+      scrub.disabled = dur <= 0;
+      scrub.value = String(dur > 0 ? Math.round((replay.t / dur) * 1000) : 0);
+    }
+    el("replayTime").textContent = fmtTime(replay.t) + " / " + fmtTime(dur);
+    var trail = el("btnReplayTrail");
+    if (trail) {
+      trail.textContent = "TRAIL: " + (replay.showTrail ? "ON" : "OFF");
+      trail.classList.toggle("on", replay.showTrail);
+    }
+    document.querySelectorAll(".replay-speed-btn").forEach(function (b) {
+      b.classList.toggle("on", Number(b.dataset.speed) === replay.speed);
+    });
+  }
+
+  function updateReplayProgress() {
+    var dur = replay.duration || 0;
+    var scrub = el("replayScrub");
+    if (scrub) scrub.value = String(dur > 0 ? Math.round((replay.t / dur) * 1000) : 0);
+    el("replayTime").textContent = fmtTime(replay.t) + " / " + fmtTime(dur);
+    var play = el("btnReplayPlay");
+    if (!play) return;
+    var label = replay.playing ? "PAUSE" : (dur > 0 && replay.t >= dur - 0.001 ? "REPLAY" : "PLAY");
+    if (play.textContent !== label) {
+      play.textContent = label;
+      play.classList.toggle("good", !replay.playing);
+    }
+  }
+
+  function replayFrame(ts) {
+    if (!replay.open) return;
+    replay.raf = requestAnimationFrame(replayFrame);
+    var dt = replay.last ? (ts - replay.last) / 1000 : 0;
+    replay.last = ts;
+    if (!(dt > 0)) dt = 0;
+    if (dt > 0.1) dt = 0.1;
+    if (replay.playing && replay.duration > 0) {
+      replay.t += dt * replay.speed;
+      if (replay.t >= replay.duration) {
+        replay.t = replay.duration;
+        replay.playing = false;
+        syncReplayUI();
+      }
+    }
+    drawReplay();
+    updateReplayProgress();
+  }
+
+  function replayZoom(width) {
+    var z = width / (14 * TILE);
+    return Math.max(2, Math.min(4, Math.round(z * 100) / 100));
+  }
+
+  function drawReplay() {
+    if (!replay.open) return;
+    var cv = el("replayView");
+    var stage = cv && cv.parentElement;
+    if (!cv || !stage || !replay.level || !state.images) return;
+    var w = Math.max(1, Math.floor(stage.clientWidth));
+    var h = Math.max(1, Math.floor(stage.clientHeight));
+    if (cv.width !== w || cv.height !== h) {
+      cv.width = w;
+      cv.height = h;
+    }
+    var c = cv.getContext("2d");
+    if (!c) return;
+    var level = replay.level;
+    var pos = replayPosition(replay.t);
+    if (!pos) {
+      pos = {
+        x: level.spawn.c * TILE + (TILE - DP.PLAYER_W) / 2,
+        y: level.spawn.r * TILE + TILE - DP.PLAYER_H,
+        rot: 0,
+      };
+    }
+    var zoom = replayZoom(w);
+    var viewW = w / zoom, viewH = h / zoom;
+    var cx = pos.x + DP.PLAYER_W / 2 - viewW / 2;
+    var cy = pos.y + DP.PLAYER_H / 2 - viewH / 2;
+    var worldW = level.cols * TILE, worldH = level.rows * TILE;
+    if (worldW < viewW) cx = (worldW - viewW) / 2;
+    else cx = Math.max(-80, Math.min(worldW - viewW + 80, cx));
+    if (worldH < viewH) cy = (worldH - viewH) / 2;
+    else cy = Math.max(-80, Math.min(worldH - viewH + 80, cy));
+    var cam = { x: Math.round(cx * zoom) / zoom, y: Math.round(cy * zoom) / zoom, zoom: zoom };
+    replay.cam = cam;
+
+    var eng = replay.engine;
+    eng.time = replay.t;
+    eng.player.x = pos.x;
+    eng.player.y = pos.y;
+    eng.player.rot = pos.rot || 0;
+    eng.player.onGround = false;
+    eng.skin = replay.skin;
+
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    DP.drawWorld(c, level, state.images, cam, {
+      showGrid: false,
+      showHover: false,
+      ghostTiles: null,
+      selection: null,
+      engine: eng,
+      skin: replay.skin,
+      hitboxes: false,
+      showSpawn: false,
+      remoteCubes: [],
+      graphics: gfxMode(),
+      texV2: !!save_.data.texV2,
+      heat: null,
+      fx: gfxFlags(),
+      crownUid: "",
+    });
+
+    if (replay.showTrail && replay.points.length > 1) drawReplayTrail(c, cam, pos);
+  }
+
+  function drawReplayTrail(c, cam, pos) {
+    var pts = replay.points;
+    if (!pts || pts.length < 2) return;
+    var zoom = cam.zoom;
+    var halfW = DP.PLAYER_W / 2, halfH = DP.PLAYER_H / 2;
+    var startX = pts[0].x + halfW, startY = pts[0].y + halfH;
+    c.save();
+    c.scale(zoom, zoom);
+    c.translate(-cam.x, -cam.y);
+    c.lineCap = "round";
+    c.lineJoin = "round";
+
+    c.globalAlpha = 0.18;
+    c.strokeStyle = "#2ee6ff";
+    c.lineWidth = 2.5 / zoom;
+    c.beginPath();
+    c.moveTo(startX, startY);
+    for (var i = 1; i < pts.length; i++) {
+      var p = pts[i], q = pts[i - 1];
+      var px = p.x + halfW, py = p.y + halfH;
+      var qx = q.x + halfW, qy = q.y + halfH;
+      var dx = px - qx, dy = py - qy;
+      if (dx * dx + dy * dy > 160 * 160 || p.t < q.t - 0.001) c.moveTo(px, py);
+      else c.lineTo(px, py);
+    }
+    c.stroke();
+
+    var hi = -1;
+    for (var j = 0; j < pts.length; j++) {
+      if (pts[j].t <= replay.t + 0.00001) hi = j;
+      else break;
+    }
+    if (hi >= 0) {
+      c.globalAlpha = 0.92;
+      c.strokeStyle = "#ffd23c";
+      c.lineWidth = 3 / zoom;
+      c.beginPath();
+      c.moveTo(startX, startY);
+      for (var k = 1; k <= hi; k++) {
+        var pk = pts[k], qk = pts[k - 1];
+        var pkx = pk.x + halfW, pky = pk.y + halfH;
+        var qkx = qk.x + halfW, qky = qk.y + halfH;
+        var ddx = pkx - qkx, ddy = pky - qky;
+        if (ddx * ddx + ddy * ddy > 160 * 160 || pk.t < qk.t - 0.001) c.moveTo(pkx, pky);
+        else c.lineTo(pkx, pky);
+      }
+      var curX = pos.x + halfW, curY = pos.y + halfH;
+      var lastP = pts[hi];
+      var lx = lastP.x + halfW, ly = lastP.y + halfH;
+      var gapX = curX - lx, gapY = curY - ly;
+      if (gapX * gapX + gapY * gapY < 160 * 160) c.lineTo(curX, curY);
+      c.stroke();
+
+      c.globalAlpha = 1;
+      c.fillStyle = "rgba(255, 210, 60, 0.95)";
+      c.beginPath();
+      c.arc(curX, curY, Math.max(1.5, 3 / zoom), 0, Math.PI * 2);
+      c.fill();
+    }
+    c.restore();
+  }
+
+  function toggleReplayPlay() {
+    if (!replay.duration) return;
+    if (!replay.playing && replay.t >= replay.duration - 0.001) replay.t = 0;
+    replay.playing = !replay.playing;
+    replay.last = 0;
+    syncReplayUI();
+  }
+
+  function setReplaySpeed(speed) {
+    if (!isFinite(speed) || speed <= 0) return;
+    replay.speed = speed;
+    syncReplayUI();
+  }
+
+  function toggleReplayTrail() {
+    replay.showTrail = !replay.showTrail;
+    save_.data.replayTrail = replay.showTrail;
+    try { save(); } catch (e) {}
+    syncReplayUI();
+    drawReplay();
+  }
+
+  function seekReplay(delta) {
+    if (!replay.duration) return;
+    replay.playing = false;
+    replay.t = Math.max(0, Math.min(replay.duration, replay.t + delta));
+    replay.last = 0;
+    syncReplayUI();
+    drawReplay();
+  }
+
+  function closeReplay() {
+    replayToken++;
+    replay.open = false;
+    replay.playing = false;
+    replay.points = [];
+    replay.ghost = null;
+    replay.duration = 0;
+    replay.t = 0;
+    replay.engine = null;
+    cancelAnimationFrame(replay.raf);
+    replay.raf = 0;
+    el("replayScreen").classList.remove("visible");
+    el("replayLoading").classList.remove("visible");
+    document.body.classList.remove("replay-open");
+  }
+
+  function replayKey(ev) {
+    if (!replay.open) return;
+    var code = ev.code;
+    if (code === "Escape") {
+      ev.preventDefault();
+      closeReplay();
+      return;
+    }
+    if (code === "Space") {
+      ev.preventDefault();
+      if (!ev.repeat) toggleReplayPlay();
+      return;
+    }
+    if (code === "ArrowLeft" || code === "ArrowRight") {
+      ev.preventDefault();
+      seekReplay(code === "ArrowLeft" ? -(ev.shiftKey ? 1 : 5) : (ev.shiftKey ? 1 : 5));
+      return;
+    }
+    if (code === "KeyT") {
+      ev.preventDefault();
+      if (!ev.repeat) toggleReplayTrail();
+      return;
+    }
+  }
+
+  function bindReplayUI() {
+    var close = el("btnReplayClose");
+    if (close) close.addEventListener("click", closeReplay);
+    var play = el("btnReplayPlay");
+    if (play) play.addEventListener("click", toggleReplayPlay);
+    var trail = el("btnReplayTrail");
+    if (trail) trail.addEventListener("click", toggleReplayTrail);
+    var scrub = el("replayScrub");
+    if (scrub) {
+      scrub.addEventListener("input", function () {
+        if (!replay.duration) return;
+        replay.playing = false;
+        replay.t = (Number(scrub.value) || 0) / 1000 * replay.duration;
+        replay.last = 0;
+        syncReplayUI();
+        drawReplay();
+      });
+    }
+    document.querySelectorAll(".replay-speed-btn").forEach(function (b) {
+      b.addEventListener("click", function () { setReplaySpeed(Number(b.dataset.speed) || 1); });
+    });
+    replay.showTrail = save_.data.replayTrail !== false;
+    syncReplayUI();
   }
 
   /* ---------------- GLOBAL LEADERBOARDS ---------------- */
@@ -5841,6 +6319,7 @@
     const dt = Math.min(0.05, rawDt);
     state.lastFrame = ts;
     tickFps(rawDt);
+    if (replay.open) return;
     if (state.screen !== "game" || !state.playing || !state.engine) return;
     resizeCanvas();
 
@@ -8623,6 +9102,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
   /* ---------------- /DASHPOINT NETWORK ---------------- */
 
   function onKeyDown(ev) {
+    if (replay.open) { replayKey(ev); return; }
     if (!isTyping(ev) && ev.shiftKey && !ev.repeat && (ev.code === "ArrowLeft" || ev.code === "ArrowRight" || ev.code === "ArrowUp" || ev.code === "ArrowDown")) {
       ev.preventDefault();
       if (ev.code === "ArrowDown") { setSpectate(null); }
@@ -8688,6 +9168,7 @@ DP.drawWorld(ctx(), state.engine.level, state.images, shakeCam(), {
   function boot() {
     document.addEventListener("click", function () { closeAllOpts(); });
     bindNetworkUI();
+    bindReplayUI();
     bindTouchBtn("touchLeft", "left");
     bindTouchBtn("touchRight", "right");
     bindTouchBtn("touchJump", "jump");
