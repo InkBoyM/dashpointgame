@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>404 - DashPoint</title>
+  <meta name="theme-color" content="#05080d" />
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="/assets/ui/favicon.png" type="image/png" />
+  <link rel="stylesheet" href="/css/game.css" />
+  <style>
+    html {
+      height: auto;
+      min-height: 100%;
+      overflow: auto;
+      background: #a8ddff;
+    }
+    body.dp404 {
+      min-height: 100vh;
+      min-height: 100dvh;
+      margin: 0;
+      padding: 28px 18px;
+      overflow: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        radial-gradient(circle at 50% 16%, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 55%),
+        linear-gradient(180deg, #4db2f7 0%, #7cc9ff 55%, #a8ddff 100%);
+    }
+    body.dp404::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        repeating-linear-gradient(0deg, rgba(10, 20, 32, 0.05) 0 2px, transparent 2px 4px),
+        radial-gradient(circle at 50% 120%, rgba(10, 20, 32, 0.22), transparent 55%);
+    }
+    .dp404-wrap {
+      position: relative;
+      z-index: 1;
+      width: min(620px, 100%);
+      text-align: center;
+    }
+    .dp404-brand {
+      display: inline-block;
+      line-height: 0;
+      pointer-events: auto;
+    }
+    .dp404-logo {
+      width: min(320px, 74vw);
+      image-rendering: pixelated;
+      filter: drop-shadow(6px 7px 0 rgba(6, 12, 24, 0.4));
+      animation: dp404Bob 3.6s ease-in-out infinite;
+    }
+    .dp404-panel {
+      position: relative;
+      margin-top: 18px;
+      padding: 26px 22px 22px;
+      background: var(--panel);
+      border: 4px solid var(--ink-dark);
+      box-shadow:
+        inset 2px 2px 0 rgba(255, 255, 255, 0.08),
+        9px 9px 0 rgba(6, 12, 24, 0.45),
+        0 0 32px rgba(255, 210, 60, 0.12);
+    }
+    .dp404-ghost {
+      position: absolute;
+      top: -30px;
+      right: 18px;
+      width: 56px;
+      height: 56px;
+      image-rendering: pixelated;
+      filter: drop-shadow(3px 4px 0 rgba(6, 12, 24, 0.4));
+      animation: dp404Float 2.8s ease-in-out infinite;
+    }
+    .dp404-eyebrow {
+      margin: 0;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 4px;
+      color: var(--cyan);
+    }
+    .dp404-code {
+      margin: 4px 0 0;
+      font-size: clamp(76px, 19vw, 132px);
+      line-height: 0.95;
+      font-weight: 900;
+      letter-spacing: 8px;
+      color: #fff;
+      text-shadow:
+        -5px 0 0 var(--cyan),
+        5px 0 0 var(--red),
+        9px 9px 0 rgba(6, 12, 24, 0.35);
+      animation: dp404Glitch 5.5s steps(1, end) infinite;
+    }
+    .dp404-title {
+      margin: 8px 0 0;
+      font-size: clamp(18px, 4.6vw, 25px);
+      font-weight: 900;
+      letter-spacing: 3px;
+      color: var(--gold);
+    }
+    .dp404-copy {
+      margin: 10px auto 0;
+      max-width: 430px;
+      font-size: 13px;
+      line-height: 1.5;
+      letter-spacing: 1px;
+      color: #b9cbe8;
+    }
+    .dp404-path {
+      margin: 10px auto 0;
+      max-width: 100%;
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: #7f97bd;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .dp404-path:empty {
+      display: none;
+    }
+    .dp404-path b {
+      color: #a9c1e6;
+      font-weight: 700;
+    }
+    .dp404-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 20px;
+    }
+    .dp404-actions .px-btn {
+      text-decoration: none;
+    }
+    .dp404-hint {
+      margin: 14px 0 0;
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: #7f97bd;
+    }
+    .dp404-hint b {
+      display: inline-block;
+      min-width: 18px;
+      padding: 1px 5px;
+      border: 2px solid var(--ink-dark);
+      background: var(--panel-2);
+      color: #d7e6ff;
+      font-weight: 900;
+    }
+    @keyframes dp404Bob {
+      0%, 100% { transform: translate3d(0, 0, 0) rotate(-0.8deg); }
+      50% { transform: translate3d(0, -8px, 0) rotate(0.8deg); }
+    }
+    @keyframes dp404Float {
+      0%, 100% { transform: translate3d(0, 0, 0); }
+      50% { transform: translate3d(0, -7px, 0); }
+    }
+    @keyframes dp404Glitch {
+      0%, 86%, 100% { transform: translate3d(0, 0, 0) skewX(0deg); opacity: 1; }
+      87% { transform: translate3d(-4px, 1px, 0) skewX(3deg); opacity: 0.82; }
+      88% { transform: translate3d(5px, -1px, 0) skewX(-4deg); opacity: 1; }
+      89% { transform: translate3d(-2px, 0, 0) skewX(1deg); opacity: 0.9; }
+      90% { transform: translate3d(0, 0, 0) skewX(0deg); opacity: 1; }
+    }
+    @media (max-width: 520px) {
+      .dp404-panel { padding: 22px 14px 18px; }
+      .dp404-ghost { width: 46px; height: 46px; top: -24px; right: 12px; }
+      .dp404-actions .px-btn { flex: 1 1 100%; }
+      .dp404-hint { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .dp404-logo, .dp404-ghost, .dp404-code { animation: none !important; }
+    }
+  </style>
+</head>
+<body class="dp404">
+  <main class="dp404-wrap">
+    <a class="dp404-brand" href="/" aria-label="DashPoint home">
+      <img class="dp404-logo" src="/assets/ui/title.png" alt="DashPoint" />
+    </a>
+    <section class="dp404-panel">
+      <img class="dp404-ghost" src="/assets/pets/pet-ghost.png" alt="" />
+      <p class="dp404-eyebrow">SIGNAL LOST</p>
+      <div class="dp404-code" aria-hidden="true">404</div>
+      <h1 class="dp404-title">THIS PAGE DOESN'T EXIST</h1>
+      <p class="dp404-copy">
+        The link may be broken, or this level got deleted. Nothing is waiting here,
+        but you can jump back into the game or roll a fresh random level.
+      </p>
+      <p class="dp404-path" id="dp404Path"></p>
+      <div class="dp404-actions">
+        <a class="px-btn good" href="/"><img src="/assets/ui/play.png" alt="" />BACK HOME</a>
+        <a class="px-btn gold" href="/?random">NEW RANDOM LEVEL</a>
+      </div>
+      <p class="dp404-hint">Press <b>H</b> for home or <b>R</b> for a random level</p>
+    </section>
+  </main>
+  <script>
+    (function () {
+      var path = document.getElementById("dp404Path");
+      if (path) {
+        var where = (window.location.pathname || "/") + (window.location.search || "");
+        path.innerHTML = "Nothing lives at <b></b>";
+        path.querySelector("b").textContent = where.length > 90 ? where.slice(0, 87) + "..." : where;
+      }
+      document.addEventListener("keydown", function (ev) {
+        if (ev.repeat || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+        var k = String(ev.key || "").toLowerCase();
+        if (k === "h") window.location.href = "/";
+        else if (k === "r") window.location.href = "/?random";
+      });
+    })();
+  </script>
+</body>
+</html>

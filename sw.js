@@ -11,11 +11,15 @@ const CACHE = "dashpoint-v19"; // bumped: random levels
 const CORE = [
   "./",
   "index.html",
+  "404.html",
   "random/index.html",
   "manifest.webmanifest",
   "assets/ui/icon-192.png",
   "assets/ui/icon-512.png",
   "css/game.css",
+  "assets/ui/title.png",
+  "assets/ui/play.png",
+  "assets/pets/pet-ghost.png",
   "js/app.js",
   "js/game.js",
   "js/network.js",
@@ -43,6 +47,23 @@ self.addEventListener("activate", (ev) => {
       .then(() => self.clients.claim())
   );
 });
+
+function notFoundPage() {
+  return caches.match("404.html").then(function (hit) {
+    if (!hit) {
+      return new Response("Not found", {
+        status: 404,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      });
+    }
+    return hit.text().then(function (html) {
+      return new Response(html, {
+        status: 404,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    });
+  });
+}
 
 self.addEventListener("fetch", (ev) => {
   const req = ev.request;
@@ -74,9 +95,11 @@ self.addEventListener("fetch", (ev) => {
         })
         .catch(() => hit);
       if (req.mode === "navigate") {
-        return net.catch(() =>
-          hit || caches.match("index.html").then((r) => r || caches.match("./"))
-        );
+        return net.then((res) => {
+          if (res && res.status === 404) return notFoundPage();
+          if (res) return res;
+          return caches.match("index.html").then((r) => r || caches.match("./") || notFoundPage());
+        });
       }
       if (netFirst) return net.catch(() => hit);
       return hit || net;
