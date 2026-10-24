@@ -1862,7 +1862,7 @@
     function tuffFmtT(t) {
       t = Math.max(0, t);
       var m = Math.floor(t / 60), s = t - m * 60;
-      return m + ":" + (s < 10 ? "0" : "") + s.toFixed(2);
+      return m + ":" + (s < 10 ? "0" : "") + s.toFixed(3);
     }
     function drawHud(et, runT) {
       try {
@@ -2091,7 +2091,7 @@
   let lastLbPaint = null;
 
   async function adminChangeLbTime(file, uid, name, current) {
-    var raw = prompt("New time in seconds for " + (name || "this player") + " (now " + fmtTime(current) + ")", Number(current).toFixed(2));
+    var raw = prompt("New time in seconds for " + (name || "this player") + " (now " + fmtTime(current) + ")", Number(current).toFixed(3));
     if (raw == null) return;
     var next = parseLbTimeInput(raw);
     if (!isFinite(next) || next < 0) { showNotice("That time isn't valid.", true); return; }
@@ -2504,7 +2504,7 @@
   }
 
   function fmtTime(t) {
-    return Number(t).toFixed(2) + "s";
+    return Number(t).toFixed(3) + "s";
   }
 
   function hasSpaceUnlock() {
@@ -4820,7 +4820,7 @@
     } catch (e) { return false; }
   }
   function setStatusHud() {
-    el("hudTime").textContent = (state.engine ? state.engine.time : 0).toFixed(2);
+    el("hudTime").textContent = (state.engine ? state.engine.time : 0).toFixed(3);
     el("hudDeaths").textContent = "deaths " + state.deaths;
     const hk = el("hudKeys");
     if (hk) {

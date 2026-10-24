@@ -2890,11 +2890,11 @@
           try { syncVerifyUI(); } catch (e) {}
         }
         document.getElementById("winText").textContent =
-          "Time " + state.engine.time.toFixed(2) + "s  ·  deaths " + state.deaths + extra;
+          "Time " + state.engine.time.toFixed(3) + "s  ·  deaths " + state.deaths + extra;
         els.winCard.classList.add("visible");
       }
       followPlayer();
-      els.hudTime.textContent = state.engine.time.toFixed(2) + "s";
+      els.hudTime.textContent = state.engine.time.toFixed(3) + "s";
       els.hudDeaths.textContent = "deaths " + state.deaths;
     }
 
