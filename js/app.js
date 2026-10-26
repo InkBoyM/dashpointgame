@@ -2271,17 +2271,31 @@
   function sanitizeReplayGhost(ghost) {
     if (!ghost || !Array.isArray(ghost.points) || !ghost.points.length) return null;
     var pts = [];
-    var missingT = 0;
     for (var i = 0; i < ghost.points.length && pts.length < 20000; i++) {
       var p = ghost.points[i];
       if (!p) continue;
       var x = Number(p.x), y = Number(p.y), t = Number(p.t);
       if (!isFinite(x) || !isFinite(y)) continue;
-      if (!isFinite(t) || t < 0) { t = i * 0.05; missingT++; }
+      if (!isFinite(t) || t < 0) t = i * 0.05;
       pts.push({ x: x, y: y, rot: Number(p.rot) || 0, t: t });
     }
     if (!pts.length) return null;
-    if (missingT) pts.sort(function (a, b) { return a.t - b.t; });
+    // Older saves can contain points from previous attempts or levels. Keep the
+    // latest contiguous run so the camera follows the run the board time is for.
+    var start = pts.length - 1;
+    for (var s = pts.length - 2; s >= 0; s--) {
+      if (pts[s].t <= pts[start].t + 0.0001) start = s;
+      else break;
+    }
+    if (start > 0) pts = pts.slice(start);
+    pts.sort(function (a, b) { return a.t - b.t; });
+    var run = [];
+    for (var q = 0; q < pts.length; q++) {
+      var cur = pts[q];
+      if (run.length && Math.abs(cur.t - run[run.length - 1].t) < 0.000001) run[run.length - 1] = cur;
+      else run.push(cur);
+    }
+    pts = run;
     var lastT = pts[pts.length - 1].t;
     var runTime = Number(ghost.time);
     if (!isFinite(runTime) || runTime < lastT) runTime = lastT;
@@ -5206,6 +5220,7 @@
       save();
     }
     state.engine = new DP.Engine(entry.level.clone(), { skin: save_.data.skin, trail: equippedTrailId(), pet: equippedPetId() });
+    resetGhostTrail();
     refreshCrown();
     if (DP.Music) DP.Music.play(entry.level.song);
     state.playing = true;
