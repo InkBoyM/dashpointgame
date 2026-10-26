@@ -889,6 +889,8 @@ window.DPNet = (function () {
   function saveGhostLocal(levelFile, ghost) {
     try {
       const all = JSON.parse(localStorage.getItem(GHOST_KEY) || "{}");
+      const prev = all[levelFile];
+      if (prev && isFinite(Number(prev.time)) && Number(prev.time) <= Number(ghost.time) + 0.0005) return;
       all[levelFile] = ghost;
       localStorage.setItem(GHOST_KEY, JSON.stringify(all));
     } catch(e){}
@@ -903,7 +905,10 @@ window.DPNet = (function () {
     const u = getEffectiveUser() || getUser();
     if (!u) return;
     try {
-      await putJSON("/dashpoint/ghosts/" + sanitizeFirebaseKey(levelFile) + "/" + u.uid, { ghost: ghost, name: u.name, skin: ghost.skin || 1, time: ghost.time, updatedAt: Date.now() });
+      const path = "/dashpoint/ghosts/" + sanitizeFirebaseKey(levelFile) + "/" + u.uid;
+      const prev = await getJSON(path);
+      if (prev && prev.ghost && isFinite(Number(prev.ghost.time)) && Number(prev.ghost.time) <= Number(ghost.time) + 0.0005) return;
+      await putJSON(path, { ghost: ghost, name: u.name, skin: ghost.skin || 1, time: ghost.time, updatedAt: Date.now() });
     } catch(e){}
   }
   async function getGhostCloud(levelFile, uid) {

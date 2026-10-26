@@ -2424,7 +2424,9 @@
     replay.t = 0;
     replay.playing = true;
     var sub = "GHOST " + fmtTime(clean.time);
-    if (boardTime > 0 && Math.abs(boardTime - clean.time) >= 0.0005) sub += " - BOARD " + fmtTime(boardTime);
+    if (boardTime > 0 && Math.abs(boardTime - clean.time) >= 0.0005) {
+      sub = "BOARD " + fmtTime(boardTime) + " - GHOST " + fmtTime(clean.time) + (clean.time > boardTime ? " (SLOWER RUN)" : " (FASTER RUN)");
+    }
     el("replaySub").textContent = sub;
     el("replayLoading").classList.remove("visible");
     syncReplayUI();
@@ -5557,6 +5559,7 @@
     save_.data.beaten[entry.file] = true;
     if (save_.data.suspend && save_.data.suspend.file === entry.file) save_.data.suspend = null;
     const prevBest = save_.data.best[entry.file];
+    const bestRun = prevBest === undefined || prevBest === null || !isFinite(Number(prevBest)) || t <= Number(prevBest) + 0.0005;
     if (save_.data.best[entry.file] === undefined || t < save_.data.best[entry.file]) {
       save_.data.best[entry.file] = t;
     }
@@ -5580,7 +5583,7 @@
     try {
       var lvlFile = entry.file || entry.id || "unknown";
       var ghostToSave = { points: ghostTrail.slice(), time: t, skin: save_.data.skin, name: (window.DPNet && DPNet.getUser && DPNet.getUser() ? DPNet.getUser().name : "player") };
-      if (ghostTrail.length) { DPNet.saveGhostLocal(lvlFile, ghostToSave); DPNet.saveGhostCloud(lvlFile, ghostToSave); }
+      if (ghostTrail.length && bestRun) { DPNet.saveGhostLocal(lvlFile, ghostToSave); DPNet.saveGhostCloud(lvlFile, ghostToSave); }
     } catch(e){}
     try { showLeaderboardAfterWin(entry, t).then(function (lb) {
       try { sendRecordFeed(entry, t, firstClear, prevBest, lb && lb.rank ? lb.rank : 0); } catch (e) {}
