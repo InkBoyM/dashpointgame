@@ -912,8 +912,13 @@
     </div>
     <div class="replay-stage">
       <canvas id="replayView"></canvas>
+      <div class="replay-zoom" aria-label="Zoom controls">
+        <button type="button" class="px-btn tiny" id="btnReplayZoomOut" title="Zoom out" aria-label="Zoom out">-</button>
+        <button type="button" class="px-btn tiny replay-zoom-val" id="btnReplayZoomReset" title="Reset zoom" aria-label="Reset zoom">AUTO</button>
+        <button type="button" class="px-btn tiny" id="btnReplayZoomIn" title="Zoom in" aria-label="Zoom in">+</button>
+      </div>
       <div class="replay-loading" id="replayLoading">LOADING GHOST...</div>
-      <div class="replay-hint">SPACE play - LEFT/RIGHT seek - T trail - ESC close</div>
+      <div class="replay-hint">SPACE play - LEFT/RIGHT seek - +/- zoom - T trail - ESC close</div>
     </div>
     <div class="replay-controls">
       <button type="button" class="px-btn small good" id="btnReplayPlay">PLAY</button>

@@ -2251,6 +2251,7 @@
     t: 0,
     playing: false,
     speed: 1,
+    zoom: 0,
     showTrail: true,
     raf: 0,
     last: 0,
@@ -2355,6 +2356,7 @@
     replay.t = 0;
     replay.playing = false;
     replay.speed = 1;
+    replay.zoom = 0;
     replay.showTrail = save_.data.replayTrail !== false;
     replay.last = 0;
     replay.engine = {
@@ -2454,6 +2456,8 @@
     document.querySelectorAll(".replay-speed-btn").forEach(function (b) {
       b.classList.toggle("on", Number(b.dataset.speed) === replay.speed);
     });
+    var zoomLabel = el("btnReplayZoomReset");
+    if (zoomLabel) zoomLabel.textContent = replay.zoom > 0 ? replay.zoom.toFixed(1) + "x" : "AUTO";
   }
 
   function updateReplayProgress() {
@@ -2494,6 +2498,28 @@
     return Math.max(2, Math.min(4, Math.round(z * 100) / 100));
   }
 
+  function setReplayZoom(z) {
+    if (!replay.open || !isFinite(z)) return;
+    replay.zoom = Math.max(1, Math.min(8, Math.round(z * 100) / 100));
+    drawReplay();
+    syncReplayUI();
+  }
+
+  function stepReplayZoom(dir) {
+    if (!replay.open) return;
+    var cv = el("replayView");
+    var stage = cv && cv.parentElement;
+    var base = replay.zoom > 0 ? replay.zoom : (stage ? replayZoom(stage.clientWidth) : 3);
+    setReplayZoom(base * (dir > 0 ? 1.25 : 0.8));
+  }
+
+  function resetReplayZoom() {
+    if (!replay.open) return;
+    replay.zoom = 0;
+    drawReplay();
+    syncReplayUI();
+  }
+
   function drawReplay() {
     if (!replay.open) return;
     var cv = el("replayView");
@@ -2516,7 +2542,7 @@
         rot: 0,
       };
     }
-    var zoom = replayZoom(w);
+    var zoom = replay.zoom > 0 ? replay.zoom : replayZoom(w);
     var viewW = w / zoom, viewH = h / zoom;
     var cx = pos.x + DP.PLAYER_W / 2 - viewW / 2;
     var cy = pos.y + DP.PLAYER_H / 2 - viewH / 2;
@@ -2658,6 +2684,7 @@
     replay.ghost = null;
     replay.duration = 0;
     replay.t = 0;
+    replay.zoom = 0;
     replay.engine = null;
     cancelAnimationFrame(replay.raf);
     replay.raf = 0;
@@ -2684,6 +2711,21 @@
       seekReplay(code === "ArrowLeft" ? -(ev.shiftKey ? 1 : 5) : (ev.shiftKey ? 1 : 5));
       return;
     }
+    if (code === "Equal" || code === "NumpadAdd") {
+      ev.preventDefault();
+      stepReplayZoom(1);
+      return;
+    }
+    if (code === "Minus" || code === "NumpadSubtract") {
+      ev.preventDefault();
+      stepReplayZoom(-1);
+      return;
+    }
+    if (code === "Digit0" || code === "Numpad0") {
+      ev.preventDefault();
+      resetReplayZoom();
+      return;
+    }
     if (code === "KeyT") {
       ev.preventDefault();
       if (!ev.repeat) toggleReplayTrail();
@@ -2698,6 +2740,20 @@
     if (play) play.addEventListener("click", toggleReplayPlay);
     var trail = el("btnReplayTrail");
     if (trail) trail.addEventListener("click", toggleReplayTrail);
+    var zoomOut = el("btnReplayZoomOut");
+    if (zoomOut) zoomOut.addEventListener("click", function () { stepReplayZoom(-1); });
+    var zoomIn = el("btnReplayZoomIn");
+    if (zoomIn) zoomIn.addEventListener("click", function () { stepReplayZoom(1); });
+    var zoomReset = el("btnReplayZoomReset");
+    if (zoomReset) zoomReset.addEventListener("click", resetReplayZoom);
+    var replayView = el("replayView");
+    if (replayView) {
+      replayView.addEventListener("wheel", function (ev) {
+        if (!replay.open) return;
+        ev.preventDefault();
+        stepReplayZoom(ev.deltaY < 0 ? 1 : -1);
+      }, { passive: false });
+    }
     var scrub = el("replayScrub");
     if (scrub) {
       scrub.addEventListener("input", function () {
